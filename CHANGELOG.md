@@ -6,7 +6,7 @@
 
 - **`opencode` サブコマンド**: OpenCode 連携設定（`alias`, `install`, `uninstall`）
   - `alias`: `.opencode` → `.github` のシンボリックリンクを作成
-  - `install`: MCP 設定を元に `opencode.json`（hooks 形式）を生成
+  - `install`: テンプレートを元に `opencode.json` を生成
   - `uninstall`: `opencode.json` を削除
 - **`mcp load --file` コマンド**: `.mcp.json` から MCP サーバー設定を一括読み込み
 

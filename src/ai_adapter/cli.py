@@ -266,9 +266,6 @@ main.add_command(opencode_group)
 
 
 @main.command(name="sync")
-
-
-@main.command(name="sync")
 @click.option("--continue", "do_continue", is_flag=True, help="中断されたリベースを続行")
 @click.option("--abort", "do_abort", is_flag=True, help="リベースを中断")
 @click.option("--skip", "do_skip", is_flag=True, help="コミットをスキップ")

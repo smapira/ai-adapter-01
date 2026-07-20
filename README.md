@@ -63,7 +63,7 @@ ai-adapter agent add ~/my-agents/reviewer.md
 ai-adapter env add myhome
 
 # 4. スクリプトを追加
-ai-adapter bin add myhome ~/scripts/deploy.sh
+ai-adapter bin add --env myhome ~/scripts/deploy.sh
 
 # 5. スキルを追加
 ai-adapter skill add ~/my-skills/database-schema
@@ -76,7 +76,7 @@ cd your-project
 ai-adapter agent get reviewer      # → .github/agents/reviewer.md
 ai-adapter bin get --env myhome deploy   # → .github/bin/deploy.sh
 ai-adapter skill get database-schema  # → .github/skills/database-schema/
-ai-adapter mcp export --path vscode   # → .vscode/mcp.json
+ai-adapter mcp export   # → .mcp.json
 
 # 8. GitHub と同期（設定を共有）
 ai-adapter sync
@@ -173,6 +173,7 @@ ai-adapter env remove-all --force
 | `bin list --env <env>` | スクリプト一覧を表示（--env省略時は全環境） |
 | `bin remove --env <env> <name>` | スクリプトの登録を解除（--env省略時は環境解決） |
 | `bin remove-all` | 全てのスクリプトの登録を解除（`--force` 対応） |
+| `bin add-path` | `.github/bin/` を PATH に追加するシェル設定を出力・適用 |
 
 ```bash
 ai-adapter bin add --env myhome ~/scripts/deploy.sh
@@ -259,18 +260,18 @@ ai-adapter opencode install
 ai-adapter opencode uninstall
 ```
 
-### `ai-adapter export`
+### `ai-adapter bin add-path`
 
 カレントプロジェクトの `.github/bin/` を PATH に追加するシェル設定を出力・適用します。
 これにより `.github/bin/add_task.sh` を `add_task.sh` として直接実行できるようになります。
 
 ```bash
 # 対話的にシェル設定ファイルを選択
-ai-adapter export
+ai-adapter bin add-path
 
 # 直接 zshrc に書き込む
-ai-adapter export --shell zshrc
-ai-adapter export --shell bash_profile
+ai-adapter bin add-path --shell zshrc
+ai-adapter bin add-path --shell bash_profile
 ```
 
 ### `ai-adapter uninstall`

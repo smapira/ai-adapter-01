@@ -5,10 +5,12 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 from pathlib import Path
 
 import click
+import yaml
 
 from ai_adapter.config import (
     get_agents_dir,
@@ -19,9 +21,39 @@ from ai_adapter.config import (
 from ai_adapter.models import Agent
 
 
+def _parse_frontmatter(path: Path) -> dict:
+    """ファイルの YAML frontmatter をパースする。"""
+    content = path.read_text(encoding="utf-8")
+    match = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
+    if match:
+        data = yaml.safe_load(match.group(1))
+        return data if isinstance(data, dict) else {}
+    return {}
+
+
 def _get_agent_name_from_path(path: Path) -> str:
-    """ファイルパスからエージェント名（拡張子除く）を取得する。"""
-    return path.stem
+    """ファイルパスからエージェント名を取得する。
+
+    .agent.md ファイルの場合、YAML frontmatter の name を優先する。
+    それ以外は全拡張子を除去したファイル名を使用する。
+    """
+    if path.suffixes == [".agent", ".md"] or str(path).endswith(".agent.md"):
+        # .agent.md: frontmatter の name を優先
+        frontmatter = _parse_frontmatter(path)
+        name_from_fm = frontmatter.get("name", "").strip()
+        if name_from_fm:
+            return name_from_fm
+        # frontmatter がなければ全拡張子除去
+        p = path
+        while p.suffix:
+            p = p.with_suffix("")
+        return p.name
+
+    # それ以外: 全拡張子を除去
+    p = path
+    while p.suffix:
+        p = p.with_suffix("")
+    return p.name
 
 
 @click.group(name="agent")
@@ -58,6 +90,19 @@ def agent_add(path: str) -> None:
     src = Path(path).resolve()
     agents_dir = get_agents_dir()
     agents_dir.mkdir(parents=True, exist_ok=True)
+
+    # .agent.md のフォーマットバリデーション
+    if str(src).endswith(".agent.md"):
+        frontmatter = _parse_frontmatter(src)
+        if not frontmatter:
+            raise click.ClickException(
+                ".agent.md ファイルには YAML frontmatter が必要です。"
+            )
+        name_from_fm = frontmatter.get("name", "").strip()
+        if not name_from_fm:
+            raise click.ClickException(
+                ".agent.md ファイルの frontmatter に name プロパティが必要です。"
+            )
 
     name = _get_agent_name_from_path(src)
     dest = agents_dir / src.name
@@ -97,16 +142,49 @@ def agent_get(name: str, project_dir: str | None) -> None:
 
     NAME: 取得するエージェント名（拡張子不要）。
     """
+    config = load_config()
     agents_dir = get_agents_dir()
-    # .md 拡張子を試す
-    src_md = agents_dir / f"{name}.md"
-    src_try = agents_dir / name
 
-    if src_md.exists():
-        src = src_md
-    elif src_try.exists() and src_try.is_file():
-        src = src_try
-    else:
+    src = None
+
+    # Step 1: config に登録名があれば、そのエージェントのファイルを探す
+    if config:
+        for agent_cfg in config.agents:
+            if agent_cfg.name == name:
+                # 登録名が一致: agents_dir 内の全ファイルから frontmatter name が一致するものを探す
+                for f in agents_dir.iterdir():
+                    if not f.is_file():
+                        continue
+                    try:
+                        fm = _parse_frontmatter(f)
+                        if fm.get("name", "").strip() == name:
+                            src = f
+                            break
+                    except Exception:
+                        continue
+                if src is None:
+                    # frontmatter が見つからなければファイル名で一致確認
+                    if (agents_dir / f"{name}.agent.md").exists():
+                        src = agents_dir / f"{name}.agent.md"
+                    elif (agents_dir / f"{name}.md").exists():
+                        src = agents_dir / f"{name}.md"
+                    elif (agents_dir / name).exists():
+                        src = agents_dir / name
+                break
+
+    # Step 2: config にない場合はファイル名ベースで探索（後方互換性）
+    if src is None:
+        candidates = [
+            agents_dir / f"{name}.agent.md",
+            agents_dir / f"{name}.md",
+            agents_dir / name,
+        ]
+        for c in candidates:
+            if c.exists() and c.is_file():
+                src = c
+                break
+
+    if src is None:
         click.echo(f"エージェント '{name}' が見つかりません。", err=True)
         raise click.ClickException(f"エージェント '{name}' は登録されていません。")
 
@@ -154,7 +232,14 @@ def agent_remove(name: str, keep_file: bool) -> None:
     if not keep_file:
         agents_dir = get_agents_dir()
         for f in agents_dir.iterdir():
-            if f.stem == name or f.name == name:
+            # .agent.md / .md / そのまま のパターンで一致確認
+            candidates = [
+                f.name == f"{name}.agent.md",
+                f.name == f"{name}.md",
+                f.name == name,
+                _get_agent_name_from_path(f) == name,
+            ]
+            if any(candidates):
                 f.unlink()
                 click.echo(f"ファイル {f.name} を削除しました。")
                 break

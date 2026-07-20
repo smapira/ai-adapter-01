@@ -46,6 +46,7 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("bin", result.output)
         self.assertIn("skill", result.output)
         self.assertIn("mcp", result.output)
+        self.assertIn("opencode", result.output)
         self.assertIn("sync", result.output)
         self.assertIn("uninstall", result.output)
         self.assertIn("start", result.output)
@@ -135,6 +136,14 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("export", result.output)
         self.assertIn("enable", result.output)
         self.assertIn("disable", result.output)
+
+    def test_opencode_help(self):
+        """opencode --help が表示されることを確認する。"""
+        result = self.runner.invoke(main, ["opencode", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("alias", result.output)
+        self.assertIn("install", result.output)
+        self.assertIn("uninstall", result.output)
 
 
 class TestUninstallCommand(unittest.TestCase):

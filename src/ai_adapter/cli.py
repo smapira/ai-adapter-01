@@ -18,6 +18,7 @@ from ai_adapter.agent import agent_group
 from ai_adapter.bin import bin_group
 from ai_adapter.env import env_group
 from ai_adapter.mcp import mcp_group
+from ai_adapter.opencode import opencode_group
 from ai_adapter.skill import skill_group
 from ai_adapter.sync import sync_command
 
@@ -252,4 +253,6 @@ main.add_command(env_group)
 main.add_command(bin_group)
 main.add_command(skill_group)
 main.add_command(mcp_group)
+main.add_command(skill_group)
+main.add_command(opencode_group)
 main.add_command(sync_command)

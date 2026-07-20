@@ -236,6 +236,30 @@ ai-adapter mcp export
 ai-adapter mcp export --path /path/to/project
 ```
 
+### `ai-adapter opencode`
+
+OpenCode 連携設定を管理します。
+
+| コマンド | 説明 |
+|---------|------|
+| `opencode alias` | `.opencode` → `.github` のシンボリックリンクを作成 |
+| `opencode install` | `opencode.json` をカレントディレクトリに生成 |
+| `opencode uninstall` | `opencode.json` を削除 |
+
+```bash
+# .opencode から .github へのエイリアスを作成
+echo "node_modules" > .github/.opencode-ignore
+touch .github/config.json
+ai-adapter opencode alias
+
+# MCP 設定を元に opencode.json を生成
+ai-adapter mcp add github --command npx --args @modelcontextprotocol/server-github
+ai-adapter opencode install
+
+# 削除
+ai-adapter opencode uninstall
+```
+
 ### `ai-adapter uninstall`
 
 `~/.ai-adapter/` を削除して初期状態に戻します。

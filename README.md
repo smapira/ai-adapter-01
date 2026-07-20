@@ -14,37 +14,40 @@ CLIで操作し、スクリプトのグループ選択とスクリプトのフ�
 
 ## 必須要件コマンド
 ```
-# agent management
+## agent management
 
 ai_adapter.py add agent MARKDOWN_FILE_PATH
-# => store a agent (ex, Reviewer, Implementer or Researcher..)
+# => store a agent (ex, Reviewer, Implementer or Researcher..) to ~/.ai-adapter
 
 ai_adapter.py get agent XXXX
 # => save a agent markdown to .github/agents/.
 
 ai_adapter.py del agent XXXX
 
-# environment management
+## environment management
 
 ai_adapter.py add env LOCAL_PROJECT_01
-# => store a environment name (ex, MyHome..)
+# => store a environment name (ex, MyHome..) to ~/.ai-adapter
 
 ai_adapter.py list
 # => show list all env
 
 ai_adapter.py del env LOCAL_PROJECT_01
 
-# script management
+## script management
 
 ai_adapter.py add bin ENVIRONMENT(optinal) SCRIPT_FILE_PATH 
-# => store a SCRIPT_FILE (ex, Reviewer, Implementer or Researcher..)
+# => copy a SCRIPT_FILE (ex, Reviewer, Implementer or Researcher..) to ~/.ai-adapter
 
 ai_adapter.py get bin ENVIRONMENT(optinal) SCRIPT
-# => save a agent markdown to .github/agents/.
+# => copy a script from  ~/.ai-adapter to .github/bin/.
 
 ai_adapter.py list bin ENVIRONMENT(optinal) 
 # => show specific script list
 
 ai_adapter.py del bin ENVIRONMENT(optinal) SCRIPT
+
+ai_adapter.py sync
+# => sync between ~/.ai-adapter and remote github repository (tihis repository)
 
 ```

@@ -56,7 +56,131 @@ ai-adapter --help
 
 ---
 
-## 2. プロジェクト構造
+## 2. データ保存先の設計（最重要）
+
+**すべてのデータは `~/.ai-adapter/` ディレクトリに保存する。**
+
+### ディレクトリ構成
+
+```
+~/.ai-adapter/
+├── config.yaml                 # メイン設定ファイル
+├── agents/                     # AIエージェント指示ファイル（add agent の保存先）
+│   ├── reviewer.md
+│   ├── implementer.md
+│   └── researcher.md
+├── env/                        # 環境設定（add env の保存先）
+│   └── ...                     # （名前のみ or 設定ファイル）
+└── bin/                        # スクリプトファイル（add bin のコピー先）
+    ├── deploy-prod.sh
+    ├── deploy-staging.sh
+    └── ...
+```
+
+### 各コマンドのデータフロー
+
+```
+# agent: 外部 → ~/.ai-adapter/ → プロジェクトへ展開
+ai_adapter.py add agent X.md    →  X.md を ~/.ai-adapter/agents/ にコピー
+ai_adapter.py get agent XXXX    →  ~/.ai-adapter/agents/XXXX.md を .github/agents/ にコピー
+ai_adapter.py del agent XXXX    →  ~/.ai-adapter/agents/XXXX.md を削除（config からも削除）
+
+# env: 名前管理 + デフォルト設定 + ユーザー紐付け
+ai_adapter.py add env X         →  config.yaml に env 名を保存
+ai_adapter.py list              →  config.yaml から env 一覧を表示（* 付きでデフォルト環境）
+ai_adapter.py del env X         →  config.yaml から env 名を削除（デフォルト環境は削除不可）
+ai_adapter.py set-default X     →  config.yaml の default_env を更新
+ai_adapter.py link-user <U> <E> →  config.yaml の user_bindings に追加
+
+# bin: 外部 → ~/.ai-adapter/ → プロジェクトへ展開（env 省略可）
+ai_adapter.py add bin [env] X.sh →  X.sh を ~/.ai-adapter/bin/ にコピー（env補完→ユーザー→デフォルト）
+ai_adapter.py get bin [env] X    →  ~/.ai-adapter/bin/X を .github/bin/ にコピー（env補完→ユーザー→デフォルト）
+ai_adapter.py list bin [env]     →  ~/.ai-adapter/bin/ の一覧を表示（省略時は全環境）
+ai_adapter.py del bin [env] X    →  ~/.ai-adapter/bin/X を削除（config からも削除）
+
+# sync: ~/.ai-adapter/ 全体を GitHub リモートと同期
+ai_adapter.py sync               →  ~/.ai-adapter/ を git push/pull
+```
+
+### 環境解決の優先順位（bin コマンドで env 省略時）
+
+```
+bin コマンド実行
+  │
+  ├─ env が明示指定されている → その env を使用
+  │
+  └─ env が省略されている
+       ├─ OS ユーザー名が user_bindings に存在 → その紐付け env を使用
+       └─ 存在しない → config.default_env を使用
+```
+
+### なぜ `~/.ai-adapter/` なのか
+
+| ユースケース | 仕組み |
+|-------------|--------|
+| 会社と家で設定を共有 | `~/.ai-adapter/` を Git リポジトリ化し、GitHub を介して同期（`sync` コマンド） |
+| 新PCに移行 | `git clone <url> ~/.ai-adapter` するだけ |
+| プロジェクトごとに展開 | `get agent` / `get bin` で必要なファイルだけ `.github/` に取り出す |
+
+---
+
+## 3. CLI コマンド設計
+
+### 全体構造
+
+```
+ai-adapter
+  ├── init                      # ~/.ai-adapter/ の初期化
+  ├── status                    # 現在の状態表示
+  ├── agent
+  │   ├── list                  # エージェント一覧
+  │   ├── add <path>            # エージェントファイルを ~/.ai-adapter/agents/ に追加
+  │   ├── get <name>            # エージェントを .github/agents/ にコピー
+  │   └── remove <name>         # エージェント削除
+  ├── env
+  │   ├── list                  # 環境一覧（* 付きでデフォルト環境を表示）
+  │   ├── default               # 現在のデフォルト環境を表示
+  │   ├── set-default <name>    # デフォルト環境を変更
+  │   ├── add <name>            # 環境名を追加
+  │   ├── remove <name>         # 環境名を削除（デフォルトは削除不可）
+  │   ├── link-user <user> <env>  # OSユーザー名と環境を紐付け
+  │   └── unlink-user <user>    # ユーザーと環境の紐付けを解除
+  ├── bin
+  │   ├── list [env]            # スクリプト一覧（省略時はデフォルト環境）
+  │   ├── add [env] <path>      # スクリプトを ~/.ai-adapter/bin/ にコピー
+  │   ├── get [env] <name>      # スクリプトを .github/bin/ にコピー
+  │   └── remove [env] <name>   # スクリプト削除
+  └── sync                      # ~/.ai-adapter/ を GitHub リモートと同期
+```
+
+### README のコマンドとの対応
+
+| README | 実際のコマンド | 動作 |
+|--------|---------------|------|
+| `add agent PATH` | `ai-adapter agent add PATH` | `~/.ai-adapter/agents/` にコピー |
+| `get agent XXXX` | `ai-adapter agent get XXXX` | `~/.ai-adapter/agents/` → `.github/agents/` にコピー |
+| `del agent XXXX` | `ai-adapter agent remove XXXX` | `~/.ai-adapter/agents/` から削除 |
+| `add env X` | `ai-adapter env add X` | `config.yaml` に env 名を保存 |
+| `list` (env) | `ai-adapter env list` | env 一覧を表示（* 付きでデフォルト環境） |
+| `del env X` | `ai-adapter env remove X` | `config.yaml` から env 名を削除（デフォルトは削除不可） |
+| `add bin [env] PATH` | `ai-adapter bin add [env] PATH` | `~/.ai-adapter/bin/` にコピー（env 省略時は環境解決） |
+| `get bin [env] SCRIPT` | `ai-adapter bin get [env] SCRIPT` | `~/.ai-adapter/bin/` → `.github/bin/` にコピー（env 省略時は環境解決） |
+| `list bin [env]` | `ai-adapter bin list [env]` | `~/.ai-adapter/bin/` の一覧表示（省略時は全環境） |
+| `del bin [env] SCRIPT` | `ai-adapter bin remove [env] SCRIPT` | `~/.ai-adapter/bin/` から削除（env 省略時は環境解決） |
+| `sync` | `ai-adapter sync` | `~/.ai-adapter/` を GitHub と同期 |
+
+### 追加コマンド一覧（README にはないが実装するもの）
+
+| コマンド | 動作 |
+|---------|------|
+| `env default` | 現在のデフォルト環境名を表示 |
+| `env set-default <name>` | デフォルト環境を変更 |
+| `env link-user <user> <env>` | OS ユーザーと環境を紐付け |
+| `env unlink-user <user>` | OS ユーザーと環境の紐付けを解除 |
+
+---
+
+## 4. プロジェクト構造
 
 ```
 ai-adapter/
@@ -70,22 +194,22 @@ ai-adapter/
 │   └── ai_adapter/
 │       ├── __init__.py         # __version__ = "0.1.0"
 │       ├── __main__.py         # python -m ai_adapter 対応
-│       ├── cli.py              # Click グループ定義 + plugin ロード
-│       ├── config.py           # ConfigManager: 設定読み書き
-│       ├── models.py           # Script, Group, InstructionSet, Config
-│       ├── group.py            # group サブコマンド
-│       ├── script.py           # script サブコマンド
-│       ├── instructions.py     # instructions サブコマンド
-│       ├── git.py              # Git 操作ラッパー
-│       └── plugin.py           # プラグイン管理
+│       ├── cli.py              # Click グループ定義
+│       ├── config.py           # ConfigManager: ~/.ai-adapter/config.yaml の読み書き
+│       ├── models.py           # データモデル（dataclass）
+│       ├── agent.py            # agent サブコマンド
+│       ├── env.py              # env サブコマンド
+│       ├── bin.py              # bin サブコマンド
+│       ├── sync.py             # sync コマンド（GitHub同期）
+│       └── git.py              # Git 操作ラッパー
 ├── tests/
 │   ├── __init__.py
 │   ├── test_config.py
-│   ├── test_group.py
-│   ├── test_script.py
-│   ├── test_instructions.py
+│   ├── test_agent.py
+│   ├── test_env.py
+│   ├── test_bin.py
+│   ├── test_sync.py
 │   ├── test_git.py
-│   ├── test_plugin.py
 │   └── test_cli.py             # CliRunner 統合テスト
 └── examples/
     └── sample-config.yaml      # サンプル設定ファイル
@@ -93,88 +217,9 @@ ai-adapter/
 
 ---
 
-## 3. データ保存先の設計（最重要）
-
-**すべてのデータは `~/.ai-adapter/` ディレクトリに保存する。**
-
-### ディレクトリ構成
-
-```
-~/.ai-adapter/
-├── config.yaml                 # メイン設定ファイル（グループ・スクリプト・指示セット管理）
-└── instructions/               # 指示セット（agent）の実体ファイル格納先
-    ├── code-assist.md
-    ├── review.md
-    └── ...
-```
-
-### なぜ `~/.ai-adapter/` なのか
-
-| ユースケース | 課題 | 解決策 |
-|-------------|------|--------|
-| 会社と家で同じLLM設定を使いたい | プロジェクト単位だと共有が面倒 | `~/.ai-adapter/` に一元保存し、`.github/instructions/` にシンボリックリンク or コピー |
-| 新PCに設定を移行したい | 設定が各プロジェクトに散らばっている | `~/.ai-adapter/` ごとコピーすれば移行完了 |
-| GitHubで設定を管理したい | グローバル設定はGit管理しづらい | `git init` & `git remote add` で `~/.ai-adapter/` 自体をGitリポジトリ化可能 |
-
-### 設定ファイルのパス
-
-- **パス**: `~/.ai-adapter/config.yaml`
-- **環境変数でオーバーライド可能**（必要に応じて）: `AI_ADAPTER_CONFIG=/path/to/config.yaml`
-- 設定ファイルが見つからない場合は `ai-adapter init` で新規作成する
-
----
-
-## 4. CLI コマンド設計
-
-### 全体構造
-
-```
-ai-adapter
-  ├── init                      # ~/.ai-adapter/ の初期化
-  ├── status                    # 現在の状態表示
-  ├── group
-  │   ├── list                  # グループ一覧
-  │   ├── create <name>         # グループ作成
-  │   ├── delete <name>         # グループ削除
-  │   ├── rename <old> <new>    # グループ名変更
-  │   └── show <name>           # グループ詳細（スクリプト一覧含む）
-  ├── script
-  │   ├── list [group]          # スクリプト一覧（グループ指定でフィルタ）
-  │   ├── add <group> <path>    # スクリプト追加
-  │   ├── remove <group> <name> # スクリプト削除
-  │   ├── run <group> <name>    # スクリプト実行
-  │   └── show <group> <name>   # スクリプト詳細
-  ├── instructions
-  │   ├── list                  # 指示セット一覧
-  │   ├── use <name>            # 指示セット切替
-  │   ├── show [name]           # 指示セット内容表示
-  │   ├── add <path>            # 指示セット追加
-  │   └── remove <name>         # 指示セット削除
-  └── plugin
-      ├── list                  # 有効プラグイン一覧
-      └── info <name>           # プラグイン詳細
-```
-
-### README の希望コマンドとの対応
-
-| README での希望 | 実際のコマンド | データの保存先 |
-|----------------|---------------|---------------|
-| `ai_adapter.py add agent X` | `ai-adapter instructions add X` | `~/.ai-adapter/instructions/` にコピー + `config.yaml` に登録 |
-| `ai_adapter.py get agent X` | `ai-adapter instructions use X` | `config.yaml` の `current` を更新 |
-| `ai_adapter.py del agent X` | `ai-adapter instructions remove X` | `config.yaml` から削除（ファイルはオプションで残せる） |
-| `ai_adapter.py add env X` | `ai-adapter group create X` | `config.yaml` にグループを追加 |
-| `ai_adapter.py list` | `ai-adapter group list` | `config.yaml` から読み取り |
-| `ai_adapter.py del env X` | `ai-adapter group delete X` | `config.yaml` からグループを削除 |
-| `ai_adapter.py add bin [env] X` | `ai-adapter script add [group] X` | `config.yaml` にスクリプトパスを追加 |
-| `ai_adapter.py get bin [env] X` | `ai-adapter script run [group] X` | `config.yaml` からパスを読み取り実行 |
-| `ai_adapter.py list bin [env]` | `ai-adapter script list [group]` | `config.yaml` から読み取り |
-| `ai_adapter.py del bin [env] X` | `ai-adapter script remove [group] X` | `config.yaml` から削除 |
-
----
-
 ## 5. 開発の進め方（実装順序）
 
-### フェーズ 1 — プロジェクト基盤（最初にやること）
+### フェーズ 1 — プロジェクト基盤
 
 | Step | 内容 | ファイル | 並列可否 |
 |------|------|---------|---------|
@@ -184,34 +229,30 @@ ai-adapter
 | 1.4 | CLI エントリーポイント | `src/ai_adapter/cli.py` | 1.3 と並列可 |
 | 1.5 | テスト基盤 | `tests/` 一式 | 全 Step と並列可 |
 
-**実装のコツ**: Step 1.1 でディレクトリ構造と `pyproject.toml` を作ったら、Step 1.2〜1.5 は同時並行で進めてよい。models → config → cli の依存関係だけ守ること。
-
-### フェーズ 2 — コア機能（メイン実装）
+### フェーズ 2 — コア機能
 
 | Step | 内容 | 依存 | 並列可否 |
 |------|------|------|---------|
-| 2.1 | `group` コマンド | 1.2, 1.3, 1.4 | 2.2, 2.3 と並列可 |
-| 2.2 | `script` コマンド | 1.2, 1.3, 1.4 | 2.1, 2.3 と並列可 |
-| 2.3 | `instructions` コマンド | 1.2, 1.3, 1.4 | 2.1, 2.2 と並列可 |
-
-**実装のコツ**: 3 つのコマンドは互いに独立しているので同時並行で実装可能。各コマンドは `config.py` を介して設定ファイルを操作する。
+| 2.1 | `agent` コマンド | 1.2, 1.3, 1.4 | 2.2, 2.3 と並列可 |
+| 2.2 | `env` コマンド | 1.2, 1.3, 1.4 | 2.1, 2.3 と並列可 |
+| 2.3 | `bin` コマンド | 1.2, 1.3, 1.4 | 2.1, 2.2 と並列可 |
 
 ### フェーズ 3 — 基盤機能
 
 | Step | 内容 | 依存 | 並列可否 |
 |------|------|------|---------|
-| 3.1 | `init` / `status` コマンド | フェーズ2完了 | 3.2, 3.3 と並列可 |
-| 3.2 | Git 連携 (`git.py`) | なし | 3.1, 3.3 と並列可 |
-| 3.3 | プラグイン機構 (`plugin.py`) | なし | 3.1, 3.2 と並列可 |
+| 3.1 | `init` / `status` コマンド | フェーズ2完了 | 3.2 と並列可 |
+| 3.2 | `sync` コマンド（GitHub同期） | `git.py` | 3.1 と並列可 |
+| 3.3 | `git.py`（Git操作ラッパー） | なし | 3.1, 3.2 と並列可 |
 
 ### フェーズ 4 — 品質・公開準備
 
-| Step | 内容 | 依存 | 並列可否 |
-|------|------|------|---------|
-| 4.1 | ログ・エラーハンドリング統一 | フェーズ2,3完了 | 不可 |
-| 4.2 | テスト充実 | フェーズ2,3完了 | 不可 |
-| 4.3 | ドキュメント整備 | — | 不可 |
-| 4.4 | PyPI 公開準備 | — | 不可 |
+| Step | 内容 | 依存 |
+|------|------|------|
+| 4.1 | ログ・エラーハンドリング統一 | フェーズ2,3完了 |
+| 4.2 | テスト充実 | フェーズ2,3完了 |
+| 4.3 | ドキュメント整備 | — |
+| 4.4 | PyPI 公開準備 | — |
 
 ---
 
@@ -222,62 +263,195 @@ ai-adapter
 ```yaml
 # ~/.ai-adapter/config.yaml
 version: 1
-groups:
-  - name: deploy
-    description: デプロイ関連スクリプト
-    scripts:
-      - name: deploy-prod
-        path: scripts/deploy-prod.sh
-        description: 本番デプロイ
-      - name: deploy-staging
-        path: scripts/deploy-staging.sh
-        description: ステージングデプロイ
-instructions:
-  current: code-assist
-  items:
-    - name: code-assist
-      path: instructions/code-assist.md
-      description: コーディングアシスト用指示
-    - name: review
-      path: instructions/review.md
-      description: コードレビュー用指示
-plugins: {}
+default_env: default              # デフォルト環境の名前
+user_bindings:
+  - user: smapira                # OSのユーザー名
+    env: myhome                  # 紐付ける環境名
+  - user: smapira-office
+    env: office
+agents:
+  - name: reviewer
+    description: "コードレビュー用エージェント"
+  - name: implementer
+    description: "実装用エージェント"
+envs:
+  - name: default                 # デフォルト環境（init 時に自動生成、削除不可）
+    description: "デフォルト環境"
+  - name: myhome
+    description: "自宅開発環境"
+  - name: office
+    description: "会社開発環境"
+bins:
+  - name: deploy-prod.sh
+    env: myhome
+    description: "本番デプロイ"
+  - name: deploy-staging.sh
+    env: myhome
+    description: "ステージングデプロイ"
+  - name: format-all.sh
+    env: default
+    description: "コード整形"
 ```
 
 ### Python dataclass 定義
 
 ```python
 @dataclass
-class Script:
-    name: str
-    path: Path
-    description: str = ""
-    tags: list[str] = field(default_factory=list)
-
-@dataclass
-class Group:
+class Agent:
     name: str
     description: str = ""
-    scripts: list[Script] = field(default_factory=list)
 
 @dataclass
-class InstructionSet:
+class Env:
     name: str
-    path: Path
+    description: str = ""
+    is_default: bool = False      # デフォルト環境かどうか
+
+@dataclass
+class UserBinding:
+    user: str                     # OS ユーザー名（getpass.getuser()）
+    env: str                      # 紐付ける環境名
+
+@dataclass
+class Bin:
+    name: str
+    env: str | None = None
     description: str = ""
 
 @dataclass
 class Config:
-    groups: list[Group] = field(default_factory=list)
-    current_instructions: str | None = None
-    instructions: list[InstructionSet] = field(default_factory=list)
+    version: int = 1
+    agents: list[Agent] = field(default_factory=list)
+    envs: list[Env] = field(default_factory=list)
+    bins: list[Bin] = field(default_factory=list)
+    default_env: str = "default"  # デフォルト環境名
+    user_bindings: list[UserBinding] = field(default_factory=list)
 ```
 
 各 dataclass に `to_dict()` / `from_dict()` メソッドを実装し、YAML とのシリアライズを可能にすること。
 
 ---
 
-## 7. コーディング規約
+## 7. 各コマンドの実装詳細
+
+### 共通: 環境解決ロジック
+
+`bin` コマンドで `[env]` が省略された場合の環境解決順序:
+
+1. カレントOSユーザー名（`getpass.getuser()`）が `user_bindings` に存在すれば、その env を使用
+2. 存在しなければ `config.default_env` の値（デフォルトは `"default"`）を使用
+
+```python
+import getpass
+from pathlib import Path
+
+def resolve_env(config: Config, env_arg: str | None) -> str:
+    """env 引数が省略された場合に、ユーザー紐付け → デフォルト環境 の順で解決する"""
+    if env_arg:
+        return env_arg
+    # ユーザー紐付けをチェック
+    current_user = getpass.getuser()
+    for binding in config.user_bindings:
+        if binding.user == current_user:
+            return binding.env
+    # デフォルト環境を返す
+    return config.default_env
+```
+
+### `init`
+
+1. `~/.ai-adapter/` + `agents/` + `bin/` ディレクトリを作成
+2. `config.yaml` が存在しなければ、デフォルト設定で初期化:
+   - `default_env: "default"`
+   - `envs` に `name: default, description: "デフォルト環境"` を自動登録
+   - `user_bindings` は空
+3. 既存の設定があれば上書きしない
+
+### `agent add <path>`
+
+1. `<path>` のファイルを `~/.ai-adapter/agents/` にコピー
+2. `config.yaml` の `agents` にエントリを追加
+3. ファイル名（拡張子除く）をエージェント名として使用
+
+### `agent get <name>`
+
+1. `config.yaml` からエージェント名を検索
+2. `~/.ai-adapter/agents/<name>.md` をカレントプロジェクトの `.github/agents/<name>.md` にコピー
+3. コピー先ディレクトリが存在しなければ作成
+
+### `env add <name>`
+
+1. 同名の env が既に存在すればエラー
+2. `config.yaml` の `envs` に新しい Env を追加
+
+### `env remove <name>`
+
+1. env が存在しなければエラー
+2. `is_default == True` の env は削除不可（デフォルト環境は削除できない）
+3. `bins` でこの env を参照しているものがなければ削除
+4. 参照がある場合は警告メッセージを表示してから削除（または削除をブロック）
+
+### `env default`
+
+1. 現在の `config.default_env` を表示
+
+### `env set-default <name>`
+
+1. 指定された env が存在するか確認
+2. 存在すれば `config.default_env` を更新
+3. 存在しなければエラー
+
+### `env link-user <user> <env>`
+
+1. 指定された env が存在するか確認
+2. 同名のユーザー紐付けが既にあれば上書き
+3. `user_bindings` に新しい UserBinding を追加
+4. 使用例:
+   ```bash
+   ai-adapter env link-user "$(whoami)" myhome
+   # → このPCでは自動的に myhome 環境が使われる
+   ```
+
+### `env unlink-user <user>`
+
+1. 指定されたユーザーの紐付けを削除
+2. 存在しなければエラー
+
+### `bin add [env] <path>`
+
+1. `[env]` が省略された場合は環境解決ロジックで補完
+2. `<path>` のファイルを `~/.ai-adapter/bin/` にコピー
+3. `config.yaml` の `bins` にエントリを追加（env 名も記録）
+
+### `bin get [env] <name>`
+
+1. `[env]` が省略された場合は環境解決ロジックで補完
+2. `config.yaml` から env + name でスクリプトを検索
+3. `~/.ai-adapter/bin/<name>` を `.github/bin/<name>` にコピー
+4. コピー先ディレクトリが存在しなければ作成
+
+### `bin list [env]`
+
+1. `[env]` が省略された場合は全環境のスクリプトを表示
+2. 指定された場合はフィルタリングして表示
+
+### `bin remove [env] <name>`
+
+1. `[env]` が省略された場合は環境解決ロジックで補完
+2. `config.yaml` からエントリを削除
+3. `~/.ai-adapter/bin/<name>` のファイルは削除しない（config 登録のみ解除）
+
+### `sync`
+
+1. `~/.ai-adapter/` が Git リポジトリとして初期化されているか確認
+2. 未初期化なら `git init` を実行し、リモート登録を促す
+3. `git add -A && git commit` でローカルの変更をコミット
+4. `git pull --rebase` でリモートの変更を取り込み
+5. `git push` でローカルの変更を反映
+
+---
+
+## 8. コーディング規約
 
 ### Python スタイル
 
@@ -294,23 +468,21 @@ class Config:
 ### モジュール分割ルール
 
 - **`models.py`**: dataclass 定義と YAML シリアライズのみ。ビジネスロジックは書かない。
-- **`config.py`**: 設定ファイルの読み書き・パス解決・バリデーションのみ。
-  - `~/.ai-adapter/` のパス解決を担当（`Path.home() / ".ai-adapter"`）
-  - 環境変数 `AI_ADAPTER_CONFIG` によるオーバーライド対応
-- **`cli.py`**: Click グループとサブコマンドの定義、プラグインロード。薄く保つ。
-- **`group.py` / `script.py` / `instructions.py`**: 各サブコマンドの実装。`config.py` を介してデータを操作。
-- **`git.py`**: `subprocess` で git コマンドをラップ。エラーハンドリングを丁寧に。
-- **`plugin.py`**: `importlib.metadata.entry_points` でプラグイン検出。
+- **`config.py`**: `~/.ai-adapter/config.yaml` の読み書き・バリデーション。
+- **`cli.py`**: Click グループとサブコマンドの定義。薄く保つ。
+- **`agent.py` / `env.py` / `bin.py`**: 各サブコマンドの実装。ファイルコピー操作を含む。
+- **`sync.py`**: GitHub 同期ロジック。`git.py` を利用。
+- **`git.py`**: `subprocess` で git コマンドをラップ。
 
 ### エラーハンドリング
 
 - ユーザー向けエラーは `click.ClickException` を継承したカスタム例外を使用
-- 予期せぬエラーは `logging` モジュールで記録し、一般的なメッセージを表示
+- 予期せぬエラーは `logging` モジュールで記録
 - 終了コードは一貫させる（成功: 0, ユーザーエラー: 1, システムエラー: 2）
 
 ---
 
-## 8. テスト方針
+## 9. テスト方針
 
 ### フレームワーク
 
@@ -322,11 +494,11 @@ class Config:
 | テストファイル | テスト対象 | テクニック |
 |--------------|-----------|-----------|
 | `test_config.py` | `config.py` | `tempfile.TemporaryDirectory` + `monkeypatch` で `~/.ai-adapter` を一時ディレクトリに差し替え |
-| `test_group.py` | `group.py` | 設定ファイルを介したCRUD操作の検証 |
-| `test_script.py` | `script.py` | スクリプト追加・削除・実行の検証 |
-| `test_instructions.py` | `instructions.py` | 指示セットの追加・切替・削除の検証 |
+| `test_agent.py` | `agent.py` | ファイルのコピー・削除の検証 |
+| `test_env.py` | `env.py` | CRUD操作の検証 |
+| `test_bin.py` | `bin.py` | ファイルコピー・削除・一覧表示の検証 |
+| `test_sync.py` | `sync.py` | `subprocess` 呼び出しのモック化 |
 | `test_git.py` | `git.py` | `subprocess` 呼び出しのモック化 |
-| `test_plugin.py` | `plugin.py` | エントリーポイントのモック化 |
 | `test_cli.py` | `cli.py` | `CliRunner` で CLI 統合テスト |
 
 ### テスト実行
@@ -344,12 +516,63 @@ uv run python -m unittest discover tests -v
 
 ---
 
-## 9. Git 運用ルール
+## 10. config.py の実装詳細
+
+### 設定ディレクトリのパス解決
+
+```python
+import os
+from pathlib import Path
+
+AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+
+def get_config_path() -> Path:
+    """設定ファイルのパスを返す。"""
+    env = os.environ.get("AI_ADAPTER_CONFIG")
+    if env:
+        return Path(env)
+    return AI_ADAPTER_DIR / "config.yaml"
+
+def get_agents_dir() -> Path:
+    return AI_ADAPTER_DIR / "agents"
+
+def get_bins_dir() -> Path:
+    return AI_ADAPTER_DIR / "bin"
+```
+
+### `init` コマンドの処理
+
+```python
+def init():
+    """~/.ai-adapter/ ディレクトリを初期化"""
+    dirs = [
+        AI_ADAPTER_DIR,
+        AI_ADAPTER_DIR / "agents",
+        AI_ADAPTER_DIR / "bin",
+    ]
+    for d in dirs:
+        d.mkdir(parents=True, exist_ok=True)
+    # config.yaml が存在しなければデフォルト設定を書き込み
+    if not get_config_path().exists():
+        config = Config(
+            version=1,
+            default_env="default",
+            envs=[
+                Env(name="default", description="デフォルト環境"),
+            ],
+            user_bindings=[],
+        )
+        save_config(config)
+```
+
+---
+
+## 11. Git 運用ルール
 
 ### ブランチ戦略
 
 - `main`: リリースブランチ。常に安定。
-- `feat/xxx`: 機能開発ブランチ。`main` から分岐して `main` にマージ。
+- `feat/xxx`: 機能開発ブランチ。
 - `fix/xxx`: バグ修正ブランチ。
 
 ### コミットメッセージのプレフィックス
@@ -372,111 +595,84 @@ uv run python -m unittest discover tests -v
 
 ---
 
-## 10. config.py の実装詳細（重要）
+## 12. `sync` コマンドの設計（重要）
 
-### 設定ファイルのパス解決
+### 処理フロー
 
-```python
-import os
-from pathlib import Path
-
-def get_config_dir() -> Path:
-    """設定ディレクトリ ~/.ai-adapter/ を返す。環境変数でオーバーライド可能。"""
-    env = os.environ.get("AI_ADAPTER_CONFIG")
-    if env:
-        return Path(env).parent
-    return Path.home() / ".ai-adapter"
-
-def get_config_path() -> Path:
-    """設定ファイルのパスを返す。"""
-    env = os.environ.get("AI_ADAPTER_CONFIG")
-    if env:
-        return Path(env)
-    return Path.home() / ".ai-adapter" / "config.yaml"
+```
+ai-adapter sync
+  │
+  ├─ Step 1: ~/.ai-adapter/ が Git リポジトリか確認
+  │   ├─ Yes → そのまま
+  │   └─ No  → git init + リモート登録を促すメッセージ
+  │
+  ├─ Step 2: git add -A && git commit
+  │   └─ 変更がない場合はスキップ
+  │
+  ├─ Step 3: git pull --rebase origin main
+  │   └─ コンフリクトがあればユーザーに手動解決を促す
+  │
+  └─ Step 4: git push origin main
 ```
 
-### 設定ファイルの探索ルール
+### リモートリポジトリの管理
 
-1. 環境変数 `AI_ADAPTER_CONFIG` が設定されていればそのパスを使用
-2. デフォルトは `~/.ai-adapter/config.yaml`
-3. ファイルが存在しなければ `ai-adapter init` で作成するよう促す
-4. `init` コマンドは `~/.ai-adapter/` ディレクトリと `config.yaml`、`instructions/` ディレクトリを作成
+- リモートURLは `config.yaml` の `remote` フィールドに保存する案と、`git remote` で管理する案がある
+- シンプルさ優先で **`git remote` で管理** とする
+- `sync` 初回実行時にリモートが未設定なら設定を促す
 
-### パスの解決ルール
+### コンフリクト対応
 
-- スクリプトの `path` は**絶対パスとして保存する**（どのディレクトリから実行しても正しく動作するように）
-- 指示セットの `path` は `~/.ai-adapter/` からの相対パスで保存する
-
----
-
-## 11. アーキテクチャ上の注意点
-
-### プラグイン設計
-
-- プラグインは **オプション**。コア機能はプラグインなしで完結する。
-- エントリーポイントグループ名: `ai_adapter.plugins`
-- 各プラグインは Click の `Group` または `Command` を提供する
-- `cli.py` の起動時に自動ロードされる
-
-### Git 連携
-
-- `subprocess` ベース。追加依存なし。
-- シンプルな操作のみラップ（`init`, `add`, `commit`）
-- Git 未インストール時は適切なエラーメッセージ
-- `~/.ai-adapter/` をGitリポジトリとして初期化し、設定をGit管理可能にする
-
-### 指示セット管理
-
-- `~/.ai-adapter/instructions/` ディレクトリ配下で実体ファイルを管理
-- `ai-adapter instructions add <path>`: ファイルを `~/.ai-adapter/instructions/` にコピーし、`config.yaml` に登録
-- `ai-adapter instructions use <name>`: `config.yaml` の `current` フィールドを更新
-  - 必要に応じて `.github/instructions/current` へのシンボリックリンクも作成
-- `ai-adapter instructions show [name]`: `~/.ai-adapter/instructions/` のファイル内容を表示
+- `pull --rebase` でコンフリクトが発生した場合は `git rebase --abort` してエラーメッセージを表示
+- ユーザーに手動解決を促す（自動解決は行わない）
 
 ---
 
-## 12. 検証手順（リリース前チェックリスト）
+## 13. 検証手順（リリース前チェックリスト）
 
 - [ ] `uv run python -m unittest discover tests` が全件 PASS
-- [ ] `ai-adapter init` で `~/.ai-adapter/` が生成される
-- [ ] `ai-adapter group create test-group` でグループ作成できる
-- [ ] `ai-adapter script add test-group /path/to/script.sh` でスクリプト追加できる
-- [ ] `ai-adapter script run test-group script.sh` でスクリプト実行できる
-- [ ] `ai-adapter instructions list` で指示セット一覧が表示される
-- [ ] 存在しないグループの削除でエラーになる
-- [ ] 重複作成でエラーになる
-- [ ] `AI_ADAPTER_CONFIG` 環境変数で設定ファイルパスをオーバーライドできる
-- [ ] `README.md` の手順通りに操作できる
+- [ ] `ai-adapter init` で `~/.ai-adapter/` + `agents/` + `bin/` が生成される
+- [ ] `ai-adapter agent add test.md` で `~/.ai-adapter/agents/` にコピーされる
+- [ ] `ai-adapter agent get test` で `.github/agents/test.md` にコピーされる
+- [ ] `ai-adapter env add myenv` で env が追加される
+- [ ] `ai-adapter env list` で env 一覧が表示される
+- [ ] `ai-adapter env default` でデフォルト環境名が表示される
+- [ ] `ai-adapter env set-default myenv` でデフォルト環境が変更される
+- [ ] `ai-adapter env link-user $(whoami) myenv` でユーザーと環境が紐付く
+- [ ] `ai-adapter env unlink-user $(whoami)` で紐付けが解除される
+- [ ] デフォルト環境 (`default`) は削除できない
+- [ ] `ai-adapter bin add script.sh` で `~/.ai-adapter/bin/` にコピーされる
+- [ ] `ai-adapter bin get script.sh` で `.github/bin/script.sh` にコピーされる
+- [ ] `ai-adapter bin list` でスクリプト一覧が表示される
+- [ ] `ai-adapter del agent/bin/env` で該当エントリが削除される
+- [ ] `ai-adapter sync` で Git 同期が実行される（または未初期化の促し）
+- [ ] `README.md` の全コマンドが正常動作する
 
 ---
 
-## 13. 参考: README の希望仕様との対応
-
-README では `ai_adapter.py` というスクリプト名で例示されているが、本プロジェクトでは **`ai-adapter`** という CLI コマンド名で提供する（`pyproject.toml` の `[project.scripts]` で登録）。
-
-また、README では「データはローカルの `~/.ai-adapter` の中に格納する」と明記されている。すべての設定・データはこのディレクトリ配下に一元管理する。
+## 14. README のコマンドとの対応（リファレンス）
 
 ```
-README での希望例:
-  ai_adapter.py add agent MARKDOWN_FILE_PATH
-  ai_adapter.py get agent XXXX
-  ai_adapter.py del agent XXXX
+# agent: ~/.ai-adapter/agents/ が実体保存先
+add agent PATH   →  PATH を ~/.ai-adapter/agents/ にコピー
+get agent NAME   →  ~/.ai-adapter/agents/NAME.md → .github/agents/NAME.md にコピー
+del agent NAME   →  ~/.ai-adapter/agents/NAME.md を削除
 
-実際のコマンド:
-  ai-adapter instructions add MARKDOWN_FILE_PATH   → ~/.ai-adapter/instructions/ に保存
-  ai-adapter instructions use XXXX                  → config.yaml の current を更新
-  ai-adapter instructions remove XXXX               → config.yaml から削除
+# env: config.yaml で管理（デフォルト環境 + ユーザー紐付け）
+add env NAME     →  config.yaml に env 名を追加
+list             →  config.yaml の env 一覧を表示（* デフォルト環境）
+del env NAME     →  config.yaml から env 名を削除（デフォルトは削除不可）
+default          →  現在のデフォルト環境名を表示
+set-default NAME →  デフォルト環境を変更
+link-user U E    →  OS ユーザー U を環境 E に紐付け
+unlink-user U    →  OS ユーザー U の紐付けを解除
 
-ユースケース:
-  # 会社の設定を ~/.ai-adapter/ ごとGitHubで管理
-  cd ~/.ai-adapter
-  git init && git add . && git commit -m "Initial config"
-  git remote add origin <url>
-  git push
+# bin: ~/.ai-adapter/bin/ が実体保存先（env 省略時は環境解決）
+add bin [env] PATH   →  PATH を ~/.ai-adapter/bin/ にコピー
+get bin [env] NAME   →  ~/.ai-adapter/bin/NAME → .github/bin/NAME にコピー
+list bin [env]       →  スクリプト一覧表示（省略時は全環境）
+del bin [env] NAME   →  ~/.ai-adapter/bin/NAME の登録を解除（ファイルは残す）
 
-  # 新しいPCに移行
-  git clone <url> ~/.ai-adapter
-  # → 設定と指示セットがすべて復元される
+# sync
+sync             →  ~/.ai-adapter/ を git push/pull で GitHub と同期
 ```
-
-README の「environment」は本設計では **「group」** として実装する（環境＝スクリプトのグループ）。

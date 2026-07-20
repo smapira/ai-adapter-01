@@ -4,11 +4,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from click.testing import CliRunner
 
 from ai_adapter.cli import main
+from ai_adapter.git import GitError
 
 
 class TestCLIIntegration(unittest.TestCase):
@@ -47,17 +48,18 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("mcp", result.output)
         self.assertIn("sync", result.output)
         self.assertIn("uninstall", result.output)
+        self.assertIn("start", result.output)
 
     def test_version(self):
         """--version が表示されることを確認する。"""
         result = self.runner.invoke(main, ["--version"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("0.1.0", result.output)
+        self.assertIn("0.2.0", result.output)
 
     def test_init_and_status(self):
         """init → status の流れを確認する。"""
-        # init
-        result = self.runner.invoke(main, ["init"])
+        # init (空 Enter でリモート入力をスキップ)
+        result = self.runner.invoke(main, ["init"], input="\n")
         self.assertEqual(result.exit_code, 0)
         self.assertIn("初期化", result.output)
 
@@ -66,6 +68,15 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("状態", result.output)
         self.assertIn("default", result.output)
+
+    def test_init_with_remote(self):
+        """init --remote でリモートが設定されることを確認する。"""
+        result = self.runner.invoke(main, [
+            "init", "--remote", "git@github.com:user/test.git",
+        ])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("リモートを設定しました", result.output)
+        self.assertIn("git@github.com:user/test.git", result.output)
 
     def test_status_before_init(self):
         """init 前の status で適切なメッセージが表示されることを確認する。"""
@@ -157,7 +168,7 @@ class TestUninstallCommand(unittest.TestCase):
 
     def test_uninstall_after_init(self):
         """init → uninstall --force の流れを確認する。"""
-        self.runner.invoke(main, ["init"])
+        self.runner.invoke(main, ["init"], input="\n")
         adapter_dir = self.patch_home / ".ai-adapter"
         self.assertTrue(adapter_dir.exists())
 
@@ -168,7 +179,7 @@ class TestUninstallCommand(unittest.TestCase):
 
     def test_uninstall_keep_git(self):
         """--keep-git で .git が保持されることを確認する。"""
-        self.runner.invoke(main, ["init"])
+        self.runner.invoke(main, ["init"], input="\n")
         adapter_dir = self.patch_home / ".ai-adapter"
 
         # Git リポジトリを模擬
@@ -184,10 +195,60 @@ class TestUninstallCommand(unittest.TestCase):
 
     def test_uninstall_cancel(self):
         """確認プロンプトで No を選択すると削除されないことを確認する。"""
-        self.runner.invoke(main, ["init"])
+        self.runner.invoke(main, ["init"], input="\n")
         adapter_dir = self.patch_home / ".ai-adapter"
         self.assertTrue(adapter_dir.exists())
 
         result = self.runner.invoke(main, ["uninstall"], input="n\n")
         self.assertNotEqual(result.exit_code, 0)
         self.assertTrue(adapter_dir.exists())
+
+
+class TestStartCommand(unittest.TestCase):
+    """start コマンドのテスト。"""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.patch_home = Path(self.temp_dir.name)
+        self.runner = CliRunner()
+
+        import pathlib
+        self._original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.patch_home)
+
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
+
+    def tearDown(self):
+        import pathlib
+        pathlib.Path.home = staticmethod(self._original_home)
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        self.temp_dir.cleanup()
+
+    @patch("ai_adapter.cli._git.clone")
+    def test_start_new_repo(self, mock_clone):
+        """start コマンドで新規リポジトリがセットアップされることを確認する。"""
+        # clone 失敗 → 新規 init パス
+        mock_clone.side_effect = GitError("clone failed")
+
+        result = self.runner.invoke(main, [
+            "start", "git@github.com:user/test.git",
+        ])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("セットアップ完了", result.output)
+        adapter_dir = self.patch_home / ".ai-adapter"
+        self.assertTrue(adapter_dir.exists())
+        self.assertTrue((adapter_dir / "agents").exists())
+        self.assertTrue((adapter_dir / "bin").exists())
+
+    @patch("ai_adapter.cli._git.clone")
+    def test_start_existing_abort(self, mock_clone):
+        """既存ディレクトリがある場合の確認プロンプト。"""
+        adapter_dir = self.patch_home / ".ai-adapter"
+        adapter_dir.mkdir(parents=True)
+
+        result = self.runner.invoke(main, [
+            "start", "git@github.com:user/test.git",
+        ], input="n\n")
+        self.assertNotEqual(result.exit_code, 0)

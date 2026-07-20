@@ -86,12 +86,27 @@ ai-adapter sync
 
 ## コマンドリファレンス
 
+### `ai-adapter start <URL>`
+
+GitHub リモートリポジトリと連携して `~/.ai-adapter/` を一発セットアップします。
+クローンを試み、失敗した場合は新規リポジトリとして初期化します。
+
+```bash
+# 新規または既存のリポジトリからセットアップ
+ai-adapter start git@github.com:user/my-agent-config.git
+```
+
 ### `ai-adapter init`
 
 `~/.ai-adapter/` ディレクトリと設定ファイルを初期化します。
+`--remote` オプション、または対話的プロンプトでリモートリポジトリを設定できます。
 
 ```bash
+# 最小限の初期化（後からリモートを設定可能）
 ai-adapter init
+
+# リモートを指定して初期化
+ai-adapter init --remote git@github.com:user/my-agent-config.git
 ```
 
 ### `ai-adapter status`

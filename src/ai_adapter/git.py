@@ -117,3 +117,19 @@ def get_remotes(path: Path) -> list[str]:
     """リモートリポジトリ一覧を取得する。"""
     result = _run_git(["remote"], cwd=path)
     return [r.strip() for r in result.stdout.strip().split("\n") if r.strip()]
+
+
+def clone(url: str, dest: Path) -> None:
+    """git clone を実行する。"""
+    _run_git(["clone", url, str(dest.name)], cwd=dest.parent)
+
+
+def add_remote(path: Path, name: str, url: str) -> None:
+    """git remote add を実行する。"""
+    _run_git(["remote", "add", name, url], cwd=path)
+
+
+def get_current_branch(path: Path) -> str:
+    """現在のブランチ名を取得する。"""
+    result = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=path)
+    return result.stdout.strip()

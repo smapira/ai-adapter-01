@@ -78,15 +78,21 @@ class TestSyncCommand(unittest.TestCase):
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("init", result.output)
 
+    @patch("ai_adapter.sync._config.load_config")
     @patch("ai_adapter.sync.get_remotes")
     @patch("ai_adapter.sync.is_repo")
     @patch("ai_adapter.sync.has_remote")
-    def test_sync_no_remote(self, mock_has_remote, mock_is_repo, mock_get_remotes):
-        """リモート未設定の sync でエラーメッセージが表示されることを確認する。"""
+    def test_sync_no_remote_skip(
+        self, mock_has_remote, mock_is_repo, mock_get_remotes, mock_load_config,
+    ):
+        """リモート未設定の sync でスキップできることを確認する。"""
+        from ai_adapter.models import Config
         mock_is_repo.return_value = True
         mock_has_remote.return_value = False
         mock_get_remotes.return_value = []
+        mock_load_config.return_value = Config()
 
-        result = self.runner.invoke(main, ["sync"])
-        self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("リモート", result.output)
+        # Enter でスキップ
+        result = self.runner.invoke(main, ["sync"], input="\n")
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("同期をスキップ", result.output)

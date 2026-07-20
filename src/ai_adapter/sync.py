@@ -13,6 +13,7 @@ from ai_adapter import config as _config
 from ai_adapter.git import (
     GitError,
     add_all,
+    add_remote,
     commit,
     get_remotes,
     has_remote,
@@ -42,13 +43,34 @@ def sync_command() -> None:
         click.echo("  git init 完了。")
 
     if not has_remote(adapter_dir):
-        remotes = get_remotes(adapter_dir)
-        if not remotes:
-            click.echo(
-                "  リモートリポジトリが設定されていません。\n"
-                "  git remote add origin <repository-url> を実行してください。"
-            )
-            raise click.ClickException("リモートリポジトリが未設定です。")
+        click.echo()
+        click.echo("  リモートリポジトリが設定されていません。")
+
+        # config.json に保存された remote を確認
+        config = _config.load_config()
+        saved_remote = config.remote if config else None
+
+        if saved_remote:
+            click.echo(f"  保存されたリモートURLが見つかりました: {saved_remote}")
+            add_remote(adapter_dir, "origin", saved_remote)
+            click.echo("  リモートを設定しました。")
+        else:
+            remote = click.prompt(
+                "  Git リモートリポジトリURL（スキップするには Enter）",
+                default="",
+                show_default=False,
+            ).strip()
+
+            if not remote:
+                click.echo("  リモートが設定されていないため、同期をスキップします。")
+                click.echo("  ai-adapter start <URL> で後から設定できます。")
+                return
+
+            add_remote(adapter_dir, "origin", remote)
+            click.echo(f"  リモートを設定しました: {remote}")
+            if config:
+                config.remote = remote
+                _config.save_config(config)
 
     # Step 2: git add + commit
     click.echo("Step 2: 変更をコミット中...")

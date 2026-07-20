@@ -13,6 +13,7 @@ import click
 
 from ai_adapter import __version__
 from ai_adapter import config as _config
+from ai_adapter import git as _git
 from ai_adapter.agent import agent_group
 from ai_adapter.bin import bin_group
 from ai_adapter.env import env_group
@@ -33,14 +34,52 @@ def main() -> None:
 
 
 @main.command(name="init")
-def cmd_init() -> None:
-    """~/.ai-adapter/ を初期化する。"""
+@click.option("--remote", "-r", help="Git リモートリポジトリのURL")
+def cmd_init(remote: str | None) -> None:
+    """~/.ai-adapter/ を初期化する。
+
+    リモートURLが未指定の場合、対話的に入力を促します。
+    """
     created = _config.init()
     if created:
         click.echo(f"初期化しました: {_config.AI_ADAPTER_DIR}")
         click.echo(f"設定ファイル: {_config.get_config_path()}")
     else:
         click.echo(f"既に初期化されています: {_config.AI_ADAPTER_DIR}")
+
+    # リモート設定
+    adapter_dir = _config.AI_ADAPTER_DIR
+
+    if not _git.is_repo(adapter_dir):
+        _git.init_repo(adapter_dir)
+
+    if not _git.has_remote(adapter_dir):
+        if remote is None:
+            click.echo()
+            click.echo("--- GitHub 同期の設定 ---")
+            click.echo("設定を複数PCで共有するには、GitHub リポジトリのURLを入力してください。")
+            click.echo("（スキップする場合は何も入力せず Enter を押してください）")
+            remote_input = click.prompt(
+                "Git リモートリポジトリURL",
+                default="",
+                show_default=False,
+            ).strip()
+            remote = remote_input if remote_input else None
+
+        if remote:
+            _git.add_remote(adapter_dir, "origin", remote)
+            config = _config.load_config()
+            if config:
+                config.remote = remote
+                _config.save_config(config)
+            click.echo(f"リモートを設定しました: {remote}")
+            click.echo("ai-adapter sync で設定を同期できます。")
+        else:
+            click.echo("リモートは設定されませんでした。")
+            click.echo("後から ai-adapter start <URL> で設定することもできます。")
+    else:
+        remotes = _git.get_remotes(adapter_dir)
+        click.echo(f"リモートは既に設定されています: {', '.join(remotes)}")
 
 
 @main.command(name="status")
@@ -69,6 +108,8 @@ def cmd_status() -> None:
     click.echo(f"  登録スキル数: {len(config.skills)}")
     click.echo(f"  MCP サーバー数: {len(config.mcp_servers)}")
     click.echo(f"  エージェント紐付け数: {len(config.agent_bindings)}")
+    if config.remote:
+        click.echo(f"  リモート: {config.remote}")
 
     # ディレクトリ存在確認
     agents_dir = adapter_dir / "agents"
@@ -79,6 +120,66 @@ def cmd_status() -> None:
     click.echo(f"  bin/ ディレクトリ: {'✓' if bins_dir.exists() else '✗'}")
     click.echo(f"  skills/ ディレクトリ: {'✓' if skills_dir.exists() else '✗'}")
     click.echo(f"  mcp/ ディレクトリ: {'✓' if mcp_dir.exists() else '✗'}")
+
+
+@main.command(name="start")
+@click.argument("url")
+def cmd_start(url: str) -> None:
+    """GitHub リモートと連携して ~/.ai-adapter/ を初期化する。
+
+    URL: Git リモートリポジトリのURL（例: git@github.com:user/my-agent-config.git）
+    """
+    adapter_dir = _config.AI_ADAPTER_DIR
+
+    if adapter_dir.exists():
+        click.echo(f"'{adapter_dir}' は既に存在します。")
+        click.confirm("既存の設定を上書きしますか？（設定はマージされます）", abort=True)
+
+    # Step 1: git clone を試みる
+    click.echo(f"リモートリポジトリからクローン中: {url}")
+    try:
+        _git.clone(url, adapter_dir)
+        click.echo("クローンしました。")
+    except _git.GitError:
+        click.echo("クローンに失敗しました。新規リポジトリとして初期化します。")
+        adapter_dir.mkdir(parents=True, exist_ok=True)
+        _git.init_repo(adapter_dir)
+        _git.add_remote(adapter_dir, "origin", url)
+        click.echo(f"リモートを設定しました: {url}")
+
+    # Step 2: ディレクトリ構造を初期化
+    dirs = [
+        adapter_dir / "agents",
+        adapter_dir / "bin",
+        adapter_dir / "skills",
+        adapter_dir / "mcp",
+    ]
+    for d in dirs:
+        d.mkdir(parents=True, exist_ok=True)
+
+    # Step 3: config.json がなければデフォルト生成
+    from ai_adapter.models import Config, Env
+    config_path = _config.get_config_path()
+    if not config_path.exists():
+        config = Config(
+            version=1,
+            default_env="default",
+            envs=[Env(name="default", description="デフォルト環境")],
+            agent_bindings=[],
+            remote=url,
+        )
+        _config.save_config(config)
+        click.echo("デフォルト設定ファイルを生成しました。")
+    else:
+        # remote フィールドを更新
+        cfg = _config.load_config()
+        if cfg:
+            cfg.remote = url
+            _config.save_config(cfg)
+
+    click.echo(f"セットアップ完了: {adapter_dir}")
+    click.echo(f"リモート: {url}")
+    click.echo("ai-adapter sync で設定を同期できます。")
 
 
 @main.command(name="uninstall")

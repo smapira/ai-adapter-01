@@ -166,6 +166,7 @@ class Config:
     mcp_servers: list[MCPServer] = field(default_factory=list)
     default_env: str = "default"
     agent_bindings: list[AgentBinding] = field(default_factory=list)
+    remote: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -180,6 +181,8 @@ class Config:
             d["skills"] = [s.to_dict() for s in self.skills]
         if self.mcp_servers:
             d["mcp_servers"] = [m.to_dict() for m in self.mcp_servers]
+        if self.remote:
+            d["remote"] = self.remote
         return d
 
     @classmethod
@@ -196,4 +199,5 @@ class Config:
             bins=[Bin.from_dict(b) for b in data.get("bins", [])],
             skills=[Skill.from_dict(s) for s in data.get("skills", [])],
             mcp_servers=[MCPServer.from_dict(m) for m in data.get("mcp_servers", [])],
+            remote=data.get("remote"),
         )

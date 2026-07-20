@@ -9,6 +9,8 @@
   - `install`: テンプレートを元に `opencode.json` を生成
   - `uninstall`: `opencode.json` を削除
 - **`mcp load --file` コマンド**: `.mcp.json` から MCP サーバー設定を一括読み込み
+- **`export` コマンド**: カレントプロジェクトの `.github/bin/` を PATH に追加するシェル設定を出力・適用
+  - 対話的または `--shell` オプションで zshrc/bash_profile/bashrc に自動追記
 - **`agent get-all` / `bin get-all` / `skill get-all`**: 全登録アイテムの一括展開コマンド
 - **`agent remove-all` / `env remove-all` / `bin remove-all` / `skill remove-all`**: 全登録アイテムの一括削除コマンド
 - **`skill get-all` / `skill remove-all`**: スキルの一括展開・削除コマンド

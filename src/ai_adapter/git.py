@@ -97,30 +97,70 @@ def commit(path: Path, message: str = "ai-adapter sync") -> None:
     _run_git(["commit", "-m", message], cwd=path)
 
 
-def pull_rebase(path: Path) -> None:
-    """git pull --rebase origin main を実行する。"""
+def pull_rebase(path: Path, branch: str = "main") -> None:
+    """git pull --rebase origin <branch> を実行する。
+
+    Args:
+        path: リポジトリパス。
+        branch: ブランチ名（デフォルト: main）。
+    """
     try:
-        _run_git(["pull", "--rebase", "origin", "main"], cwd=path)
+        _run_git(["pull", "--rebase", "origin", branch], cwd=path)
     except GitError as e:
         # コンフリクト時は abort
         try:
             _run_git(["rebase", "--abort"], cwd=path)
         except GitError:
             pass
-        raise GitError(
-            f"pull --rebase に失敗しました。手動で解決してください:\n{e}"
-        )
+        raise GitError(str(e))
 
 
-def push(path: Path) -> None:
-    """git push origin main を実行する。"""
-    _run_git(["push", "origin", "main"], cwd=path)
+def push(path: Path, branch: str = "main") -> None:
+    """git push origin <branch> を実行する。
+
+    Args:
+        path: リポジトリパス。
+        branch: ブランチ名（デフォルト: main）。
+    """
+    _run_git(["push", "origin", branch], cwd=path)
 
 
 def get_remotes(path: Path) -> list[str]:
     """リモートリポジトリ一覧を取得する。"""
     result = _run_git(["remote"], cwd=path)
     return [r.strip() for r in result.stdout.strip().split("\n") if r.strip()]
+
+
+def get_current_branch(path: Path) -> str:
+    """現在のブランチ名を取得する。"""
+    result = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=path)
+    return result.stdout.strip()
+
+
+def remote_branch_exists(path: Path, branch: str = "main") -> bool:
+    """リモートに指定ブランチが存在するか確認する。
+
+    git ls-remote --heads origin <branch> で判断。
+    """
+    try:
+        result = _run_git(
+            ["ls-remote", "--heads", "origin", branch], cwd=path
+        )
+        return bool(result.stdout.strip())
+    except GitError:
+        return False
+
+
+def test_remote_connectivity(path: Path) -> bool:
+    """リモートリポジトリに接続できるか確認する。
+
+    git ls-remote --heads origin で判断。
+    """
+    try:
+        _run_git(["ls-remote", "--heads", "origin"], cwd=path)
+        return True
+    except GitError:
+        return False
 
 
 def clone(url: str, dest: Path) -> None:

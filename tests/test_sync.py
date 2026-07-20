@@ -40,12 +40,18 @@ class TestSyncCommand(unittest.TestCase):
     @patch("ai_adapter.sync.has_remote")
     @patch("ai_adapter.sync.add_all")
     @patch("ai_adapter.sync.commit")
+    @patch("ai_adapter.sync.get_current_branch")
+    @patch("ai_adapter.sync.test_remote_connectivity")
+    @patch("ai_adapter.sync.remote_branch_exists")
     @patch("ai_adapter.sync.pull_rebase")
     @patch("ai_adapter.sync.push")
     def test_sync_success(
         self,
         mock_push,
         mock_pull,
+        mock_remote_branch_exists,
+        mock_connectivity,
+        mock_get_branch,
         mock_commit,
         mock_add_all,
         mock_has_remote,
@@ -55,6 +61,9 @@ class TestSyncCommand(unittest.TestCase):
         mock_is_repo.return_value = True
         mock_has_remote.return_value = True
         mock_add_all.return_value = False  # 変更なし
+        mock_get_branch.return_value = "main"
+        mock_connectivity.return_value = True
+        mock_remote_branch_exists.return_value = True
 
         result = self.runner.invoke(main, ["sync"])
         self.assertEqual(result.exit_code, 0)

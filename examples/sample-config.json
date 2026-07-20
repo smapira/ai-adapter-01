@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "default_env": "default",
+  "agent_bindings": [
+    { "agent": "reviewer", "env": "myhome" },
+    { "agent": "implementer", "env": "office" }
+  ],
+  "agents": [
+    { "name": "reviewer", "description": "コードレビュー用エージェント" },
+    { "name": "implementer", "description": "実装用エージェント" }
+  ],
+  "envs": [
+    { "name": "default", "description": "デフォルト環境" },
+    { "name": "myhome", "description": "自宅開発環境" },
+    { "name": "office", "description": "会社開発環境" }
+  ],
+  "bins": [
+    { "name": "deploy-prod.sh", "env": "myhome", "description": "本番デプロイ" },
+    { "name": "deploy-staging.sh", "env": "myhome", "description": "ステージングデプロイ" },
+    { "name": "format-all.sh", "env": "default", "description": "コード整形" }
+  ],
+  "skills": [
+    {
+      "name": "database-schema",
+      "description": "DBスキーマ設計・レビューの知識",
+      "path": "skills/database-schema",
+      "tags": ["database", "prisma", "schema"],
+      "agent": "reviewer"
+    },
+    {
+      "name": "security-review",
+      "description": "セキュリティレビューチェックリスト",
+      "path": "skills/security-review",
+      "tags": ["security", "review"]
+    }
+  ],
+  "mcp_servers": [
+    {
+      "name": "github",
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-github"],
+      "env_keys": ["GITHUB_TOKEN"],
+      "enabled": true,
+      "tools": ["vscode", "claude", "cursor"],
+      "env": "myhome"
+    },
+    {
+      "name": "filesystem",
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-filesystem", "."],
+      "enabled": true,
+      "tools": ["vscode", "cursor"]
+    }
+  ]
+}

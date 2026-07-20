@@ -72,25 +72,40 @@ class TestSkillCommands(unittest.TestCase):
         self.assertIn("test-skill", result.output)
 
     def test_skill_get(self):
-        """skill get で .claude/skills/ にコピーされることを確認する。"""
+        """skill get で .github/skills/ にコピーされることを確認する。"""
         self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
 
-        claude_skills = Path.cwd() / ".claude" / "skills"
-        claude_skills.mkdir(parents=True, exist_ok=True)
+        github_skills = Path.cwd() / ".github" / "skills"
+        github_skills.mkdir(parents=True, exist_ok=True)
 
         result = self.runner.invoke(main, ["skill", "get", "test-skill"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("test-skill", result.output)
-        self.assertTrue((claude_skills / "test-skill" / "SKILL.md").exists())
+        self.assertTrue((github_skills / "test-skill" / "SKILL.md").exists())
 
         import shutil
-        shutil.rmtree(Path.cwd() / ".claude", ignore_errors=True)
+        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_skill_get_not_found(self):
         """存在しないスキルの get でエラーになることを確認する。"""
         result = self.runner.invoke(main, ["skill", "get", "nonexistent"])
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("見つかりません", result.output)
+
+    def test_skill_get_with_project_dir(self):
+        """skill get --project-dir で指定ディレクトリにコピーされることを確認する。"""
+        self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
+
+        project_dir = Path(self.temp_dir.name) / "my-project"
+        project_dir.mkdir(parents=True)
+
+        result = self.runner.invoke(main, [
+            "skill", "get", "test-skill",
+            "--project-dir", str(project_dir),
+            "--force",
+        ])
+        self.assertEqual(result.exit_code, 0)
+        self.assertTrue((project_dir / ".github" / "skills" / "test-skill" / "SKILL.md").exists())
 
     def test_skill_remove(self):
         """skill remove でスキルが削除されることを確認する。"""
@@ -129,3 +144,30 @@ class TestSkillCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("test-skill", result.output)
         self.assertIn("test-agent", result.output)
+
+    def test_skill_get_all(self):
+        """skill get-all で全スキルが .github/skills/ にコピーされることを確認する。"""
+        self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
+
+        github_skills = Path.cwd() / ".github" / "skills"
+        github_skills.mkdir(parents=True, exist_ok=True)
+
+        result = self.runner.invoke(main, ["skill", "get-all", "--force"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("1件", result.output)
+        self.assertTrue((github_skills / "test-skill" / "SKILL.md").exists())
+
+        import shutil
+        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+
+    def test_skill_remove_all(self):
+        """skill remove-all で全スキルが削除されることを確認する。"""
+        self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
+
+        result = self.runner.invoke(main, ["skill", "remove-all", "--force"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("全てのスキル", result.output)
+
+        # list で空になる
+        result = self.runner.invoke(main, ["skill", "list"])
+        self.assertIn("登録済みのスキルはありません", result.output)

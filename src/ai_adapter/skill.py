@@ -14,7 +14,7 @@ import click
 import yaml
 
 from ai_adapter.config import (
-    get_claude_skills_dir,
+    get_github_skills_dir,
     get_skills_dir,
     load_config,
     save_config,
@@ -115,8 +115,14 @@ def skill_add(path: str) -> None:
 @skill_group.command(name="get")
 @click.argument("name")
 @click.option("--force", is_flag=True, help="既存のスキルを上書きする")
-def skill_get(name: str, force: bool) -> None:
-    """スキルを .claude/skills/ にコピーする。
+@click.option(
+    "--project-dir", "-d",
+    type=click.Path(exists=True, file_okay=False, readable=True),
+    default=None,
+    help="展開先プロジェクトディレクトリ（デフォルト: カレントディレクトリ）",
+)
+def skill_get(name: str, force: bool, project_dir: str | None) -> None:
+    """スキルを .github/skills/ にコピーする。
 
     NAME: 取得するスキル名。
     """
@@ -142,7 +148,8 @@ def skill_get(name: str, force: bool) -> None:
         click.echo(f"スキルディレクトリ '{src}' が見つかりません。", err=True)
         raise click.ClickException(f"スキル '{name}' のディレクトリが存在しません。")
 
-    claude_dir = get_claude_skills_dir()
+    project_path = Path(project_dir).resolve() if project_dir else None
+    claude_dir = get_github_skills_dir(project_path)
     claude_dir.mkdir(parents=True, exist_ok=True)
     dest = claude_dir / name
 
@@ -260,3 +267,68 @@ def skill_link_agent(skill: str, agent: str) -> None:
     skill_entry.agent = agent
     save_config(config)
     click.echo(f"スキル '{skill}' をエージェント '{agent}' に紐付けました。")
+
+
+@skill_group.command(name="get-all")
+@click.option("--force", is_flag=True, help="既存のスキルを上書きする")
+@click.option(
+    "--project-dir", "-d",
+    type=click.Path(exists=True, file_okay=False, readable=True),
+    default=None,
+    help="展開先プロジェクトディレクトリ（デフォルト: カレントディレクトリ）",
+)
+def skill_get_all(force: bool, project_dir: str | None) -> None:
+    """全ての登録済みスキルを .claude/skills/ にコピーする。"""
+    config = load_config()
+    if config is None or not config.skills:
+        click.echo("登録済みのスキルはありません。")
+        return
+
+    skills_dir = get_skills_dir()
+    project_path = Path(project_dir).resolve() if project_dir else None
+    claude_dir = get_github_skills_dir(project_path)
+    claude_dir.mkdir(parents=True, exist_ok=True)
+
+    copied = 0
+    for skill_entry in config.skills:
+        src = skills_dir / skill_entry.name
+        if not src.exists():
+            click.echo(f"  スキップ: '{skill_entry.name}' のディレクトリが見つかりません。")
+            continue
+        dest = claude_dir / skill_entry.name
+        if dest.exists():
+            if force:
+                shutil.rmtree(dest)
+            else:
+                click.confirm(f"'{dest}' は既に存在します。上書きしますか？", abort=True)
+                shutil.rmtree(dest)
+        shutil.copytree(src, dest)
+        copied += 1
+
+    click.echo(f"全てのスキル ({copied}件) を {claude_dir} にコピーしました。")
+
+
+@skill_group.command(name="remove-all")
+@click.option("--force", is_flag=True, help="確認プロンプトを表示せずに削除する")
+@click.option("--purge", is_flag=True, help="スキルファイルも削除する")
+def skill_remove_all(force: bool, purge: bool) -> None:
+    """全てのスキルを削除する。"""
+    config = load_config()
+    if config is None or not config.skills:
+        click.echo("登録済みのスキルはありません。")
+        return
+
+    count = len(config.skills)
+    if not force:
+        click.confirm(f"全てのスキル ({count}件) を削除しますか？", abort=True)
+
+    if purge:
+        skills_dir = get_skills_dir()
+        for s in config.skills:
+            target = skills_dir / s.name
+            if target.exists():
+                shutil.rmtree(target)
+
+    config.skills.clear()
+    save_config(config)
+    click.echo(f"全てのスキル ({count}件) を削除しました。")

@@ -15,12 +15,15 @@ from ai_adapter.git import (
     add_all,
     add_remote,
     commit,
+    get_current_branch,
     get_remotes,
     has_remote,
     init_repo,
     is_repo,
     pull_rebase,
     push,
+    remote_branch_exists,
+    test_remote_connectivity,
 )
 
 logger = logging.getLogger(__name__)
@@ -76,30 +79,75 @@ def sync_command() -> None:
     click.echo("Step 2: 変更をコミット中...")
     has_changes = add_all(adapter_dir)
     if has_changes:
-        commit(adapter_dir)
-        click.echo("  変更をコミットしました。")
+        try:
+            commit(adapter_dir)
+            click.echo("  変更をコミットしました。")
+        except GitError as e:
+            logger.error("commit 失敗: %s", e)
+            click.echo(f"  コミットに失敗しました。")
+            click.echo("  Git のユーザー設定がされていない可能性があります。")
+            click.echo("  以下を実行してからもう一度試してください:")
+            click.echo("    git config --global user.email 'you@example.com'")
+            click.echo("    git config --global user.name 'Your Name'")
+            click.echo("  または ~/.ai-adapter リポジトリのみに設定:")
+            click.echo("    cd ~/.ai-adapter")
+            click.echo("    git config user.email 'you@example.com'")
+            click.echo("    git config user.name 'Your Name'")
+            return
     else:
         click.echo("  変更はありません。")
 
     # Step 3: git pull --rebase
     click.echo("Step 3: リモートの変更を取り込み中...")
-    try:
-        pull_rebase(adapter_dir)
-        click.echo("  pull --rebase 完了。")
-    except GitError as e:
-        logger.error("pull --rebase 失敗: %s", e)
-        click.echo(f"  pull --rebase に失敗しました: {e}", err=True)
-        click.echo("  手動で git rebase --abort 後、コンフリクトを解決してください。")
-        raise click.ClickException("同期に失敗しました。手動解決が必要です。")
+    branch = get_current_branch(adapter_dir)
+
+    # 接続確認
+    if not test_remote_connectivity(adapter_dir):
+        click.echo("  ⚠ リモートリポジトリに接続できません。")
+        click.echo("  考えられる原因:")
+        click.echo("    - SSH キーが設定されていない（ssh-keygen + GitHub 登録が必要）")
+        click.echo("    - リモートURLが間違っている（git remote -v で確認）")
+        click.echo("    - GitHub のアクセストークンが切れている")
+        click.echo("  git fetch が通るか確認: cd ~/.ai-adapter && git fetch")
+        click.echo("  Step 4 の push はスキップします。")
+        return
+
+    # ブランチ存在確認（空リポジトリ対策）
+    if not remote_branch_exists(adapter_dir, branch):
+        click.echo(f"  リモートにブランチ '{branch}' が存在しません。初回プッシュが必要です。")
+        click.echo("  Step 4 でプッシュします。")
+    else:
+        try:
+            pull_rebase(adapter_dir, branch)
+            click.echo("  pull --rebase 完了。")
+        except GitError as e:
+            logger.error("pull --rebase 失敗: %s", e)
+            if "would be overwritten by rebase" in str(e).lower() or "conflict" in str(e).lower():
+                click.echo("  コンフリクトが発生しました。手動で解決してください。")
+                click.echo(f"    cd ~/.ai-adapter && git status")
+                click.echo(f"    git rebase --abort  # 中断する場合")
+            else:
+                click.echo(f"  ブランチ名が不一致の可能性があります。")
+                click.echo(f"  現在のブランチ: {branch}")
+                click.echo(f"  cd ~/.ai-adapter && git branch -a で状態を確認してください。")
+            return
 
     # Step 4: git push
     click.echo("Step 4: リモートにプッシュ中...")
     try:
-        push(adapter_dir)
+        push(adapter_dir, branch)
         click.echo("  push 完了。")
     except GitError as e:
         logger.error("push 失敗: %s", e)
-        click.echo(f"  push に失敗しました: {e}", err=True)
-        raise click.ClickException("プッシュに失敗しました。")
+        if "Repository not found" in str(e) or "Could not read from remote" in str(e):
+            click.echo("  リモートリポジトリにアクセスできません。")
+            click.echo("    cd ~/.ai-adapter && git remote -v でURLを確認")
+            click.echo("    git remote set-url origin <正しいURL> で修正")
+        elif "408" in str(e) or "Timeout" in str(e):
+            click.echo("  タイムアウトしました。ネットワーク接続を確認してください。")
+        else:
+            click.echo(f"  push に失敗しました。")
+            click.echo(f"    ブランチ: {branch}")
+            click.echo(f"    cd ~/.ai-adapter && git push origin {branch} を手動で実行してください。")
 
-    click.echo("同期が完了しました。")
+    click.echo("同期が完了しました。（一部の処理はスキップされた可能性があります）")

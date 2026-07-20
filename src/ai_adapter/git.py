@@ -84,39 +84,98 @@ def add_all(path: Path) -> bool:
     """
     _run_git(["add", "-A"], cwd=path)
     # 変更があるか確認
-    result = _run_git(["diff", "--cached", "--quiet"], cwd=path)
-    return result.returncode != 0
+    # git diff --cached --quiet は変更ありのとき exit code 1 を返す（正常）
+    try:
+        _run_git(["diff", "--cached", "--quiet"], cwd=path)
+        return False  # 変更なし
+    except GitError:
+        return True  # 変更あり
 
 
 def commit(path: Path, message: str = "ai-adapter sync") -> None:
     """git commit を実行する。"""
-    _run_git(["commit", "-m", message], cwd=path)
-
-
-def pull_rebase(path: Path) -> None:
-    """git pull --rebase origin main を実行する。"""
     try:
-        _run_git(["pull", "--rebase", "origin", "main"], cwd=path)
+        _run_git(["commit", "-m", message], cwd=path)
+    except GitError as e:
+        err_msg = str(e)
+        if "Author identity unknown" in err_msg or "Please tell me who you are" in err_msg:
+            raise GitError(
+                "Git のユーザー設定がされていません。\n"
+                "以下を実行して user.name と user.email を設定してください:\n"
+                "  git config --global user.email \"you@example.com\"\n"
+                "  git config --global user.name \"Your Name\"\n"
+                "または ~/.ai-adapter リポジトリのみに設定する場合:\n"
+                "  cd ~/.ai-adapter\n"
+                "  git config user.email \"you@example.com\"\n"
+                "  git config user.name \"Your Name\""
+            )
+        raise
+
+
+def pull_rebase(path: Path, branch: str = "main") -> None:
+    """git pull --rebase origin <branch> を実行する。
+
+    Args:
+        path: リポジトリパス。
+        branch: ブランチ名（デフォルト: main）。
+    """
+    try:
+        _run_git(["pull", "--rebase", "origin", branch], cwd=path)
     except GitError as e:
         # コンフリクト時は abort
         try:
             _run_git(["rebase", "--abort"], cwd=path)
         except GitError:
             pass
-        raise GitError(
-            f"pull --rebase に失敗しました。手動で解決してください:\n{e}"
-        )
+        raise GitError(str(e))
 
 
-def push(path: Path) -> None:
-    """git push origin main を実行する。"""
-    _run_git(["push", "origin", "main"], cwd=path)
+def push(path: Path, branch: str = "main") -> None:
+    """git push origin <branch> を実行する。
+
+    Args:
+        path: リポジトリパス。
+        branch: ブランチ名（デフォルト: main）。
+    """
+    _run_git(["push", "origin", branch], cwd=path)
 
 
 def get_remotes(path: Path) -> list[str]:
     """リモートリポジトリ一覧を取得する。"""
     result = _run_git(["remote"], cwd=path)
     return [r.strip() for r in result.stdout.strip().split("\n") if r.strip()]
+
+
+def get_current_branch(path: Path) -> str:
+    """現在のブランチ名を取得する。"""
+    result = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=path)
+    return result.stdout.strip()
+
+
+def remote_branch_exists(path: Path, branch: str = "main") -> bool:
+    """リモートに指定ブランチが存在するか確認する。
+
+    git ls-remote --heads origin <branch> で判断。
+    """
+    try:
+        result = _run_git(
+            ["ls-remote", "--heads", "origin", branch], cwd=path
+        )
+        return bool(result.stdout.strip())
+    except GitError:
+        return False
+
+
+def test_remote_connectivity(path: Path) -> bool:
+    """リモートリポジトリに接続できるか確認する。
+
+    git ls-remote --heads origin で判断。
+    """
+    try:
+        _run_git(["ls-remote", "--heads", "origin"], cwd=path)
+        return True
+    except GitError:
+        return False
 
 
 def clone(url: str, dest: Path) -> None:

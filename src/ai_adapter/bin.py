@@ -46,11 +46,11 @@ def bin_group() -> None:
 
 
 @bin_group.command(name="list")
-@click.argument("env", required=False)
+@click.option("--env", "-e", default=None, help="環境名（省略時は全環境のスクリプトを表示）")
 def bin_list(env: str | None) -> None:
     """スクリプト一覧を表示する。
 
-    ENV: 環境名（省略時は全環境のスクリプトを表示）。
+    --env で環境名を指定するとフィルタリングされます。
     """
     config = load_config()
     if config is None:
@@ -80,16 +80,16 @@ def bin_list(env: str | None) -> None:
 
 
 @bin_group.command(name="add")
-@click.argument("env", required=False)
 @click.argument("path", type=click.Path(exists=True, readable=True))
+@click.option("--env", "-e", default=None, help="環境名（省略時は環境解決ロジックで補完）")
 @click.option("--description", "-d", default="", help="スクリプトの説明")
 @click.option("--agent", help="エージェント名（環境解決用）")
-def bin_add(env: str | None, path: str, description: str, agent: str | None) -> None:
+def bin_add(path: str, env: str | None, description: str, agent: str | None) -> None:
     """スクリプトを ~/.ai-adapter/bin/ に追加する。
 
     PATH: 追加するスクリプトファイルのパス。
 
-    ENV を省略した場合、環境解決ロジックで自動補完されます。
+    --env を省略した場合、環境解決ロジックで自動補完されます。
     """
     config = load_config()
     if config is None:
@@ -120,15 +120,21 @@ def bin_add(env: str | None, path: str, description: str, agent: str | None) -> 
 
 
 @bin_group.command(name="get")
-@click.argument("env", required=False)
 @click.argument("name")
+@click.option("--env", "-e", default=None, help="環境名（省略時は環境解決ロジックで補完）")
 @click.option("--agent", help="エージェント名（環境解決用）")
-def bin_get(env: str | None, name: str, agent: str | None) -> None:
+@click.option(
+    "--project-dir", "-d",
+    type=click.Path(exists=True, file_okay=False, readable=True),
+    default=None,
+    help="展開先プロジェクトディレクトリ（デフォルト: カレントディレクトリ）",
+)
+def bin_get(name: str, env: str | None, agent: str | None, project_dir: str | None) -> None:
     """スクリプトを .github/bin/ にコピーする。
 
     NAME: 取得するスクリプト名。
 
-    ENV を省略した場合、環境解決ロジックで自動補完されます。
+    --env を省略した場合、環境解決ロジックで自動補完されます。
     """
     config = load_config()
     if config is None:
@@ -154,7 +160,8 @@ def bin_get(env: str | None, name: str, agent: str | None) -> None:
         click.echo(f"ファイル '{src}' が見つかりません。", err=True)
         raise click.ClickException(f"ファイル '{name}' が ~/.ai-adapter/bin/ に存在しません。")
 
-    github_dir = get_github_bins_dir()
+    project_path = Path(project_dir).resolve() if project_dir else None
+    github_dir = get_github_bins_dir(project_path)
     github_dir.mkdir(parents=True, exist_ok=True)
 
     dest = github_dir / name
@@ -162,16 +169,54 @@ def bin_get(env: str | None, name: str, agent: str | None) -> None:
     click.echo(f"スクリプト '{name}' を {dest} にコピーしました。")
 
 
+@bin_group.command(name="get-all")
+@click.option("--env", "-e", default=None, help="環境名（省略時は全環境）")
+@click.option(
+    "--project-dir", "-d",
+    type=click.Path(exists=True, file_okay=False, readable=True),
+    default=None,
+    help="展開先プロジェクトディレクトリ（デフォルト: カレントディレクトリ）",
+)
+def bin_get_all(env: str | None, project_dir: str | None) -> None:
+    """全ての登録済みスクリプトを .github/bin/ にコピーする（--env でフィルタ可能）。"""
+    config = load_config()
+    if config is None or not config.bins:
+        click.echo("登録済みのスクリプトはありません。")
+        return
+
+    bins_dir = get_bins_dir()
+    project_path = Path(project_dir).resolve() if project_dir else None
+    github_dir = get_github_bins_dir(project_path)
+    github_dir.mkdir(parents=True, exist_ok=True)
+
+    targets = config.bins
+    if env:
+        targets = [b for b in targets if b.env == env]
+
+    copied = 0
+    for bin_entry in targets:
+        src = bins_dir / bin_entry.name
+        if not src.exists():
+            click.echo(f"  スキップ: '{bin_entry.name}' のファイルが見つかりません。")
+            continue
+        dest = github_dir / bin_entry.name
+        shutil.copy2(src, dest)
+        copied += 1
+
+    env_info = f" (環境: {env})" if env else ""
+    click.echo(f"全てのスクリプト ({copied}件){env_info} を {github_dir} にコピーしました。")
+
+
 @bin_group.command(name="remove")
-@click.argument("env", required=False)
 @click.argument("name")
+@click.option("--env", "-e", default=None, help="環境名（省略時は環境解決ロジックで補完）")
 @click.option("--agent", help="エージェント名（環境解決用）")
-def bin_remove(env: str | None, name: str, agent: str | None) -> None:
+def bin_remove(name: str, env: str | None, agent: str | None) -> None:
     """スクリプトの登録を解除する（ファイルは削除しない）。
 
     NAME: 削除するスクリプト名。
 
-    ENV を省略した場合、環境解決ロジックで自動補完されます。
+    --env を省略した場合、環境解決ロジックで自動補完されます。
     """
     config = load_config()
     if config is None:
@@ -194,3 +239,21 @@ def bin_remove(env: str | None, name: str, agent: str | None) -> None:
     config.bins.remove(found)
     save_config(config)
     click.echo(f"スクリプト '{name}' (環境: {resolved_env}) の登録を解除しました。")
+
+
+@bin_group.command(name="remove-all")
+@click.option("--force", is_flag=True, help="確認プロンプトを表示せずに削除する")
+def bin_remove_all(force: bool) -> None:
+    """全てのスクリプトの登録を解除する（ファイルは削除しない）。"""
+    config = load_config()
+    if config is None or not config.bins:
+        click.echo("登録済みのスクリプトはありません。")
+        return
+
+    count = len(config.bins)
+    if not force:
+        click.confirm(f"全てのスクリプト ({count}件) の登録を解除しますか？", abort=True)
+
+    config.bins.clear()
+    save_config(config)
+    click.echo(f"全てのスクリプト ({count}件) の登録を解除しました。")

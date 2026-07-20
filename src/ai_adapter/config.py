@@ -46,19 +46,34 @@ def get_mcp_dir() -> Path:
     return AI_ADAPTER_DIR / "mcp"
 
 
-def get_github_agents_dir() -> Path:
-    """カレントプロジェクトの .github/agents/ を返す。"""
-    return Path.cwd() / ".github" / "agents"
+def get_github_agents_dir(project_dir: Path | None = None) -> Path:
+    """カレントプロジェクトの .github/agents/ を返す。
+
+    Args:
+        project_dir: プロジェクトディレクトリ。None の場合はカレントディレクトリ。
+    """
+    base = project_dir or Path.cwd()
+    return base / ".github" / "agents"
 
 
-def get_github_bins_dir() -> Path:
-    """カレントプロジェクトの .github/bin/ を返す。"""
-    return Path.cwd() / ".github" / "bin"
+def get_github_bins_dir(project_dir: Path | None = None) -> Path:
+    """カレントプロジェクトの .github/bin/ を返す。
+
+    Args:
+        project_dir: プロジェクトディレクトリ。None の場合はカレントディレクトリ。
+    """
+    base = project_dir or Path.cwd()
+    return base / ".github" / "bin"
 
 
-def get_claude_skills_dir() -> Path:
-    """カレントプロジェクトの .claude/skills/ を返す。"""
-    return Path.cwd() / ".claude" / "skills"
+def get_github_skills_dir(project_dir: Path | None = None) -> Path:
+    """カレントプロジェクトの .github/skills/ を返す。
+
+    Args:
+        project_dir: プロジェクトディレクトリ。None の場合はカレントディレクトリ。
+    """
+    base = project_dir or Path.cwd()
+    return base / ".github" / "skills"
 
 
 def init() -> bool:

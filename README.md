@@ -12,7 +12,7 @@ CLI で操作し、AIエージェントの指示ファイル（`.github/instruct
 - **環境切り替え**: 会社・自宅など環境ごとにエージェント設定やスクリプトを切り替え
 - **GitHub 同期**: `ai-adapter sync` で `~/.ai-adapter/` を GitHub リモートと同期。チーム共有やPC移行が簡単
 - **エージェント紐付け**: エージェント名と環境を紐付け、コンテキストに応じた自動解決
-- **スキル管理**: SKILL.md 形式のスキルを管理・展開（`.claude/skills/`）
+- **スキル管理**: SKILL.md 形式のスキルを管理・展開（`.github/skills/`）
 - **MCP サーバー管理**: MCP サーバー設定を一元管理し、各ツール形式で出力
 
 ---
@@ -74,9 +74,9 @@ ai-adapter mcp add github --command npx --args @modelcontextprotocol/server-gith
 # 7. プロジェクトに展開
 cd your-project
 ai-adapter agent get reviewer      # → .github/agents/reviewer.md
-ai-adapter bin get myhome deploy   # → .github/bin/deploy.sh
-ai-adapter skill get database-schema  # → .claude/skills/database-schema/
-ai-adapter mcp export --tool vscode   # → .vscode/mcp.json
+ai-adapter bin get --env myhome deploy   # → .github/bin/deploy.sh
+ai-adapter skill get database-schema  # → .github/skills/database-schema/
+ai-adapter mcp export --path vscode   # → .vscode/mcp.json
 
 # 8. GitHub と同期（設定を共有）
 ai-adapter sync
@@ -125,14 +125,17 @@ AIエージェントの指示ファイル（`.md` 等）を管理します。
 |---------|------|
 | `agent add <path>` | エージェントファイルを `~/.ai-adapter/agents/` に追加 |
 | `agent get <name>` | エージェントを `.github/agents/` にコピー |
+| `agent get-all` | 全ての登録済みエージェントを `.github/agents/` にコピー |
 | `agent list` | 登録済みエージェント一覧を表示 |
 | `agent remove <name>` | エージェントを削除（`--keep-file` でファイル保持） |
+| `agent remove-all` | 全てのエージェントを削除（`--keep-file`, `--force` 対応） |
 
 ```bash
 ai-adapter agent add ~/dotfiles/agents/reviewer.md
 ai-adapter agent list
 ai-adapter agent get reviewer
 ai-adapter agent remove reviewer
+ai-adapter agent remove-all --force
 ```
 
 ### `ai-adapter env`
@@ -148,12 +151,14 @@ ai-adapter agent remove reviewer
 | `env set-default <name>` | デフォルト環境を変更 |
 | `env link-agent <agent> <env>` | エージェントと環境を紐付け |
 | `env unlink-agent <agent>` | エージェントの紐付けを解除 |
+| `env remove-all` | デフォルト環境を除く全ての環境を削除（`--force` 対応） |
 
 ```bash
 ai-adapter env add office
 ai-adapter env list
 ai-adapter env set-default office
 ai-adapter env link-agent reviewer office
+ai-adapter env remove-all --force
 ```
 
 ### `ai-adapter bin`
@@ -162,17 +167,22 @@ ai-adapter env link-agent reviewer office
 
 | コマンド | 説明 |
 |---------|------|
-| `bin add [env] <path>` | スクリプトを `~/.ai-adapter/bin/` に追加 |
-| `bin get [env] <name>` | スクリプトを `.github/bin/` にコピー |
-| `bin list [env]` | スクリプト一覧を表示（省略時は全環境） |
-| `bin remove [env] <name>` | スクリプトの登録を解除（ファイルは保持） |
+| `bin add --env <env> <path>` | スクリプトを `~/.ai-adapter/bin/` に追加（--env省略時は環境解決） |
+| `bin get --env <env> <name>` | スクリプトを `.github/bin/` にコピー（--env省略時は環境解決） |
+| `bin get-all` | 全ての登録済みスクリプトを `.github/bin/` にコピー |
+| `bin list --env <env>` | スクリプト一覧を表示（--env省略時は全環境） |
+| `bin remove --env <env> <name>` | スクリプトの登録を解除（--env省略時は環境解決） |
+| `bin remove-all` | 全てのスクリプトの登録を解除（`--force` 対応） |
 
 ```bash
-ai-adapter bin add myhome ~/scripts/deploy.sh
+ai-adapter bin add --env myhome ~/scripts/deploy.sh
 ai-adapter bin list
 ai-adapter bin get deploy
 ai-adapter bin remove deploy
+ai-adapter bin remove-all --force
 ```
+
+また、`--env` は省略可能で、省略時は環境解決ロジックが動作します。
 
 ### `ai-adapter skill`
 
@@ -181,9 +191,11 @@ ai-adapter bin remove deploy
 | コマンド | 説明 |
 |---------|------|
 | `skill add <path>` | スキルディレクトリを `~/.ai-adapter/skills/` に追加 |
-| `skill get <name>` | スキルを `.claude/skills/` にコピー |
+| `skill get <name>` | スキルを `.github/skills/` にコピー |
+| `skill get-all` | 全ての登録済みスキルを `.github/skills/` にコピー |
 | `skill list` | 登録済みスキル一覧を表示（`--tag` でフィルタ） |
 | `skill remove <name>` | スキルを削除（`--purge` でファイルも削除） |
+| `skill remove-all` | 全てのスキルを削除（`--purge`, `--force` 対応） |
 | `skill search <keyword>` | スキルをキーワード検索 |
 | `skill link-agent <skill> <agent>` | スキルとエージェントを紐付け |
 
@@ -201,27 +213,50 @@ MCP サーバー設定を管理します。
 
 | コマンド | 説明 |
 |---------|------|
-| `mcp add <name>` | MCP サーバー設定を追加（`--command`, `--args`, `--file` 等） |
+| `mcp add <name>` | MCP サーバー設定を追加（`--command`, `--args` 等） |
+| `mcp load --file <path>` | `.mcp.json` から MCP サーバー設定を一括読み込み |
 | `mcp remove <name>` | MCP サーバー設定を削除 |
 | `mcp list` | MCP サーバー一覧を表示（`--tool`, `--env` でフィルタ） |
-| `mcp export --tool <tool>` | MCP 設定を各ツール形式で出力（vscode/claude/cursor） |
+| `mcp export --path <dir>` | MCP 設定を `.mcp.json` に出力（--path省略時はカレントディレクトリ） |
 | `mcp enable <name>` | MCP サーバーを有効化 |
-| `mcp disable <name>` | MCP サーバーを無効化 |
+| `mcp disable <name>` | MCP サーバーを無効化 |\n| `mcp remove-all` | 全ての MCP サーバー設定を削除（`--force` 対応） |
 
 ```bash
 # 対話的追加
 ai-adapter mcp add github --command npx --args @modelcontextprotocol/server-github
 
-# JSON ファイルから追加
-ai-adapter mcp add my-server --file server-config.json
+# .mcp.json から一括読み込み
+echo '{"mcpServers":{"github":{"command":"npx","args":["@modelcontextprotocol/server-github"]}}}' > .mcp.json
+ai-adapter mcp load
 
 # 一覧表示
 ai-adapter mcp list
 
-# VS Code 用に出力
-ai-adapter mcp export --tool vscode
-# Claude Code 用に出力
-ai-adapter mcp export --tool claude
+# カレントディレクトリに出力
+ai-adapter mcp export
+# 指定ディレクトリに出力
+ai-adapter mcp export --path /path/to/project
+```
+
+### `ai-adapter opencode`
+
+OpenCode 連携設定を管理します。
+
+| コマンド | 説明 |
+|---------|------|
+| `opencode alias` | `.opencode` → `.github` のシンボリックリンクを作成 |
+| `opencode install` | `opencode.json` をカレントディレクトリに生成 |
+| `opencode uninstall` | `opencode.json` を削除 |
+
+```bash
+# .opencode から .github へのエイリアスを作成
+ai-adapter opencode alias
+
+# opencode.json テンプレートを生成
+ai-adapter opencode install
+
+# 削除
+ai-adapter opencode uninstall
 ```
 
 ### `ai-adapter uninstall`

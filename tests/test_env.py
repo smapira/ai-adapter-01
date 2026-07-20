@@ -126,3 +126,18 @@ class TestEnvCommands(unittest.TestCase):
         result = self.runner.invoke(main, ["env", "unlink-agent", "nonexistent"])
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("見つかりません", result.output)
+
+    def test_env_remove_all(self):
+        """env remove-all でデフォルト環境を除く全環境が削除されることを確認する。"""
+        self.runner.invoke(main, ["env", "add", "myenv"])
+        self.runner.invoke(main, ["env", "add", "otherenv"])
+
+        result = self.runner.invoke(main, ["env", "remove-all", "--force"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("全ての環境", result.output)
+        self.assertIn("default", result.output)
+
+        # default のみ残る
+        result = self.runner.invoke(main, ["env", "list"])
+        self.assertIn("default", result.output)
+        self.assertNotIn("myenv", result.output)

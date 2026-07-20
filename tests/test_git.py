@@ -73,10 +73,10 @@ class TestGitFunctions(unittest.TestCase):
     @patch("ai_adapter.git._run_git")
     def test_add_all(self, mock_run_git):
         """add_all が git add -A を呼ぶことを確認する。"""
-        # 1回目: add -A, 2回目: diff --cached --quiet (変更あり=returncode 1)
+        # 1回目: add -A 成功, 2回目: diff --cached --quiet (変更あり=exit code 1)
         mock_run_git.side_effect = [
             type("Result", (), {"returncode": 0})(),
-            type("Result", (), {"returncode": 1})(),
+            GitError("git diff --cached --quiet 失敗"),
         ]
         result = add_all(self.test_path)
         self.assertTrue(result)

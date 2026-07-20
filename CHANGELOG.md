@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.5.0] - 2026-07-20
+
+### Added
+
+- **`opencode` サブコマンド**: OpenCode 連携設定（`alias`, `install`, `uninstall`）
+  - `alias`: `.opencode` → `.github` のシンボリックリンクを作成
+  - `install`: テンプレートを元に `opencode.json` を生成
+  - `uninstall`: `opencode.json` を削除
+- **`mcp load --file` コマンド**: `.mcp.json` から MCP サーバー設定を一括読み込み
+
+### Changed
+
+- **`mcp export`**: 出力先をカレントディレクトリに変更、出力ファイルを常に `.mcp.json` に固定
+  - `--path` オプションで出力先ディレクトリを指定可能
+- **`mcp export` の `--tool` オプションを `--path` に名称変更**
+- **`mcp add`**: `--file` オプションを廃止し `--command` 必須に簡略化
+
+## [0.4.1] - 2026-07-20
+
+### Changed
+
+- **スキル展開先を統一**: `get_claude_skills_dir()` → `get_github_skills_dir()` に変更
+  - `skill get` / `skill get-all` の出力先を `.claude/skills/` から `.github/skills/` に変更
+  - `agent` / `bin` と同じ `.github/` 配下に統一
+
+## [0.4.0] - 2026-07-20
+
+### Added
+
+- **`agent remove-all` コマンド**: 全てのエージェントを一括削除（`--keep-file`, `--force` オプション対応）
+- **`env remove-all` コマンド**: デフォルト環境を除く全ての環境を一括削除（`--force` オプション対応）
+- **`bin remove-all` コマンド**: 全てのスクリプトの登録を一括解除（`--force` オプション対応）
+
+### Changed
+
+- `bin` コマンドの `env` を位置引数（`click.argument`）から `--env` オプション（`click.option`）に変更
+  - `bin get script.py` のように単一引数でファイル名のみ渡せるよう改善
+  - `--env` 省略時は従来通り環境解決ロジックで補完
+
 ## [0.3.0] - 2026-07-20
 
 ### Added

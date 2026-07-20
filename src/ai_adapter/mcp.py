@@ -15,16 +15,6 @@ from ai_adapter import config as _config
 from ai_adapter.models import MCPServer
 
 
-def _get_output_path(tool: str) -> str:
-    """ツール名に対応する出力パスを返す。"""
-    paths = {
-        "vscode": ".vscode/mcp.json",
-        "claude": ".mcp.json",
-        "cursor": ".cursor/mcp.json",
-    }
-    return paths.get(tool, "")
-
-
 @click.group(name="mcp")
 def mcp_group() -> None:
     """MCP サーバー設定を管理する。"""
@@ -67,8 +57,6 @@ def mcp_list(tool: str | None, env: str | None) -> None:
 @click.option("--env-key", "-e", multiple=True, help="必要な環境変数キー（複数指定可）")
 @click.option("--tool", "-t", multiple=True, help="対応ツール（vscode/claude/cursor、複数指定可）")
 @click.option("--env", help="有効環境")
-@click.option("--file", "json_file", type=click.Path(exists=True, readable=True),
-              help="JSON 設定ファイルから追加")
 def mcp_add(
     name: str,
     command: str | None,
@@ -76,14 +64,10 @@ def mcp_add(
     env_key: tuple[str, ...],
     tool: tuple[str, ...],
     env: str | None,
-    json_file: str | None,
 ) -> None:
     """MCP サーバー設定を追加する。
 
     NAME: MCP サーバー名。
-
-    JSON ファイルからの追加: --file オプションで JSON 設定ファイルを指定。
-    対話的追加: --command, --args, --env-key, --tool オプションで指定。
     """
     config = _config.load_config()
     if config is None:
@@ -96,34 +80,19 @@ def mcp_add(
             click.echo(f"MCP サーバー '{name}' は既に存在します。", err=True)
             raise click.ClickException(f"MCP サーバー '{name}' は既に登録されています。")
 
-    if json_file:
-        # JSON ファイルから読み込み
-        with open(json_file) as f:
-            data = json.load(f)
+    if not command:
+        click.echo("--command は必須です。", err=True)
+        raise click.ClickException("--command オプションが必要です。")
 
-        server_data = data.get("mcpServers", {}).get(name, data)
-        server = MCPServer(
-            name=name,
-            command=server_data.get("command", ""),
-            args=server_data.get("args", []),
-            env_keys=list(server_data.get("env_keys", server_data.get("env", {}).keys())),
-            enabled=server_data.get("enabled", True),
-            tools=server_data.get("tools", []),
-            env=server_data.get("env"),
-        )
-    else:
-        if not command:
-            click.echo("--command は必須です。", err=True)
-            raise click.ClickException("--command オプションが必要です。")
-        server = MCPServer(
-            name=name,
-            command=command,
-            args=list(args),
-            env_keys=list(env_key),
-            enabled=True,
-            tools=list(tool) if tool else ["vscode", "claude", "cursor"],
-            env=env,
-        )
+    server = MCPServer(
+        name=name,
+        command=command,
+        args=list(args),
+        env_keys=list(env_key),
+        enabled=True,
+        tools=list(tool) if tool else ["vscode", "claude", "cursor"],
+        env=env,
+    )
 
     config.mcp_servers.append(server)
     _config.save_config(config)
@@ -158,11 +127,10 @@ def mcp_remove(name: str) -> None:
 
 
 @mcp_group.command(name="export")
-@click.option("--tool", required=True,
-              type=click.Choice(["vscode", "claude", "cursor"], case_sensitive=False),
-              help="出力先ツール")
-def mcp_export(tool: str) -> None:
-    """MCP 設定を各ツールの形式で出力する。"""
+@click.option("--path", default=None,
+              help="出力先ディレクトリ（デフォルト: カレントディレクトリ）")
+def mcp_export(path: str | None) -> None:
+    """MCP 設定を .mcp.json に出力する。"""
     config = _config.load_config()
     if config is None:
         click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
@@ -172,9 +140,6 @@ def mcp_export(tool: str) -> None:
 
     mcp_config: dict = {"mcpServers": {}}
     for server in enabled_servers:
-        if tool not in server.tools:
-            continue
-
         env_dict = {}
         for key in server.env_keys:
             env_dict[key] = f"${{{key}}}"
@@ -188,16 +153,57 @@ def mcp_export(tool: str) -> None:
 
         mcp_config["mcpServers"][server.name] = entry
 
-    output_path = Path.cwd() / _get_output_path(tool)
-    if not output_path:
-        click.echo(f"不明なツール: {tool}", err=True)
-        raise click.ClickException(f"ツール '{tool}' の出力先が未定義です。")
-
+    output_dir = Path(path).resolve() if path else Path.cwd()
+    output_path = output_dir / ".mcp.json"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as f:
         json.dump(mcp_config, f, indent=2, ensure_ascii=False)
 
     click.echo(f"MCP 設定を出力しました: {output_path}")
+
+
+@mcp_group.command(name="load")
+@click.option("--file", "-f", "json_path", type=click.Path(exists=True, readable=True),
+              default=".mcp.json",
+              help=".mcp.json ファイルのパス（デフォルト: .mcp.json）")
+def mcp_load(json_path: str) -> None:
+    """.mcp.json から MCP サーバー設定を一括読み込みする。"""
+    config = _config.load_config()
+    if config is None:
+        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        return
+
+    with open(json_path) as f:
+        data = json.load(f)
+
+    servers_data = data.get("mcpServers", {})
+    if not servers_data:
+        click.echo(f"'{json_path}' に mcpServers が見つかりません。", err=True)
+        raise click.ClickException("有効な .mcp.json ファイルではありません。")
+
+    loaded = 0
+    skipped = 0
+    for name, server_data in servers_data.items():
+        # 重複チェック
+        exists = any(s.name == name for s in config.mcp_servers)
+        if exists:
+            skipped += 1
+            continue
+
+        server = MCPServer(
+            name=name,
+            command=server_data.get("command", ""),
+            args=server_data.get("args", []),
+            env_keys=list(server_data.get("env", {}).keys()),
+            enabled=server_data.get("enabled", True),
+            tools=[],
+            env=None,
+        )
+        config.mcp_servers.append(server)
+        loaded += 1
+
+    _config.save_config(config)
+    click.echo(f"MCP サーバー設定を読み込みました: {loaded}件追加, {skipped}件スキップ（重複）")
 
 
 @mcp_group.command(name="enable")

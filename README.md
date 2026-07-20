@@ -76,7 +76,7 @@ cd your-project
 ai-adapter agent get reviewer      # → .github/agents/reviewer.md
 ai-adapter bin get --env myhome deploy   # → .github/bin/deploy.sh
 ai-adapter skill get database-schema  # → .github/skills/database-schema/
-ai-adapter mcp export --tool vscode   # → .vscode/mcp.json
+ai-adapter mcp export --path vscode   # → .vscode/mcp.json
 
 # 8. GitHub と同期（設定を共有）
 ai-adapter sync
@@ -216,7 +216,7 @@ MCP サーバー設定を管理します。
 | `mcp add <name>` | MCP サーバー設定を追加（`--command`, `--args`, `--file` 等） |
 | `mcp remove <name>` | MCP サーバー設定を削除 |
 | `mcp list` | MCP サーバー一覧を表示（`--tool`, `--env` でフィルタ） |
-| `mcp export --tool <tool>` | MCP 設定を各ツール形式で出力（vscode/claude/cursor） |
+| `mcp export --path <tool>` | MCP 設定を出力（.mcp.json） |
 | `mcp enable <name>` | MCP サーバーを有効化 |
 | `mcp disable <name>` | MCP サーバーを無効化 |\n| `mcp remove-all` | 全ての MCP サーバー設定を削除（`--force` 対応） |
 
@@ -231,9 +231,9 @@ ai-adapter mcp add my-server --file server-config.json
 ai-adapter mcp list
 
 # VS Code 用に出力
-ai-adapter mcp export --tool vscode
+ai-adapter mcp export --path vscode
 # Claude Code 用に出力
-ai-adapter mcp export --tool claude
+ai-adapter mcp export --path claude
 ```
 
 ### `ai-adapter uninstall`

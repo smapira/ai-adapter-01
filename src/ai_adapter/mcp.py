@@ -158,10 +158,10 @@ def mcp_remove(name: str) -> None:
 
 
 @mcp_group.command(name="export")
-@click.option("--tool", required=True,
+@click.option("--path", required=True,
               type=click.Choice(["vscode", "claude", "cursor"], case_sensitive=False),
               help="出力先ツール")
-def mcp_export(tool: str) -> None:
+def mcp_export(path: str) -> None:
     """MCP 設定を各ツールの形式で出力する。"""
     config = _config.load_config()
     if config is None:
@@ -172,7 +172,7 @@ def mcp_export(tool: str) -> None:
 
     mcp_config: dict = {"mcpServers": {}}
     for server in enabled_servers:
-        if tool not in server.tools:
+        if path not in server.tools:
             continue
 
         env_dict = {}
@@ -188,10 +188,10 @@ def mcp_export(tool: str) -> None:
 
         mcp_config["mcpServers"][server.name] = entry
 
-    output_path = Path.cwd() / _get_output_path(tool)
+    output_path = Path.cwd() / _get_output_path(path)
     if not output_path:
-        click.echo(f"不明なツール: {tool}", err=True)
-        raise click.ClickException(f"ツール '{tool}' の出力先が未定義です。")
+        click.echo(f"不明なツール: {path}", err=True)
+        raise click.ClickException(f"ツール '{path}' の出力先が未定義です。")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as f:

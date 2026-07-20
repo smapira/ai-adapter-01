@@ -141,7 +141,7 @@ class TestMCPCommands(unittest.TestCase):
             "--tool", "vscode",
         ])
 
-        result = self.runner.invoke(main, ["mcp", "export", "--tool", "vscode"])
+        result = self.runner.invoke(main, ["mcp", "export", "--path", "vscode"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("出力しました", result.output)
 

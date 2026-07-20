@@ -85,12 +85,12 @@ ai_adapter.py add agent X.md    →  X.md を ~/.ai-adapter/agents/ にコピー
 ai_adapter.py get agent XXXX    →  ~/.ai-adapter/agents/XXXX.md を .github/agents/ にコピー
 ai_adapter.py del agent XXXX    →  ~/.ai-adapter/agents/XXXX.md を削除（config からも削除）
 
-# env: 名前管理 + デフォルト設定 + ユーザー紐付け
+# env: 名前管理 + デフォルト設定 + エージェント紐付け
 ai_adapter.py add env X         →  config.yaml に env 名を保存
 ai_adapter.py list              →  config.yaml から env 一覧を表示（* 付きでデフォルト環境）
 ai_adapter.py del env X         →  config.yaml から env 名を削除（デフォルト環境は削除不可）
 ai_adapter.py set-default X     →  config.yaml の default_env を更新
-ai_adapter.py link-user <U> <E> →  config.yaml の user_bindings に追加
+ai_adapter.py link-agent <A> <E> →  config.yaml の agent_bindings に追加
 
 # bin: 外部 → ~/.ai-adapter/ → プロジェクトへ展開（env 省略可）
 ai_adapter.py add bin [env] X.sh →  X.sh を ~/.ai-adapter/bin/ にコピー（env補完→ユーザー→デフォルト）
@@ -110,7 +110,7 @@ bin コマンド実行
   ├─ env が明示指定されている → その env を使用
   │
   └─ env が省略されている
-       ├─ OS ユーザー名が user_bindings に存在 → その紐付け env を使用
+       ├─ エージェント名が agent_bindings に存在 → その紐付け env を使用
        └─ 存在しない → config.default_env を使用
 ```
 
@@ -143,8 +143,8 @@ ai-adapter
   │   ├── set-default <name>    # デフォルト環境を変更
   │   ├── add <name>            # 環境名を追加
   │   ├── remove <name>         # 環境名を削除（デフォルトは削除不可）
-  │   ├── link-user <user> <env>  # OSユーザー名と環境を紐付け
-  │   └── unlink-user <user>    # ユーザーと環境の紐付けを解除
+  │   ├── link-agent <agent> <env>  # エージェント名と環境を紐付け
+  │   └── unlink-agent <agent>    # エージェントと環境の紐付けを解除
   ├── bin
   │   ├── list [env]            # スクリプト一覧（省略時はデフォルト環境）
   │   ├── add [env] <path>      # スクリプトを ~/.ai-adapter/bin/ にコピー
@@ -175,8 +175,8 @@ ai-adapter
 |---------|------|
 | `env default` | 現在のデフォルト環境名を表示 |
 | `env set-default <name>` | デフォルト環境を変更 |
-| `env link-user <user> <env>` | OS ユーザーと環境を紐付け |
-| `env unlink-user <user>` | OS ユーザーと環境の紐付けを解除 |
+| `env link-agent <agent> <env>` | エージェントと環境を紐付け |
+| `env unlink-agent <agent>` | エージェントと環境の紐付けを解除 |
 
 ---
 
@@ -264,10 +264,10 @@ ai-adapter/
 # ~/.ai-adapter/config.yaml
 version: 1
 default_env: default              # デフォルト環境の名前
-user_bindings:
-  - user: smapira                # OSのユーザー名
+agent_bindings:
+  - agent: reviewer              # エージェント名
     env: myhome                  # 紐付ける環境名
-  - user: smapira-office
+  - agent: implementer
     env: office
 agents:
   - name: reviewer
@@ -308,8 +308,8 @@ class Env:
     is_default: bool = False      # デフォルト環境かどうか
 
 @dataclass
-class UserBinding:
-    user: str                     # OS ユーザー名（getpass.getuser()）
+class AgentBinding:
+    agent: str                    # エージェント名
     env: str                      # 紐付ける環境名
 
 @dataclass
@@ -325,7 +325,7 @@ class Config:
     envs: list[Env] = field(default_factory=list)
     bins: list[Bin] = field(default_factory=list)
     default_env: str = "default"  # デフォルト環境名
-    user_bindings: list[UserBinding] = field(default_factory=list)
+    agent_bindings: list[AgentBinding] = field(default_factory=list)
 ```
 
 各 dataclass に `to_dict()` / `from_dict()` メソッドを実装し、YAML とのシリアライズを可能にすること。
@@ -338,25 +338,28 @@ class Config:
 
 `bin` コマンドで `[env]` が省略された場合の環境解決順序:
 
-1. カレントOSユーザー名（`getpass.getuser()`）が `user_bindings` に存在すれば、その env を使用
+1. カレントのエージェント名が `agent_bindings` に存在すれば、その env を使用
+   - エージェント名は `agent get` で最後に取得したエージェント、または `--agent` オプションで指定
 2. 存在しなければ `config.default_env` の値（デフォルトは `"default"`）を使用
 
 ```python
-import getpass
-from pathlib import Path
-
-def resolve_env(config: Config, env_arg: str | None) -> str:
-    """env 引数が省略された場合に、ユーザー紐付け → デフォルト環境 の順で解決する"""
+def resolve_env(config: Config, env_arg: str | None, agent_name: str | None = None) -> str:
+    """env 引数が省略された場合に、エージェント紐付け → デフォルト環境 の順で解決する"""
     if env_arg:
         return env_arg
-    # ユーザー紐付けをチェック
-    current_user = getpass.getuser()
-    for binding in config.user_bindings:
-        if binding.user == current_user:
-            return binding.env
+    # エージェント紐付けをチェック
+    if agent_name:
+        for binding in config.agent_bindings:
+            if binding.agent == agent_name:
+                return binding.env
     # デフォルト環境を返す
     return config.default_env
 ```
+
+エージェント名は以下の順序で決定する:
+1. `bin` コマンドの `--agent` オプションで明示指定
+2. 直近の `agent get` で取得したエージェント名（CLI コンテキストに保持）
+3. 未指定の場合は `None`（デフォルト環境が使用される）
 
 ### `init`
 
@@ -364,7 +367,7 @@ def resolve_env(config: Config, env_arg: str | None) -> str:
 2. `config.yaml` が存在しなければ、デフォルト設定で初期化:
    - `default_env: "default"`
    - `envs` に `name: default, description: "デフォルト環境"` を自動登録
-   - `user_bindings` は空
+-   - `agent_bindings` は空
 3. 既存の設定があれば上書きしない
 
 ### `agent add <path>`
@@ -401,20 +404,20 @@ def resolve_env(config: Config, env_arg: str | None) -> str:
 2. 存在すれば `config.default_env` を更新
 3. 存在しなければエラー
 
-### `env link-user <user> <env>`
+### `env link-agent <agent> <env>`
 
 1. 指定された env が存在するか確認
-2. 同名のユーザー紐付けが既にあれば上書き
-3. `user_bindings` に新しい UserBinding を追加
+2. 同名のエージェント紐付けが既にあれば上書き
+3. `agent_bindings` に新しい AgentBinding を追加
 4. 使用例:
    ```bash
-   ai-adapter env link-user "$(whoami)" myhome
-   # → このPCでは自動的に myhome 環境が使われる
+   ai-adapter env link-agent reviewer myhome
+   # → reviewer エージェントを使うときは自動的に myhome 環境が使われる
    ```
 
-### `env unlink-user <user>`
+### `env unlink-agent <agent>`
 
-1. 指定されたユーザーの紐付けを削除
+1. 指定されたエージェントの紐付けを削除
 2. 存在しなければエラー
 
 ### `bin add [env] <path>`
@@ -560,7 +563,7 @@ def init():
             envs=[
                 Env(name="default", description="デフォルト環境"),
             ],
-            user_bindings=[],
+            agent_bindings=[],
         )
         save_config(config)
 ```
@@ -638,8 +641,8 @@ ai-adapter sync
 - [ ] `ai-adapter env list` で env 一覧が表示される
 - [ ] `ai-adapter env default` でデフォルト環境名が表示される
 - [ ] `ai-adapter env set-default myenv` でデフォルト環境が変更される
-- [ ] `ai-adapter env link-user $(whoami) myenv` でユーザーと環境が紐付く
-- [ ] `ai-adapter env unlink-user $(whoami)` で紐付けが解除される
+- [ ] `ai-adapter env link-agent reviewer myenv` でエージェントと環境が紐付く
+- [ ] `ai-adapter env unlink-agent reviewer` で紐付けが解除される
 - [ ] デフォルト環境 (`default`) は削除できない
 - [ ] `ai-adapter bin add script.sh` で `~/.ai-adapter/bin/` にコピーされる
 - [ ] `ai-adapter bin get script.sh` で `.github/bin/script.sh` にコピーされる
@@ -658,14 +661,14 @@ add agent PATH   →  PATH を ~/.ai-adapter/agents/ にコピー
 get agent NAME   →  ~/.ai-adapter/agents/NAME.md → .github/agents/NAME.md にコピー
 del agent NAME   →  ~/.ai-adapter/agents/NAME.md を削除
 
-# env: config.yaml で管理（デフォルト環境 + ユーザー紐付け）
+# env: config.yaml で管理（デフォルト環境 + エージェント紐付け）
 add env NAME     →  config.yaml に env 名を追加
 list             →  config.yaml の env 一覧を表示（* デフォルト環境）
 del env NAME     →  config.yaml から env 名を削除（デフォルトは削除不可）
 default          →  現在のデフォルト環境名を表示
 set-default NAME →  デフォルト環境を変更
-link-user U E    →  OS ユーザー U を環境 E に紐付け
-unlink-user U    →  OS ユーザー U の紐付けを解除
+link-agent A E   →  エージェント A を環境 E に紐付け
+unlink-agent A   →  エージェント A の紐付けを解除
 
 # bin: ~/.ai-adapter/bin/ が実体保存先（env 省略時は環境解決）
 add bin [env] PATH   →  PATH を ~/.ai-adapter/bin/ にコピー

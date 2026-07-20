@@ -213,7 +213,8 @@ MCP サーバー設定を管理します。
 
 | コマンド | 説明 |
 |---------|------|
-| `mcp add <name>` | MCP サーバー設定を追加（`--command`, `--args`, `--file` 等） |
+| `mcp add <name>` | MCP サーバー設定を追加（`--command`, `--args` 等） |
+| `mcp load --file <path>` | `.mcp.json` から MCP サーバー設定を一括読み込み |
 | `mcp remove <name>` | MCP サーバー設定を削除 |
 | `mcp list` | MCP サーバー一覧を表示（`--tool`, `--env` でフィルタ） |
 | `mcp export --path <dir>` | MCP 設定を `.mcp.json` に出力（--path省略時はカレントディレクトリ） |
@@ -224,8 +225,9 @@ MCP サーバー設定を管理します。
 # 対話的追加
 ai-adapter mcp add github --command npx --args @modelcontextprotocol/server-github
 
-# JSON ファイルから追加
-ai-adapter mcp add my-server --file server-config.json
+# .mcp.json から一括読み込み
+echo '{"mcpServers":{"github":{"command":"npx","args":["@modelcontextprotocol/server-github"]}}}' > .mcp.json
+ai-adapter mcp load
 
 # 一覧表示
 ai-adapter mcp list

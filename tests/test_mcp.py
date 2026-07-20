@@ -92,26 +92,28 @@ class TestMCPCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("github", result.output)
 
-    def test_mcp_add_from_json_file(self):
-        """mcp add --file で JSON ファイルから追加できることを確認する。"""
-        json_file = Path(self.temp_dir.name) / "server-config.json"
-        json_file.write_text(json.dumps({
+    def test_mcp_load(self):
+        """mcp load --file で .mcp.json から一括読み込みできることを確認する。"""
+        mcp_file = Path(self.temp_dir.name) / ".mcp.json"
+        mcp_file.write_text(json.dumps({
             "mcpServers": {
-                "test-server": {
+                "github": {
                     "command": "npx",
-                    "args": ["@modelcontextprotocol/server-test"],
-                    "env_keys": ["API_KEY"],
-                    "tools": ["vscode"],
-                }
+                    "args": ["@modelcontextprotocol/server-github"],
+                    "env": {"GITHUB_TOKEN": "${GITHOT_TOKEN}"},
+                },
+                "filesystem": {
+                    "command": "npx",
+                    "args": ["@modelcontextprotocol/server-filesystem", "."],
+                },
             }
         }, indent=2))
 
         result = self.runner.invoke(main, [
-            "mcp", "add", "test-server",
-            "--file", str(json_file),
+            "mcp", "load", "--file", str(mcp_file),
         ])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("test-server", result.output)
+        self.assertIn("2件追加", result.output)
 
     def test_mcp_enable_disable(self):
         """mcp enable/disable で有効/無効が切り替わることを確認する。"""

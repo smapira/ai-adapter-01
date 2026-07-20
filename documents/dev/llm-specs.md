@@ -365,7 +365,7 @@ LLM ツール間で共通する設定を環境変数で統一する検討:
 
 ```bash
 # 共通環境変数（ツール間で共有可能）
-AI_ADAPTER_CONFIG=~/.ai-adapter/config.yaml
+AI_ADAPTER_CONFIG=~/.ai-adapter/config.json
 
 # 各ツール固有の環境変数
 GITHUB_TOKEN=ghp_xxx          # GitHub API トークン
@@ -914,7 +914,7 @@ def bin_add(env: str | None, path: str, description: str | None, agent: str | No
     # 3. 実行権限を付与
     dest.chmod(0o755)
 
-    # 4. config.yaml に登録
+    # 4. config.json に登録
     config.bins.append(Bin(name=src.name, env=resolved_env, description=desc))
 ```
 
@@ -925,7 +925,7 @@ def bin_get(env: str | None, name: str, agent: str | None):
     # 1. 環境の解決
     resolved_env = resolve_env(config, env, agent)
 
-    # 2. config.yaml から env + name で検索
+    # 2. config.json から env + name で検索
     bin_entry = find_bin(config, resolved_env, name)
 
     # 3. ~/.ai-adapter/bin/<name> → .github/bin/<name> にコピー
@@ -939,7 +939,7 @@ def bin_get(env: str | None, name: str, agent: str | None):
 ### 12.6 ツール定義の標準 YAML フォーマット（ai-adapter 標準）
 
 ```yaml
-# ~/.ai-adapter/config.yaml 内の bins セクション
+# ~/.ai-adapter/config.json 内の bins セクション
 bins:
   - name: review-pr.sh
     env: myhome

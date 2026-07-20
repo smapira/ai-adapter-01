@@ -22,12 +22,12 @@ class TestConfigPaths(unittest.TestCase):
 
     def test_get_config_path_default(self):
         """デフォルトの設定ファイルパスを確認する。"""
-        expected = AI_ADAPTER_DIR / "config.yaml"
+        expected = AI_ADAPTER_DIR / "config.json"
         self.assertEqual(get_config_path(), expected)
 
     def test_get_config_path_env_override(self):
         """環境変数で設定ファイルパスを上書きできることを確認する。"""
-        with tempfile.NamedTemporaryFile(suffix=".yaml") as f:
+        with tempfile.NamedTemporaryFile(suffix=".json") as f:
             os.environ["AI_ADAPTER_CONFIG"] = f.name
             try:
                 self.assertEqual(get_config_path(), Path(f.name))
@@ -85,7 +85,7 @@ class TestConfigInit(unittest.TestCase):
     def test_init_creates_config(self):
         """init で設定ファイルが作成されることを確認する。"""
         init()
-        config_path = self.patch_home / ".ai-adapter" / "config.yaml"
+        config_path = self.patch_home / ".ai-adapter" / "config.json"
         self.assertTrue(config_path.exists())
 
         config = load_config()
@@ -106,7 +106,7 @@ class TestConfigSaveLoad(unittest.TestCase):
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.config_path = Path(self.temp_dir.name) / "config.yaml"
+        self.config_path = Path(self.temp_dir.name) / "config.json"
         os.environ["AI_ADAPTER_CONFIG"] = str(self.config_path)
 
     def tearDown(self):

@@ -1,15 +1,14 @@
 """設定ファイル管理モジュール。
 
-~/.ai-adapter/config.yaml の読み書き・バリデーションを担当する。
+~/.ai-adapter/config.json の読み書き・バリデーションを担当する。
 """
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Optional
-
-import yaml
 
 from ai_adapter.models import Config, Env
 
@@ -24,7 +23,7 @@ def get_config_path() -> Path:
     env = os.environ.get("AI_ADAPTER_CONFIG")
     if env:
         return Path(env)
-    return AI_ADAPTER_DIR / "config.yaml"
+    return AI_ADAPTER_DIR / "config.json"
 
 
 def get_agents_dir() -> Path:
@@ -37,6 +36,16 @@ def get_bins_dir() -> Path:
     return AI_ADAPTER_DIR / "bin"
 
 
+def get_skills_dir() -> Path:
+    """~/.ai-adapter/skills/ を返す。"""
+    return AI_ADAPTER_DIR / "skills"
+
+
+def get_mcp_dir() -> Path:
+    """~/.ai-adapter/mcp/ を返す。"""
+    return AI_ADAPTER_DIR / "mcp"
+
+
 def get_github_agents_dir() -> Path:
     """カレントプロジェクトの .github/agents/ を返す。"""
     return Path.cwd() / ".github" / "agents"
@@ -45,6 +54,11 @@ def get_github_agents_dir() -> Path:
 def get_github_bins_dir() -> Path:
     """カレントプロジェクトの .github/bin/ を返す。"""
     return Path.cwd() / ".github" / "bin"
+
+
+def get_claude_skills_dir() -> Path:
+    """カレントプロジェクトの .claude/skills/ を返す。"""
+    return Path.cwd() / ".claude" / "skills"
 
 
 def init() -> bool:
@@ -57,6 +71,8 @@ def init() -> bool:
         AI_ADAPTER_DIR,
         AI_ADAPTER_DIR / "agents",
         AI_ADAPTER_DIR / "bin",
+        AI_ADAPTER_DIR / "skills",
+        AI_ADAPTER_DIR / "mcp",
     ]
     for d in dirs:
         d.mkdir(parents=True, exist_ok=True)
@@ -87,11 +103,8 @@ def load_config() -> Optional[Config]:
     if not config_path.exists():
         return None
 
-    with open(config_path, "r") as f:
-        data = yaml.safe_load(f)
-
-    if data is None:
-        return None
+    with open(config_path) as f:
+        data = json.load(f)
 
     return Config.from_dict(data)
 
@@ -99,11 +112,6 @@ def load_config() -> Optional[Config]:
 def save_config(config: Config) -> None:
     """設定ファイルを保存する。"""
     config_path = get_config_path()
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     with open(config_path, "w") as f:
-        yaml.dump(
-            config.to_dict(),
-            f,
-            default_flow_style=False,
-            allow_unicode=True,
-            sort_keys=False,
-        )
+        json.dump(config.to_dict(), f, indent=2, ensure_ascii=False)

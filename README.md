@@ -171,7 +171,7 @@ ai-adapter sync
 
 ```
 ~/.ai-adapter/
-├── config.yaml                 # メイン設定ファイル
+├── config.json                 # メイン設定ファイル
 ├── agents/                     # AIエージェント指示ファイル
 │   ├── reviewer.md
 │   ├── implementer.md
@@ -195,35 +195,30 @@ ai-adapter sync
 
 ## 設定ファイル
 
-`~/.ai-adapter/config.yaml` に全設定が保存されます。
+`~/.ai-adapter/config.json` に全設定が保存されます。
 
-```yaml
-version: 1
-default_env: default
-agent_bindings:
-  - agent: reviewer
-    env: myhome
-  - agent: implementer
-    env: office
-agents:
-  - name: reviewer
-    description: "コードレビュー用エージェント"
-  - name: implementer
-    description: "実装用エージェント"
-envs:
-  - name: default
-    description: "デフォルト環境"
-  - name: myhome
-    description: "自宅開発環境"
-  - name: office
-    description: "会社開発環境"
-bins:
-  - name: deploy-prod.sh
-    env: myhome
-    description: "本番デプロイ"
-  - name: format-all.sh
-    env: default
-    description: "コード整形"
+```json
+{
+  "version": 1,
+  "default_env": "default",
+  "agent_bindings": [
+    { "agent": "reviewer", "env": "myhome" },
+    { "agent": "implementer", "env": "office" }
+  ],
+  "agents": [
+    { "name": "reviewer", "description": "コードレビュー用エージェント" },
+    { "name": "implementer", "description": "実装用エージェント" }
+  ],
+  "envs": [
+    { "name": "default", "description": "デフォルト環境" },
+    { "name": "myhome", "description": "自宅開発環境" },
+    { "name": "office", "description": "会社開発環境" }
+  ],
+  "bins": [
+    { "name": "deploy-prod.sh", "env": "myhome", "description": "本番デプロイ" },
+    { "name": "format-all.sh", "env": "default", "description": "コード整形" }
+  ]
+}
 ```
 
 ---
@@ -313,7 +308,7 @@ ai-adapter/
 │       ├── __init__.py         # バージョン情報
 │       ├── __main__.py         # python -m ai_adapter 対応
 │       ├── cli.py              # CLI エントリーポイント
-│       ├── config.py           # ~/.ai-adapter/config.yaml の読み書き
+│       ├── config.py           # ~/.ai-adapter/config.json の読み書き
 │       ├── models.py           # データモデル（dataclass）
 │       ├── agent.py            # agent サブコマンド
 │       ├── env.py              # env サブコマンド
@@ -330,7 +325,7 @@ ai-adapter/
 │   ├── test_git.py
 │   └── test_cli.py
 └── examples/
-    └── sample-config.yaml      # サンプル設定ファイル
+    └── sample-config.json      # サンプル設定ファイル
 ```
 
 ---
@@ -341,7 +336,7 @@ ai-adapter/
 |------|---------|
 | 言語 | Python 3.10+ |
 | CLI フレームワーク | Click |
-| 設定ファイル | YAML (PyYAML) |
+| 設定ファイル | JSON（標準ライブラリ） |
 | テスト | unittest（標準ライブラリ） |
 | パッケージ管理 | uv |
 

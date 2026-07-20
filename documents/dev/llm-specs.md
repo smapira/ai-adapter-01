@@ -485,3 +485,494 @@ ai-adapter agent add --tool claude instructions.md      # → CLAUDE.md にマ�
 ai-adapter agent add --tool opencode instructions.md    # → .opencode/rules/
 ai-adapter agent add --tool cursor instructions.md     # → .cursor/rules/
 ```
+
+---
+
+## 10. エージェント設定仕様（Agent Configuration）
+
+### 10.1 エージェント定義の基本構造
+
+AI エージェントは、名前・役割・指示・ツールセットを定義した設定ファイルで構成される。  
+ツールごとにフォーマットは異なるが、共通して以下の要素を持つ:
+
+| 要素 | 説明 | 必須 |
+|------|------|------|
+| `name` | エージェント名（識別子） | ✅ |
+| `description` | 役割・目的の説明 | ✅ |
+| `instructions` | エージェントへの指示内容 | ✅ |
+| `tools` / `commands` | 使用可能なツール・コマンド一覧 | ❌ |
+| `model` | 使用する AI モデルの指定 | ❌ |
+| `temperature` | 応答のランダム性パラメータ | ❌ |
+| `globs` / `applyTo` | 適用対象ファイルパターン | ❌ |
+
+### 10.2 VS Code GitHub Copilot エージェント
+
+**`.github/agents/*.md` (YAML frontmatter + Markdown):**
+
+```markdown
+---
+name: reviewer
+description: コードレビュー特化型エージェント
+---
+
+あなたはコードレビュアーです。
+セキュリティ、パフォーマンス、可読性の観点からコードをレビューしてください。
+
+## レビューチェックリスト
+- SQL インジェクション対策
+- メモリリーク
+- エッジケースのハンドリング
+```
+
+- Copilot Chat で `@reviewer` のように呼び出して使用
+- YAML frontmatter で `name` と `description` を定義
+- frontmatter 以降の本文がエージェントへの指示（system prompt）
+- `@` で参照可能にするにはエージェント名が一意である必要がある
+
+### 10.3 VS Code Agent カスタマイズファイル
+
+VS Code の Agent モードでは以下のカスタマイズファイルをサポートする:
+
+| ファイル | パス（例） | 用途 |
+|---------|-----------|------|
+| `.instructions.md` | `.github/copilot-instructions.md` など | プロジェクト共通の指示 |
+| `.prompt.md` | ユーザープロンプトフォルダ内 | エージェントへの追加プロンプト |
+| `.agent.md` | `.github/agents/` 配下 | エージェント定義本体 |
+| `SKILL.md` | `.claude/skills/` 配下 | 特定タスク用スキル定義 |
+| `copilot-instructions.md` | `.github/` 直下 | Copilot 共通指示 |
+| `AGENTS.md` | `.github/` 直下 | エージェント一覧定義 |
+
+**`copilot-instructions.md` のフォーマット:**
+
+```markdown
+# プロジェクト共通指示
+
+## コーディング規約
+- TypeScript strict モード
+- 関数には JSDoc コメント
+- 非同期処理は async/await
+
+## テスト
+- Vitest
+- `npm run test` で実行
+```
+
+- プレーンマークダウン形式
+- VS Code の設定でパスをカスタマイズ可能
+- プロジェクトルートからの相対パスで指定
+
+### 10.4 VS Code ユーザープロンプト設定
+
+VS Code の `github.copilot.chat.customInstructions` 設定でユーザー固有の指示を指定:
+
+```json
+// settings.json
+{
+  "github.copilot.chat.customInstructions": [
+    {
+      "path": "/Users/username/.github/prompts/default.md",
+      "description": "デフォルト指示"
+    }
+  ]
+}
+```
+
+または、プロンプトフォルダに `.prompt.md` ファイルを配置:
+
+```
+~/.vscode/
+└── prompts/
+    ├── 01-default.prompt.md       # 常に適用される基本指示
+    ├── 02-test-first.prompt.md    # テスト駆動開発用指示
+    └── 03-security.prompt.md      # セキュリティレビュー用指示
+```
+
+- 数値プレフィックスで読み込み順を制御
+- `.prompt.md` 拡張子で VS Code が自動認識
+- ユーザーレベルとプロジェクトレベルの両方で設定可能
+
+### 10.5 エージェントの YAML frontmatter 統一仕様（ai-adapter 標準）
+
+ai-adapter が管理するエージェントファイルの標準 frontmatter フォーマット:
+
+```yaml
+---
+# 必須
+name: reviewer                    # エージェント名（一意）
+description: コードレビュー特化型  # 簡単な説明
+
+# オプション
+model: claude-sonnet-4            # 推奨モデル
+temperature: 0.3                  # 応答のランダム性 (0.0-1.0)
+globs: "**/*.{ts,tsx}"           # 適用対象ファイル（省略時は全ファイル）
+tags: [review, security]          # 分類タグ
+version: 1                        # バージョン
+author: smapira                   # 作成者
+---
+```
+
+### 10.6 agent_bindings と環境解決
+
+```yaml
+# ~/.ai-adapter/config.yaml 内
+agent_bindings:
+  - agent: reviewer              # エージェント名
+    env: myhome                  # 紐付ける環境名
+  - agent: implementer
+    env: office
+```
+
+- エージェント名と環境を 1:1 で紐付け
+- `bin` コマンドで `[env]` 省略時にエージェント名から環境を自動解決
+- 同じエージェントを異なる環境で使い分け可能
+
+---
+
+## 11. スキル設定仕様（Skill Configuration）
+
+### 11.1 スキル定義の基本構造
+
+スキルは特定のタスクやドメインに特化した知識パッケージ。  
+再利用可能な形で定義され、エージェントが動的にロードできる。
+
+| 要素 | 説明 | 必須 |
+|------|------|------|
+| `name` | スキル名 | ✅ |
+| `description` | スキルの説明 | ✅ |
+| `instructions` | スキル実行時の指示 | ✅ |
+| `applyTo` | 適用条件（ファイルパターン等） | ❌ |
+| `tools` | スキルで使用するツール | ❌ |
+| `dependencies` | 依存する他のスキル | ❌ |
+
+### 11.2 SKILL.md フォーマット（YAML frontmatter + Markdown）
+
+```markdown
+---
+name: database-schema
+description: データベーススキーマ設計・レビューの知識
+applyTo: "**/*.prisma"
+---
+
+# データベーススキーマスキル
+
+## 命名規則
+- テーブル名: 複数形スネークケース (`users`, `blog_posts`)
+- カラム名: スネークケース (`created_at`, `updated_at`)
+
+## ベストプラクティス
+- 外部キーにはインデックスを付与
+- ソフトデリート采用時は `deleted_at` カラム
+- 時刻は UTC で保存
+
+## マイグレーション
+```bash
+npx prisma migrate dev --name <migration_name>
+```
+```
+
+**SKILL.md の配置ルール:**
+
+```
+.claude/
+└── skills/
+    ├── database-schema/
+    │   ├── SKILL.md           # スキル定義（必須）
+    │   └── examples/
+    │       └── schema.prisma  # 参考ファイル
+    ├── react-components/
+    │   └── SKILL.md
+    └── security-review/
+        └── SKILL.md
+```
+
+- 各スキルは `.claude/skills/<skill-name>/SKILL.md` に配置
+- ディレクトリ名がスキル名になる
+- 同じディレクトリ内に参考ファイルを同梱可能
+
+### 11.3 VS Code Agent スキル設定
+
+VS Code の Agent カスタマイズ機能におけるスキル定義:
+
+```yaml
+# .github/agents/skills.yml または AGENTS.md
+skills:
+  - name: database-schema
+    description: DBスキーマ設計
+    path: .claude/skills/database-schema/SKILL.md
+    applyTo: "**/*.prisma"
+  - name: test-writing
+    description: テスト記述
+    path: .claude/skills/test-writing/SKILL.md
+    applyTo: "**/*.test.ts"
+```
+
+**AGENTS.md のフォーマット（YAML frontmatter + Markdown）:**
+
+```markdown
+---
+agents:
+  - name: reviewer
+    description: コードレビュー
+    instructions: .github/agents/reviewer.md
+  - name: implementer
+    description: 実装
+    instructions: .github/agents/implementer.md
+skills:
+  - name: database-schema
+    description: DB設計知識
+    path: .claude/skills/database-schema
+---
+```
+
+- YAML frontmatter でエージェントとスキルの一覧を定義
+- 本文はプロジェクト全体の補足説明として機能
+
+### 11.4 スキルの discovery 機構
+
+各ツールにおけるスキルの検出方法:
+
+| ツール | 検出パス | 検出方法 |
+|--------|---------|---------|
+| Claude Code | `.claude/skills/*/SKILL.md` | ディレクトリスキャン |
+| VS Code Copilot | `.github/agents/*.md` | ファイルスキャン |
+| VS Code Agent | 設定で指定された `.prompt.md` | 明示指定 |
+| OpenCode | `.opencode/rules/*.md` | ディレクトリスキャン |
+| Cursor | `.cursor/rules/*.mdc` | ディレクトリスキャン |
+
+### 11.5 ai-adapter とスキルの統合（将来計画）
+
+ai-adapter でスキルを管理する案:
+
+```bash
+# スキルの追加（エージェントと似た操作体系）
+ai-adapter skill add database-schema/    # .claude/skills/ にスキルを追加
+ai-adapter skill list                    # スキル一覧表示
+ai-adapter skill get database-schema     # スキルをプロジェクトに展開
+ai-adapter skill remove database-schema  # スキル削除
+
+# エージェントとスキルの紐付け
+ai-adapter agent link-skill reviewer database-schema
+# → reviewer エージェントが database-schema スキルを自動ロード
+
+# スキル検索
+ai-adapter skill search prisma
+# → database-schema など関連スキルを表示
+```
+
+---
+
+## 12. コマンド・ツール設定仕様（Command / Tool Configuration）
+
+### 12.1 コマンド定義の基本構造
+
+AI エージェントが実行可能なコマンド・ツールの定義。
+
+| 要素 | 説明 | 必須 |
+|------|------|------|
+| `name` | コマンド名 | ✅ |
+| `path` | スクリプトファイルのパス | ✅ |
+| `description` | コマンドの説明 | ✅ |
+| `env` | 所属環境 | ❌ |
+| `args` | 引数の定義 | ❌ |
+| `timeout` | タイムアウト時間 | ❌ |
+
+### 12.2 `.github/bin/` スクリプト仕様
+
+GitHub Copilot が認識する実行可能スクリプト:
+
+```bash
+.github/bin/
+├── review-pr.sh          # PRレビュー（実行権限必要）
+├── run-tests.sh          # テスト実行
+├── format-code.sh        # コード整形
+├── lint-check.sh         # Lintチェック
+└── deploy.sh             # デプロイ
+```
+
+**スクリプトの要件:**
+
+```bash
+#!/bin/bash
+# description: このスクリプトの説明
+# usage: ai-adapter bin get deploy
+# env: myhome
+
+set -euo pipefail
+
+echo "デプロイを開始します..."
+# 実際の処理
+```
+
+- `chmod +x` で実行権限を付与すること
+- シェバング（`#!/bin/bash` 等）を先頭に記述
+- `description:` コメントで説明を記載（推奨）
+- エラーハンドリングを適切に行う（`set -euo pipefail`）
+
+### 12.3 MCP（Model Context Protocol）ツール定義
+
+MCP は AI エージェントが外部ツールを利用するための標準プロトコル:
+
+```json
+// .mcp.json または claude.json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-filesystem", "."]
+    },
+    "database": {
+      "command": "python",
+      "args": ["mcp-server.py"],
+      "env": {
+        "DATABASE_URL": "${DATABASE_URL}"
+      }
+    }
+  }
+}
+```
+
+**MCP サーバー設定の配置場所:**
+
+| ツール | 設定ファイル | パス |
+|--------|------------|------|
+| Claude Desktop | `claude.json` | `~/.claude/claude.json` |
+| Claude Code | `.mcp.json` | プロジェクトルート |
+| VS Code Copilot | `.vscode/mcp.json` | プロジェクトルート |
+| Cursor | `.cursor/mcp.json` | プロジェクトルート |
+| Continue | `config.json` | `~/.continue/config.json` |
+
+**MCP サーバーの種類:**
+
+```bash
+# ビルトインサーバー（公式提供）
+npx @modelcontextprotocol/server-github          # GitHub API
+npx @modelcontextprotocol/server-filesystem      # ファイル操作
+npx @modelcontextprotocol/server-postgres        # PostgreSQL
+npx @modelcontextprotocol/server-sqlite          # SQLite
+npx @modelcontextprotocol/server-puppeteer       # ブラウザ操作
+npx @modelcontextprotocol/server-memory          # 記憶/ベクトルDB
+npx @modelcontextprotocol/server-web-search      # Web検索
+
+# カスタムサーバー（Python / TypeScript で実装）
+python mcp-server.py    # Python MCP サーバー
+node mcp-server.js      # TypeScript MCP サーバー
+```
+
+### 12.4 OpenCode フック（hooks）仕様
+
+コマンド実行前後に自動実行されるスクリプト:
+
+```json
+{
+  "hooks": {
+    "preCommand": ".opencode/hooks/pre-command.sh",
+    "postCommand": ".opencode/hooks/post-command.sh"
+  }
+}
+```
+
+**フックスクリプトの例:**
+
+```bash
+#!/bin/bash
+# .opencode/hooks/pre-command.sh
+# コマンド実行前に自動実行される
+
+echo "=== Pre-command hook ==="
+# 環境変数のチェック
+if [ -z "$DATABASE_URL" ]; then
+  echo "Warning: DATABASE_URL が設定されていません"
+fi
+```
+
+- `preCommand`: コマンド実行直前に実行
+- `postCommand`: コマンド実行直後に実行
+- 終了コードが 0 以外の場合はコマンド実行を中断可能
+
+### 12.5 ai-adapter の bin コマンド仕様（詳細）
+
+**`bin add` の内部動作:**
+
+```python
+# bin.py の処理（概念）
+def bin_add(env: str | None, path: str, description: str | None, agent: str | None):
+    # 1. 環境の解決（省略時は agent_bindings → default_env）
+    resolved_env = resolve_env(config, env, agent)
+
+    # 2. ファイルを ~/.ai-adapter/bin/ にコピー
+    src = Path(path).resolve()
+    dest = get_bins_dir() / src.name
+    shutil.copy2(src, dest)
+
+    # 3. 実行権限を付与
+    dest.chmod(0o755)
+
+    # 4. config.yaml に登録
+    config.bins.append(Bin(name=src.name, env=resolved_env, description=desc))
+```
+
+**`bin get` の内部動作:**
+
+```python
+def bin_get(env: str | None, name: str, agent: str | None):
+    # 1. 環境の解決
+    resolved_env = resolve_env(config, env, agent)
+
+    # 2. config.yaml から env + name で検索
+    bin_entry = find_bin(config, resolved_env, name)
+
+    # 3. ~/.ai-adapter/bin/<name> → .github/bin/<name> にコピー
+    src = get_bins_dir() / bin_entry.name
+    dest = get_github_bins_dir() / bin_entry.name
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, dest)
+    dest.chmod(0o755)
+```
+
+### 12.6 ツール定義の標準 YAML フォーマット（ai-adapter 標準）
+
+```yaml
+# ~/.ai-adapter/config.yaml 内の bins セクション
+bins:
+  - name: review-pr.sh
+    env: myhome
+    description: "PR レビュー補助スクリプト"
+    tags: [review, github]
+    timeout: 300                  # タイムアウト（秒）
+    args:                        # 引数定義
+      - name: pr-number
+        type: integer
+        description: "PR 番号"
+        required: true
+
+  - name: deploy.sh
+    env: office
+    description: "本番環境デプロイ"
+    tags: [deploy, production]
+    timeout: 600
+    env_vars:                    # 必要な環境変数
+      - DEPLOY_KEY
+      - DEPLOY_SECRET
+```
+
+### 12.7 ai-adapter と MCP の統合（将来計画）
+
+```bash
+# MCP サーバーを ai-adapter で管理
+ai-adapter mcp add github          # MCPサーバー設定を追加
+ai-adapter mcp list                # MCPサーバー一覧
+ai-adapter mcp remove github       # MCPサーバー設定を削除
+
+# 環境ごとに MCP サーバーを切り替え
+ai-adapter mcp link-env github myhome    # myhome環境でgithub MCPを有効化
+
+# MCP サーバー設定の同期
+ai-adapter sync                          # ~/.ai-adapter/ ごと同期
+```

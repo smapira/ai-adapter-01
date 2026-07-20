@@ -125,6 +125,7 @@ AIエージェントの指示ファイル（`.md` 等）を管理します。
 |---------|------|
 | `agent add <path>` | エージェントファイルを `~/.ai-adapter/agents/` に追加 |
 | `agent get <name>` | エージェントを `.github/agents/` にコピー |
+| `agent get-all` | 全ての登録済みエージェントを `.github/agents/` にコピー |
 | `agent list` | 登録済みエージェント一覧を表示 |
 | `agent remove <name>` | エージェントを削除（`--keep-file` でファイル保持） |
 | `agent remove-all` | 全てのエージェントを削除（`--keep-file`, `--force` 対応） |
@@ -168,6 +169,7 @@ ai-adapter env remove-all --force
 |---------|------|
 | `bin add --env <env> <path>` | スクリプトを `~/.ai-adapter/bin/` に追加（--env省略時は環境解決） |
 | `bin get --env <env> <name>` | スクリプトを `.github/bin/` にコピー（--env省略時は環境解決） |
+| `bin get-all` | 全ての登録済みスクリプトを `.github/bin/` にコピー |
 | `bin list --env <env>` | スクリプト一覧を表示（--env省略時は全環境） |
 | `bin remove --env <env> <name>` | スクリプトの登録を解除（--env省略時は環境解決） |
 | `bin remove-all` | 全てのスクリプトの登録を解除（`--force` 対応） |

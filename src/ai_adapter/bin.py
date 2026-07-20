@@ -169,6 +169,44 @@ def bin_get(name: str, env: str | None, agent: str | None, project_dir: str | No
     click.echo(f"スクリプト '{name}' を {dest} にコピーしました。")
 
 
+@bin_group.command(name="get-all")
+@click.option("--env", "-e", default=None, help="環境名（省略時は全環境）")
+@click.option(
+    "--project-dir", "-d",
+    type=click.Path(exists=True, file_okay=False, readable=True),
+    default=None,
+    help="展開先プロジェクトディレクトリ（デフォルト: カレントディレクトリ）",
+)
+def bin_get_all(env: str | None, project_dir: str | None) -> None:
+    """全ての登録済みスクリプトを .github/bin/ にコピーする（--env でフィルタ可能）。"""
+    config = load_config()
+    if config is None or not config.bins:
+        click.echo("登録済みのスクリプトはありません。")
+        return
+
+    bins_dir = get_bins_dir()
+    project_path = Path(project_dir).resolve() if project_dir else None
+    github_dir = get_github_bins_dir(project_path)
+    github_dir.mkdir(parents=True, exist_ok=True)
+
+    targets = config.bins
+    if env:
+        targets = [b for b in targets if b.env == env]
+
+    copied = 0
+    for bin_entry in targets:
+        src = bins_dir / bin_entry.name
+        if not src.exists():
+            click.echo(f"  スキップ: '{bin_entry.name}' のファイルが見つかりません。")
+            continue
+        dest = github_dir / bin_entry.name
+        shutil.copy2(src, dest)
+        copied += 1
+
+    env_info = f" (環境: {env})" if env else ""
+    click.echo(f"全てのスクリプト ({copied}件){env_info} を {github_dir} にコピーしました。")
+
+
 @bin_group.command(name="remove")
 @click.argument("name")
 @click.option("--env", "-e", default=None, help="環境名（省略時は環境解決ロジックで補完）")

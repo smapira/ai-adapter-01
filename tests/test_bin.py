@@ -109,6 +109,27 @@ class TestBinCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((project_dir / ".github" / "bin" / "deploy-test.sh").exists())
 
+    def test_bin_get_all(self):
+        """bin get-all で全スクリプトが .github/bin/ にコピーされることを確認する。"""
+        script1 = Path(self.temp_dir.name) / "test1.sh"
+        script1.write_text("#!/bin/bash")
+        script2 = Path(self.temp_dir.name) / "test2.sh"
+        script2.write_text("#!/bin/bash")
+        self.runner.invoke(main, ["bin", "add", "--env", "default", str(script1)])
+        self.runner.invoke(main, ["bin", "add", "--env", "default", str(script2)])
+
+        github_bin = Path.cwd() / ".github" / "bin"
+        github_bin.mkdir(parents=True, exist_ok=True)
+
+        result = self.runner.invoke(main, ["bin", "get-all"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("2件", result.output)
+        self.assertTrue((github_bin / "test1.sh").exists())
+        self.assertTrue((github_bin / "test2.sh").exists())
+
+        import shutil
+        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+
     def test_bin_remove(self):
         """bin remove で登録が解除されることを確認する。"""
         self.runner.invoke(main, ["bin", "add", "--env", "default", str(self.script_file)])

@@ -84,8 +84,12 @@ def add_all(path: Path) -> bool:
     """
     _run_git(["add", "-A"], cwd=path)
     # 変更があるか確認
-    result = _run_git(["diff", "--cached", "--quiet"], cwd=path)
-    return result.returncode != 0
+    # git diff --cached --quiet は変更ありのとき exit code 1 を返す（正常）
+    try:
+        _run_git(["diff", "--cached", "--quiet"], cwd=path)
+        return False  # 変更なし
+    except GitError:
+        return True  # 変更あり
 
 
 def commit(path: Path, message: str = "ai-adapter sync") -> None:

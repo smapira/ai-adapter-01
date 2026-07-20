@@ -104,6 +104,27 @@ class TestAgentCommands(unittest.TestCase):
         self.assertIn("test-agent.md", result.output)
         self.assertTrue((project_dir / ".github" / "agents" / "test-agent.md").exists())
 
+    def test_agent_get_all(self):
+        """agent get-all で全エージェントが .github/agents/ にコピーされることを確認する。"""
+        agent1 = Path(self.temp_dir.name) / "agent1.md"
+        agent1.write_text("# Agent 1")
+        agent2 = Path(self.temp_dir.name) / "agent2.md"
+        agent2.write_text("# Agent 2")
+        self.runner.invoke(main, ["agent", "add", str(agent1)])
+        self.runner.invoke(main, ["agent", "add", str(agent2)])
+
+        github_agents = Path.cwd() / ".github" / "agents"
+        github_agents.mkdir(parents=True, exist_ok=True)
+
+        result = self.runner.invoke(main, ["agent", "get-all"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("2件", result.output)
+        self.assertTrue((github_agents / "agent1.md").exists())
+        self.assertTrue((github_agents / "agent2.md").exists())
+
+        import shutil
+        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+
     def test_agent_remove(self):
         """agent remove でエージェントが削除されることを確認する。"""
         self.runner.invoke(main, ["agent", "add", str(self.agent_file)])

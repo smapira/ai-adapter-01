@@ -197,6 +197,61 @@ def agent_get(name: str, project_dir: str | None) -> None:
     click.echo(f"エージェント '{name}' を {dest} にコピーしました。")
 
 
+@agent_group.command(name="get-all")
+@click.option(
+    "--project-dir", "-d",
+    type=click.Path(exists=True, file_okay=False, readable=True),
+    default=None,
+    help="展開先プロジェクトディレクトリ（デフォルト: カレントディレクトリ）",
+)
+def agent_get_all(project_dir: str | None) -> None:
+    """全ての登録済みエージェントを .github/agents/ にコピーする。"""
+    config = load_config()
+    if config is None or not config.agents:
+        click.echo("登録済みのエージェントはありません。")
+        return
+
+    agents_dir = get_agents_dir()
+    project_path = Path(project_dir).resolve() if project_dir else None
+    github_dir = get_github_agents_dir(project_path)
+    github_dir.mkdir(parents=True, exist_ok=True)
+
+    copied = 0
+    for agent_cfg in config.agents:
+        name = agent_cfg.name
+        src = None
+        # ファイル探索
+        for f in agents_dir.iterdir():
+            if not f.is_file():
+                continue
+            try:
+                fm = _parse_frontmatter(f)
+                if fm.get("name", "").strip() == name:
+                    src = f
+                    break
+            except Exception:
+                continue
+        if src is None:
+            candidates = [
+                agents_dir / f"{name}.agent.md",
+                agents_dir / f"{name}.md",
+                agents_dir / name,
+            ]
+            for c in candidates:
+                if c.exists() and c.is_file():
+                    src = c
+                    break
+        if src is None:
+            click.echo(f"  スキップ: '{name}' のファイルが見つかりません。")
+            continue
+
+        dest = github_dir / src.name
+        shutil.copy2(src, dest)
+        copied += 1
+
+    click.echo(f"全てのエージェント ({copied}件) を {github_dir} にコピーしました。")
+
+
 @agent_group.command(name="remove")
 @click.argument("name")
 @click.option(

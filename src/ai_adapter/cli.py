@@ -20,6 +20,7 @@ from ai_adapter.env import env_group
 from ai_adapter.mcp import mcp_group
 from ai_adapter.opencode import opencode_group
 from ai_adapter.skill import skill_group
+from ai_adapter.git import GitError, is_rebasing, get_conflicted_files
 from ai_adapter.sync import sync_command
 
 logging.basicConfig(
@@ -121,6 +122,14 @@ def cmd_status() -> None:
     click.echo(f"  bin/ ディレクトリ: {'✓' if bins_dir.exists() else '✗'}")
     click.echo(f"  skills/ ディレクトリ: {'✓' if skills_dir.exists() else '✗'}")
     click.echo(f"  mcp/ ディレクトリ: {'✓' if mcp_dir.exists() else '✗'}")
+
+    # リベース状態
+    rebasing = is_rebasing(adapter_dir)
+    click.echo(f"  リベース状態: {'⚠ 中断中' if rebasing else '✓'}")
+    if rebasing:
+        conflicted = get_conflicted_files(adapter_dir)
+        if conflicted:
+            click.echo(f"  コンフリクトファイル: {', '.join(conflicted)}")
 
 
 @main.command(name="start")
@@ -253,6 +262,66 @@ main.add_command(env_group)
 main.add_command(bin_group)
 main.add_command(skill_group)
 main.add_command(mcp_group)
-main.add_command(skill_group)
 main.add_command(opencode_group)
-main.add_command(sync_command)
+
+
+@main.command(name="sync")
+@click.option("--continue", "do_continue", is_flag=True, help="中断されたリベースを続行")
+@click.option("--abort", "do_abort", is_flag=True, help="リベースを中断")
+@click.option("--skip", "do_skip", is_flag=True, help="コミットをスキップ")
+def cmd_sync(do_continue: bool, do_abort: bool, do_skip: bool) -> None:
+    """~/.ai-adapter/ を GitHub リモートと同期する。"""
+    adapter_dir = _config.AI_ADAPTER_DIR
+
+    if not adapter_dir.exists():
+        click.echo(f"'{adapter_dir}' が見つかりません。ai-adapter init を実行してください。")
+        raise click.ClickException("ai-adapter が初期化されていません。")
+
+    # リベース操作モード
+    if do_continue or do_abort or do_skip:
+        _handle_rebase_operation(adapter_dir, do_continue, do_abort, do_skip)
+        return
+
+    # 通常の sync
+    from ai_adapter.sync import sync_command
+    try:
+        sync_command(adapter_dir)
+    except GitError as e:
+        click.echo(f"エラー: {e}", err=True)
+        raise click.ClickException(str(e))
+
+
+def _handle_rebase_operation(
+    adapter_dir: Path, do_continue: bool, do_abort: bool, do_skip: bool
+) -> None:
+    """リベース操作を処理する。"""
+    if not is_rebasing(adapter_dir):
+        click.echo("リベース中の状態ではありません。")
+        return
+
+    if do_abort:
+        click.echo("リベースを中断中...")
+        _git._run_git(["rebase", "--abort"], cwd=adapter_dir)
+        click.echo("リベースを中断しました。元の状態に戻りました。")
+    elif do_skip:
+        click.echo("コミットをスキップしてリベースを続行中...")
+        _git._run_git(["rebase", "--skip"], cwd=adapter_dir)
+        if is_rebasing(adapter_dir):
+            click.echo("まだリベース中のコミットがあります。git status で確認してください。")
+        else:
+            click.echo("ai-adapter sync でプッシュしてください。")
+    elif do_continue:
+        click.echo("リベースを続行中...")
+        try:
+            _git._run_git(["rebase", "--continue"], cwd=adapter_dir)
+            if is_rebasing(adapter_dir):
+                click.echo("まだリベース中のコミットがあります。")
+            else:
+                click.echo("ai-adapter sync でプッシュしてください。")
+        except GitError as e:
+            if "Author identity unknown" in str(e):
+                click.echo("Git ユーザー設定がされていません。")
+                click.echo("  git config --global user.email 'you@example.com'")
+                click.echo("  git config --global user.name 'Your Name'")
+            else:
+                click.echo(f"リベース続行に失敗: {e}")

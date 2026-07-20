@@ -16,9 +16,11 @@ from ai_adapter.git import (
     add_remote,
     commit,
     get_current_branch,
+    get_conflicted_files,
     get_remotes,
     has_remote,
     init_repo,
+    is_rebasing,
     is_repo,
     pull_rebase,
     push,
@@ -29,14 +31,25 @@ from ai_adapter.git import (
 logger = logging.getLogger(__name__)
 
 
-@click.command(name="sync")
-def sync_command() -> None:
+def sync_command(adapter_dir: Path | None = None) -> None:
     """~/.ai-adapter/ を GitHub リモートと同期する。"""
-    adapter_dir = _config.AI_ADAPTER_DIR
+    if adapter_dir is None:
+        adapter_dir = _config.AI_ADAPTER_DIR
 
     if not adapter_dir.exists():
         click.echo(f"'{adapter_dir}' が見つかりません。ai-adapter init を実行してください。")
         raise click.ClickException("ai-adapter が初期化されていません。")
+
+    # リベース中断検出
+    if is_rebasing(adapter_dir):
+        conflicted = get_conflicted_files(adapter_dir)
+        click.echo("⚠ 前回の sync でリベースが中断されたままです。")
+        if conflicted:
+            click.echo("  コンフリクトファイル:")
+            for f in conflicted:
+                click.echo(f"    - {f}")
+        click.echo("  解決方法: ai-adapter sync --continue / --abort / --skip")
+        raise click.ClickException("リベースを先に解決してください。")
 
     # Step 1: Git リポジトリ確認
     click.echo("Step 1: Git リポジトリを確認中...")

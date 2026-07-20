@@ -107,3 +107,53 @@ class TestGitFunctions(unittest.TestCase):
         mock_run_git.return_value.returncode = 0
         remotes = get_remotes(self.test_path)
         self.assertEqual(remotes, ["origin", "upstream"])
+
+
+class TestGitRebaseDetection(unittest.TestCase):
+    """リベース検出のテスト。"""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.test_path = Path(self.temp_dir.name)
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    @patch("ai_adapter.git._run_git")
+    def test_is_rebasing_true(self, mock_run_git):
+        """rebase-apply がある場合に True を返すことを確認する。"""
+        from ai_adapter.git import is_rebasing
+        git_dir = self.test_path / ".git"
+        git_dir.mkdir()
+        (git_dir / "rebase-apply").mkdir()
+        # rev-parse が絶対パスの .git を返す
+        mock_run_git.return_value = type("R", (), {"stdout": str(git_dir), "returncode": 0})()
+        self.assertTrue(is_rebasing(self.test_path))
+
+    @patch("ai_adapter.git._run_git")
+    def test_is_rebasing_false(self, mock_run_git):
+        """通常のリポジトリで False を返すことを確認する。"""
+        from ai_adapter.git import is_rebasing
+        git_dir = self.test_path / ".git"
+        git_dir.mkdir()
+        mock_run_git.return_value = type("R", (), {"stdout": str(git_dir), "returncode": 0})()
+        self.assertFalse(is_rebasing(self.test_path))
+
+    @patch("ai_adapter.git._run_git")
+    def test_get_conflicted_files(self, mock_run_git):
+        """コンフリクトファイル一覧を取得することを確認する。"""
+        from ai_adapter.git import get_conflicted_files
+        mock_run_git.return_value = type("R", (), {
+            "stdout": "config.json\nagents/reviewer.md\n", "returncode": 0
+        })()
+        files = get_conflicted_files(self.test_path)
+        self.assertEqual(files, ["config.json", "agents/reviewer.md"])
+
+    @patch("ai_adapter.git._run_git")
+    def test_get_conflicted_files_empty(self, mock_run_git):
+        """コンフリクトがない場合に空リストを返すことを確認する。"""
+        from ai_adapter.git import get_conflicted_files
+        # diff-filter=U で何も出力されない
+        mock_run_git.side_effect = GitError("no output")
+        files = get_conflicted_files(self.test_path)
+        self.assertEqual(files, [])

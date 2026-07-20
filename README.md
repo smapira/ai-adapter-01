@@ -192,8 +192,10 @@ ai-adapter bin remove-all --force
 |---------|------|
 | `skill add <path>` | スキルディレクトリを `~/.ai-adapter/skills/` に追加 |
 | `skill get <name>` | スキルを `.claude/skills/` にコピー |
+| `skill get-all` | 全ての登録済みスキルを `.claude/skills/` にコピー |
 | `skill list` | 登録済みスキル一覧を表示（`--tag` でフィルタ） |
 | `skill remove <name>` | スキルを削除（`--purge` でファイルも削除） |
+| `skill remove-all` | 全てのスキルを削除（`--purge`, `--force` 対応） |
 | `skill search <keyword>` | スキルをキーワード検索 |
 | `skill link-agent <skill> <agent>` | スキルとエージェントを紐付け |
 

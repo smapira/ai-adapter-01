@@ -144,3 +144,30 @@ class TestSkillCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("test-skill", result.output)
         self.assertIn("test-agent", result.output)
+
+    def test_skill_get_all(self):
+        """skill get-all で全スキルが .claude/skills/ にコピーされることを確認する。"""
+        self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
+
+        claude_skills = Path.cwd() / ".claude" / "skills"
+        claude_skills.mkdir(parents=True, exist_ok=True)
+
+        result = self.runner.invoke(main, ["skill", "get-all", "--force"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("1件", result.output)
+        self.assertTrue((claude_skills / "test-skill" / "SKILL.md").exists())
+
+        import shutil
+        shutil.rmtree(Path.cwd() / ".claude", ignore_errors=True)
+
+    def test_skill_remove_all(self):
+        """skill remove-all で全スキルが削除されることを確認する。"""
+        self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
+
+        result = self.runner.invoke(main, ["skill", "remove-all", "--force"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("全てのスキル", result.output)
+
+        # list で空になる
+        result = self.runner.invoke(main, ["skill", "list"])
+        self.assertIn("登録済みのスキルはありません", result.output)

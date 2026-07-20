@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.5.0] - 2026-07-20
+## [0.5.0] - 2026-07-21
 
 ### Added
 
@@ -9,6 +9,14 @@
   - `install`: テンプレートを元に `opencode.json` を生成
   - `uninstall`: `opencode.json` を削除
 - **`mcp load --file` コマンド**: `.mcp.json` から MCP サーバー設定を一括読み込み
+- **`agent get-all` / `bin get-all` / `skill get-all`**: 全登録アイテムの一括展開コマンド
+- **`agent remove-all` / `env remove-all` / `bin remove-all` / `skill remove-all`**: 全登録アイテムの一括削除コマンド
+- **`skill get-all` / `skill remove-all`**: スキルの一括展開・削除コマンド
+- **ファイルベース同期**: `rebuild_config()` による自動復元機能
+  - `sync` の pull 成功後に設定をファイルから自動再構築
+  - `start` の clone/init 後に設定を自動再構築
+  - `status` で実ファイル数を表示
+  - `list` / `get-all` が config 空でもファイルシステムから動作
 
 ### Changed
 
@@ -16,6 +24,19 @@
   - `--path` オプションで出力先ディレクトリを指定可能
 - **`mcp export` の `--tool` オプションを `--path` に名称変更**
 - **`mcp add`**: `--file` オプションを廃止し `--command` 必須に簡略化
+- **`bin` コマンド**: `env` を位置引数（`click.argument`）から `--env` オプション（`click.option`）に変更
+  - `bin get script.py` のように単一引数でファイル名のみ渡せるよう改善
+- **スキル展開先を統一**: `get_claude_skills_dir()` → `get_github_skills_dir()` に変更
+  - `skill get` / `skill get-all` の出力先を `.claude/skills/` から `.github/skills/` に変更
+  - `agent` / `bin` と同じ `.github/` 配下に統一
+- **`agent add`**: `.agent.md` ファイルの frontmatter から `name` を読み取り登録名として使用
+
+### Fixed
+
+- **`sync`**: `git diff --cached --quiet` の exit code 1（変更あり）でクラッシュしないよう修正
+- **`sync`**: pull/push 失敗時にクラッシュせずガイドメッセージを表示（接続不可/ブランチ不一致/コンフリクト）
+- **`sync`**: Git user config（user.name / user.email）未設定時にクラッシュせず設定手順を表示
+- **`skill get-all`**: `--force` なしで既存ディレクトリに当たるとクラッシュする問題を修正
 
 ## [0.4.1] - 2026-07-20
 

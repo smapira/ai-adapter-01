@@ -122,7 +122,7 @@ def skill_add(path: str) -> None:
     help="展開先プロジェクトディレクトリ（デフォルト: カレントディレクトリ）",
 )
 def skill_get(name: str, force: bool, project_dir: str | None) -> None:
-    """スキルを .claude/skills/ にコピーする。
+    """スキルを .github/skills/ にコピーする。
 
     NAME: 取得するスキル名。
     """

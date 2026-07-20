@@ -1,0 +1,112 @@
+"""bin.py のテスト。"""
+
+import tempfile
+import unittest
+from pathlib import Path
+
+from click.testing import CliRunner
+
+from ai_adapter.cli import main
+from ai_adapter.config import init
+from ai_adapter.models import Bin, Config
+
+
+class TestBinCommands(unittest.TestCase):
+    """bin サブコマンドのテスト。"""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.patch_home = Path(self.temp_dir.name)
+        self.runner = CliRunner()
+
+        import pathlib
+        self._original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.patch_home)
+
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
+
+        init()
+
+        # テスト用スクリプトファイル作成
+        self.script_file = Path(self.temp_dir.name) / "deploy-test.sh"
+        self.script_file.write_text("#!/bin/bash\necho 'deploy test'\n")
+
+    def tearDown(self):
+        import pathlib
+        pathlib.Path.home = staticmethod(self._original_home)
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        self.temp_dir.cleanup()
+
+    def test_bin_list_empty(self):
+        """bin list で空メッセージが表示されることを確認する。"""
+        result = self.runner.invoke(main, ["bin", "list"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("登録済みのスクリプトはありません", result.output)
+
+    def test_bin_add(self):
+        """bin add でスクリプトが追加されることを確認する。"""
+        result = self.runner.invoke(main, [
+            "bin", "add", "default", str(self.script_file),
+            "--description", "テスト用スクリプト",
+        ])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("deploy-test.sh", result.output)
+
+        bins_dir = self.patch_home / ".ai-adapter" / "bin"
+        self.assertTrue((bins_dir / "deploy-test.sh").exists())
+
+    def test_bin_add_and_list(self):
+        """bin add → bin list の流れを確認する。"""
+        self.runner.invoke(main, ["bin", "add", "default", str(self.script_file)])
+        result = self.runner.invoke(main, ["bin", "list"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("deploy-test.sh", result.output)
+
+    def test_bin_add_and_list_filtered(self):
+        """bin add → bin list env でフィルタリングされることを確認する。"""
+        self.runner.invoke(main, ["bin", "add", "default", str(self.script_file)])
+        result = self.runner.invoke(main, ["bin", "list", "default"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("deploy-test.sh", result.output)
+
+        result = self.runner.invoke(main, ["bin", "list", "nonexistent"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("登録されたスクリプトはありません", result.output)
+
+    def test_bin_get(self):
+        """bin get で .github/bin/ にコピーされることを確認する。"""
+        self.runner.invoke(main, ["bin", "add", "default", str(self.script_file)])
+
+        github_bin = Path.cwd() / ".github" / "bin"
+        github_bin.mkdir(parents=True, exist_ok=True)
+
+        result = self.runner.invoke(main, ["bin", "get", "default", "deploy-test.sh"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("deploy-test.sh", result.output)
+        self.assertTrue((github_bin / "deploy-test.sh").exists())
+
+        import shutil
+        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+
+    def test_bin_get_not_found(self):
+        """存在しないスクリプトの get でエラーになることを確認する。"""
+        result = self.runner.invoke(main, ["bin", "get", "default", "nonexistent.sh"])
+        self.assertNotEqual(result.exit_code, 0)
+
+    def test_bin_remove(self):
+        """bin remove で登録が解除されることを確認する。"""
+        self.runner.invoke(main, ["bin", "add", "default", str(self.script_file)])
+        result = self.runner.invoke(main, ["bin", "remove", "default", "deploy-test.sh"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("deploy-test.sh", result.output)
+
+        # ファイルは削除されないことを確認
+        bins_dir = self.patch_home / ".ai-adapter" / "bin"
+        self.assertTrue((bins_dir / "deploy-test.sh").exists())
+
+    def test_bin_remove_not_found(self):
+        """存在しないスクリプトの remove でエラーになることを確認する。"""
+        result = self.runner.invoke(main, ["bin", "remove", "default", "nonexistent.sh"])
+        self.assertNotEqual(result.exit_code, 0)

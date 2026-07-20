@@ -36,15 +36,7 @@ class TestOpencodeCommands(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_opencode_install(self):
-        """opencode install で opencode.json が生成されることを確認する。"""
-        # MCP サーバーを追加しておく
-        self.runner.invoke(main, [
-            "mcp", "add", "github",
-            "--command", "npx",
-            "--args", "@modelcontextprotocol/server-github",
-            "--env-key", "GITHUB_TOKEN",
-        ])
-
+        """opencode install でテンプレート opencode.json が生成されることを確認する。"""
         result = self.runner.invoke(main, ["opencode", "install"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("opencode.json", result.output)
@@ -53,8 +45,10 @@ class TestOpencodeCommands(unittest.TestCase):
         self.assertTrue(output_path.exists())
         with open(output_path) as f:
             data = json.load(f)
-        self.assertIn("hooks", data)
-        self.assertIn("github", data["hooks"])
+        self.assertIn("$schema", data)
+        self.assertIn("instructions", data)
+        self.assertIn("permission", data)
+        self.assertIn(".github/agents/*.agent.md", data["instructions"])
 
         output_path.unlink()
 
@@ -81,8 +75,8 @@ class TestOpencodeCommands(unittest.TestCase):
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn(".github", result.output)
 
-    def test_opencode_install_empty_config(self):
-        """MCP サーバー未登録でも opencode.json が生成されることを確認する。"""
+    def test_opencode_install_template_structure(self):
+        """生成された opencode.json が正しいテンプレート構造を持つことを確認する。"""
         result = self.runner.invoke(main, ["opencode", "install"])
         self.assertEqual(result.exit_code, 0)
 
@@ -90,6 +84,13 @@ class TestOpencodeCommands(unittest.TestCase):
         self.assertTrue(output_path.exists())
         with open(output_path) as f:
             data = json.load(f)
-        self.assertIn("hooks", data)
+
+        # permission が全て "ask" であることを確認
+        perm = data.get("permission", {})
+        for key in ["execute", "read", "edit", "search", "agent", "browser", "web", "todo"]:
+            self.assertEqual(perm.get(key), "ask", f"permission.{key} が ask ではありません")
+
+        # instructions に .agent.md が含まれる
+        self.assertIn(".github/agents/*.agent.md", data.get("instructions", []))
 
         output_path.unlink()

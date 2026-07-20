@@ -250,12 +250,9 @@ OpenCode 連携設定を管理します。
 
 ```bash
 # .opencode から .github へのエイリアスを作成
-echo "node_modules" > .github/.opencode-ignore
-touch .github/config.json
 ai-adapter opencode alias
 
-# MCP 設定を元に opencode.json を生成
-ai-adapter mcp add github --command npx --args @modelcontextprotocol/server-github
+# opencode.json テンプレートを生成
 ai-adapter opencode install
 
 # 削除

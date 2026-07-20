@@ -14,37 +14,6 @@ import click
 from ai_adapter import config as _config
 
 
-def _get_opencode_config() -> dict:
-    """opencode.json の設定内容を生成する。
-
-    ~/.ai-adapter/mcp/servers.json の内容を元に、opencode 形式の hooks 設定を生成する。
-    """
-    config = _config.load_config()
-    mcp_config: dict = {"hooks": {}}
-
-    if config is None:
-        return mcp_config
-
-    for server in config.mcp_servers:
-        if not server.enabled:
-            continue
-
-        env_dict = {}
-        for key in server.env_keys:
-            env_dict[key] = f"${{{key}}}"
-
-        entry: dict = {
-            "command": server.command,
-            "args": server.args,
-        }
-        if env_dict:
-            entry["env"] = env_dict
-
-        mcp_config["hooks"][server.name] = entry
-
-    return mcp_config
-
-
 @click.group(name="opencode")
 def opencode_group() -> None:
     """OpenCode 連携設定を管理する。"""
@@ -80,11 +49,27 @@ def opencode_alias() -> None:
 @opencode_group.command(name="install")
 def opencode_install() -> None:
     """opencode.json をカレントディレクトリに生成する。"""
-    mcp_config = _get_opencode_config()
+    config = {
+        "$schema": "https://opencode.ai/config.json",
+        "instructions": [
+            ".github/copilot-instructions.md",
+            ".github/agents/*.agent.md",
+        ],
+        "permission": {
+            "execute": "ask",
+            "read": "ask",
+            "edit": "ask",
+            "search": "ask",
+            "agent": "ask",
+            "browser": "ask",
+            "web": "ask",
+            "todo": "ask",
+        },
+    }
     output_path = Path.cwd() / "opencode.json"
 
     with open(output_path, "w") as f:
-        json.dump(mcp_config, f, indent=2, ensure_ascii=False)
+        json.dump(config, f, indent=2, ensure_ascii=False)
 
     click.echo(f"opencode.json を生成しました: {output_path}")
 

@@ -53,9 +53,10 @@ class TestCLIIntegration(unittest.TestCase):
 
     def test_version(self):
         """--version が表示されることを確認する。"""
+        from ai_adapter import __version__
         result = self.runner.invoke(main, ["--version"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("0.4.0", result.output)
+        self.assertIn(__version__, result.output)
 
     def test_init_and_status(self):
         """init → status の流れを確認する。"""

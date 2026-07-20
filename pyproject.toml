@@ -1,6 +1,6 @@
 [project]
 name = "ai-adapter"
-version = "0.4.0"
+version = "0.5.0"
 description = "AIエージェント・スクリプトの共通管理基盤 CLI ツール"
 authors = [
     { name = "smapira" },
@@ -10,8 +10,25 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "click>=8.1.0",
-    "pyyaml>=6.0",
 ]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Version Control",
+    "Topic :: Utilities",
+]
+keywords = ["ai", "agent", "cli", "mcp", "github", "copilot", "claude", "opencode"]
+
+[project.urls]
+Homepage = "https://github.com/smapira/ai-adapter-01"
+Repository = "https://github.com/smapira/ai-adapter-01"
+Changelog = "https://github.com/smapira/ai-adapter-01/blob/main/CHANGELOG.md"
 
 [project.scripts]
 ai-adapter = "ai_adapter.cli:main"
@@ -21,6 +38,21 @@ ai-adapter = "ai_adapter.cli:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ai_adapter"]
+exclude = ["tests/", "documents/", "scripts/", "plan.md"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/CHANGELOG.md",
+    "/LICENSE",
+    "/README.md",
+    "/pyproject.toml",
+    "/examples",
+    "/.github",
+]
 
 [tool.ruff]
 line-length = 120

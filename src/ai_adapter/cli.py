@@ -265,69 +265,7 @@ main.add_command(mcp_group)
 main.add_command(opencode_group)
 
 
-@main.command(name="export")
-@click.option("--shell", default=None,
-              type=click.Choice(["zshrc", "bash_profile", "bashrc"], case_sensitive=False),
-              help="シェル設定ファイル（省略時は対話的に選択）")
-def cmd_export(shell: str | None) -> None:
-    """~/.github/bin を PATH に追加するシェル設定を出力・適用する。"""
-    github_bin = Path.cwd() / ".github" / "bin"
-
-    if not github_bin.exists():
-        click.echo(f"'.github/bin' ディレクトリが見つかりません: {github_bin}")
-        click.echo("ai-adapter bin get <name> または ai-adapter bin get-all で先にスクリプトを展開してください。")
-        return
-
-    export_line = f'export PATH="$PATH:{github_bin.resolve()}"'
-
-    # シェル設定ファイルの候補
-    home = Path.home()
-    shell_configs = {
-        "zshrc": home / ".zshrc",
-        "bash_profile": home / ".bash_profile",
-        "bashrc": home / ".bashrc",
-    }
-
-    chosen = None
-    if shell:
-        chosen = shell.lower()
-    else:
-        click.echo()
-        click.echo(f"以下の行をシェル設定ファイルに追加すると、スクリプトを短い名前で実行できます:")
-        click.echo(f"  {export_line}")
-        click.echo()
-        click.echo("シェル設定ファイルを選択してください:")
-        for i, (key, path) in enumerate(shell_configs.items(), 1):
-            exists_mark = " ✓" if path.exists() else ""
-            click.echo(f"  {i}) {key} ({path}{exists_mark})")
-        click.echo("  4) 表示のみ（自動追加しない）")
-        click.echo()
-        choice = click.prompt("番号を選択", type=int, default=4)
-
-        if 1 <= choice <= 3:
-            chosen = list(shell_configs.keys())[choice - 1]
-
-    if chosen and chosen in shell_configs:
-        config_path = shell_configs[chosen]
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-
-        if config_path.exists():
-            content = config_path.read_text()
-            if export_line in content:
-                click.echo(f"既に設定されています: {config_path}")
-                click.echo(f"  {export_line}")
-                return
-
-        with open(config_path, "a") as f:
-            f.write(f"\n# ai-adapter PATH\n{export_line}\n")
-
-        click.echo(f"PATH 設定を追加しました: {config_path}")
-        click.echo(f"  {export_line}")
-        click.echo("設定を反映するには、シェルを再起動するか以下を実行してください:")
-        click.echo(f"  source {config_path}")
-    else:
-        click.echo("以下の行を ~/.zshrc などに追加してください:")
-        click.echo(f"  {export_line}")
+@main.command(name="sync")
 
 
 @main.command(name="sync")

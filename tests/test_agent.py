@@ -115,6 +115,24 @@ class TestAgentCommands(unittest.TestCase):
         result = self.runner.invoke(main, ["agent", "list"])
         self.assertIn("登録済みのエージェントはありません", result.output)
 
+    def test_agent_remove_all(self):
+        """agent remove-all で全エージェントが削除されることを確認する。"""
+        # 2つのエージェントを追加
+        agent1 = Path(self.temp_dir.name) / "agent1.md"
+        agent1.write_text("# Agent 1")
+        agent2 = Path(self.temp_dir.name) / "agent2.md"
+        agent2.write_text("# Agent 2")
+        self.runner.invoke(main, ["agent", "add", str(agent1)])
+        self.runner.invoke(main, ["agent", "add", str(agent2)])
+
+        result = self.runner.invoke(main, ["agent", "remove-all", "--force"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("全てのエージェント", result.output)
+
+        # list で空になる
+        result = self.runner.invoke(main, ["agent", "list"])
+        self.assertIn("登録済みのエージェントはありません", result.output)
+
     def test_agent_add_agent_md_with_frontmatter(self):
         """.agent.md ファイル追加時に frontmatter の name が登録名になることを確認する。"""
         agent_md_file = Path(self.temp_dir.name) / "reviewer.agent.md"

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0] - 2026-07-20
+
+### Added
+
+- **`agent remove-all` コマンド**: 全てのエージェントを一括削除（`--keep-file`, `--force` オプション対応）
+- **`env remove-all` コマンド**: デフォルト環境を除く全ての環境を一括削除（`--force` オプション対応）
+- **`bin remove-all` コマンド**: 全てのスクリプトの登録を一括解除（`--force` オプション対応）
+
+### Changed
+
+- `bin` コマンドの `env` を位置引数（`click.argument`）から `--env` オプション（`click.option`）に変更
+  - `bin get script.py` のように単一引数でファイル名のみ渡せるよう改善
+  - `--env` 省略時は従来通り環境解決ロジックで補完
+
 ## [0.3.0] - 2026-07-20
 
 ### Added

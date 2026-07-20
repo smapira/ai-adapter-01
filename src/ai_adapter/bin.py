@@ -201,3 +201,21 @@ def bin_remove(name: str, env: str | None, agent: str | None) -> None:
     config.bins.remove(found)
     save_config(config)
     click.echo(f"スクリプト '{name}' (環境: {resolved_env}) の登録を解除しました。")
+
+
+@bin_group.command(name="remove-all")
+@click.option("--force", is_flag=True, help="確認プロンプトを表示せずに削除する")
+def bin_remove_all(force: bool) -> None:
+    """全てのスクリプトの登録を解除する（ファイルは削除しない）。"""
+    config = load_config()
+    if config is None or not config.bins:
+        click.echo("登録済みのスクリプトはありません。")
+        return
+
+    count = len(config.bins)
+    if not force:
+        click.confirm(f"全てのスクリプト ({count}件) の登録を解除しますか？", abort=True)
+
+    config.bins.clear()
+    save_config(config)
+    click.echo(f"全てのスクリプト ({count}件) の登録を解除しました。")

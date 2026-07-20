@@ -124,3 +124,20 @@ class TestBinCommands(unittest.TestCase):
         """存在しないスクリプトの remove でエラーになることを確認する。"""
         result = self.runner.invoke(main, ["bin", "remove", "--env", "default", "nonexistent.sh"])
         self.assertNotEqual(result.exit_code, 0)
+
+    def test_bin_remove_all(self):
+        """bin remove-all で全スクリプトの登録が解除されることを確認する。"""
+        script1 = Path(self.temp_dir.name) / "test1.sh"
+        script1.write_text("#!/bin/bash")
+        script2 = Path(self.temp_dir.name) / "test2.sh"
+        script2.write_text("#!/bin/bash")
+        self.runner.invoke(main, ["bin", "add", "--env", "default", str(script1)])
+        self.runner.invoke(main, ["bin", "add", "--env", "default", str(script2)])
+
+        result = self.runner.invoke(main, ["bin", "remove-all", "--force"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("全てのスクリプト", result.output)
+
+        # list で空になる
+        result = self.runner.invoke(main, ["bin", "list"])
+        self.assertIn("登録済みのスクリプトはありません", result.output)

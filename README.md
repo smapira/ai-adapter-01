@@ -127,12 +127,14 @@ AIエージェントの指示ファイル（`.md` 等）を管理します。
 | `agent get <name>` | エージェントを `.github/agents/` にコピー |
 | `agent list` | 登録済みエージェント一覧を表示 |
 | `agent remove <name>` | エージェントを削除（`--keep-file` でファイル保持） |
+| `agent remove-all` | 全てのエージェントを削除（`--keep-file`, `--force` 対応） |
 
 ```bash
 ai-adapter agent add ~/dotfiles/agents/reviewer.md
 ai-adapter agent list
 ai-adapter agent get reviewer
 ai-adapter agent remove reviewer
+ai-adapter agent remove-all --force
 ```
 
 ### `ai-adapter env`
@@ -148,12 +150,14 @@ ai-adapter agent remove reviewer
 | `env set-default <name>` | デフォルト環境を変更 |
 | `env link-agent <agent> <env>` | エージェントと環境を紐付け |
 | `env unlink-agent <agent>` | エージェントの紐付けを解除 |
+| `env remove-all` | デフォルト環境を除く全ての環境を削除（`--force` 対応） |
 
 ```bash
 ai-adapter env add office
 ai-adapter env list
 ai-adapter env set-default office
 ai-adapter env link-agent reviewer office
+ai-adapter env remove-all --force
 ```
 
 ### `ai-adapter bin`
@@ -166,12 +170,14 @@ ai-adapter env link-agent reviewer office
 | `bin get --env <env> <name>` | スクリプトを `.github/bin/` にコピー（--env省略時は環境解決） |
 | `bin list --env <env>` | スクリプト一覧を表示（--env省略時は全環境） |
 | `bin remove --env <env> <name>` | スクリプトの登録を解除（--env省略時は環境解決） |
+| `bin remove-all` | 全てのスクリプトの登録を解除（`--force` 対応） |
 
 ```bash
 ai-adapter bin add --env myhome ~/scripts/deploy.sh
 ai-adapter bin list
 ai-adapter bin get deploy
 ai-adapter bin remove deploy
+ai-adapter bin remove-all --force
 ```
 
 また、`--env` は省略可能で、省略時は環境解決ロジックが動作します。

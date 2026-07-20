@@ -245,3 +245,34 @@ def agent_remove(name: str, keep_file: bool) -> None:
                 break
 
     click.echo(f"エージェント '{name}' を削除しました。")
+
+
+@agent_group.command(name="remove-all")
+@click.option(
+    "--keep-file/--no-keep-file",
+    default=False,
+    help="実体ファイルを削除しない（デフォルト: ファイルも削除）",
+)
+@click.option("--force", is_flag=True, help="確認プロンプトを表示せずに削除する")
+def agent_remove_all(keep_file: bool, force: bool) -> None:
+    """全てのエージェントを削除する。"""
+    config = load_config()
+    if config is None or not config.agents:
+        click.echo("登録済みのエージェントはありません。")
+        return
+
+    count = len(config.agents)
+    if not force:
+        click.confirm(f"全てのエージェント ({count}件) を削除しますか？", abort=True)
+
+    agents_dir = get_agents_dir()
+
+    # ファイル削除
+    if not keep_file and agents_dir.exists():
+        for f in agents_dir.iterdir():
+            if f.is_file():
+                f.unlink()
+
+    config.agents.clear()
+    save_config(config)
+    click.echo(f"全てのエージェント ({count}件) を削除しました。")

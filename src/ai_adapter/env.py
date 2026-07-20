@@ -206,3 +206,43 @@ def env_unlink_agent(agent: str) -> None:
     config.agent_bindings.remove(found)
     save_config(config)
     click.echo(f"エージェント '{agent}' の紐付けを解除しました。")
+
+
+@env_group.command(name="remove-all")
+@click.option("--force", is_flag=True, help="確認プロンプトを表示せずに削除する")
+def env_remove_all(force: bool) -> None:
+    """全ての環境を削除する（デフォルト環境は除く）。"""
+    config = load_config()
+    if config is None:
+        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        return
+
+    non_default = [e for e in config.envs if e.name != config.default_env]
+    if not non_default:
+        click.echo("デフォルト環境以外の環境はありません。")
+        return
+
+    count = len(non_default)
+    if not force:
+        click.confirm(f"全ての環境 ({count}件) を削除しますか？（デフォルト環境は保持されます）", abort=True)
+
+    # bin での参照チェック
+    ref_bins = [b for b in config.bins if b.env in [e.name for e in non_default]]
+    if ref_bins and not force:
+        click.echo(
+            f"削除対象の環境は {len(ref_bins)} 個の bin で参照されています。"
+            f" --force で強制的に削除できます。",
+            err=True,
+        )
+        raise click.ClickException("bin で参照中の環境は削除できません。--force を使用してください。")
+
+    removed_names = [e.name for e in non_default]
+    config.envs = [e for e in config.envs if e.name == config.default_env]
+
+    # エージェント紐付けも削除
+    config.agent_bindings = [
+        b for b in config.agent_bindings if b.env not in removed_names
+    ]
+
+    save_config(config)
+    click.echo(f"全ての環境 ({count}件) を削除しました。デフォルト環境 '{config.default_env}' は保持されています。")

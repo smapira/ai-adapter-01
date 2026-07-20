@@ -123,7 +123,13 @@ def bin_add(env: str | None, path: str, description: str, agent: str | None) -> 
 @click.argument("env", required=False)
 @click.argument("name")
 @click.option("--agent", help="エージェント名（環境解決用）")
-def bin_get(env: str | None, name: str, agent: str | None) -> None:
+@click.option(
+    "--project-dir", "-d",
+    type=click.Path(exists=True, file_okay=False, readable=True),
+    default=None,
+    help="展開先プロジェクトディレクトリ（デフォルト: カレントディレクトリ）",
+)
+def bin_get(env: str | None, name: str, agent: str | None, project_dir: str | None) -> None:
     """スクリプトを .github/bin/ にコピーする。
 
     NAME: 取得するスクリプト名。
@@ -154,7 +160,8 @@ def bin_get(env: str | None, name: str, agent: str | None) -> None:
         click.echo(f"ファイル '{src}' が見つかりません。", err=True)
         raise click.ClickException(f"ファイル '{name}' が ~/.ai-adapter/bin/ に存在しません。")
 
-    github_dir = get_github_bins_dir()
+    project_path = Path(project_dir).resolve() if project_dir else None
+    github_dir = get_github_bins_dir(project_path)
     github_dir.mkdir(parents=True, exist_ok=True)
 
     dest = github_dir / name

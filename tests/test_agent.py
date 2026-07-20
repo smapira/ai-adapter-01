@@ -88,6 +88,22 @@ class TestAgentCommands(unittest.TestCase):
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("見つかりません", result.output)
 
+    def test_agent_get_with_project_dir(self):
+        """agent get --project-dir で指定ディレクトリにコピーされることを確認する。"""
+        self.runner.invoke(main, ["agent", "add", str(self.agent_file)])
+
+        # 任意のプロジェクトディレクトリを作成
+        project_dir = Path(self.temp_dir.name) / "my-project"
+        project_dir.mkdir(parents=True)
+
+        result = self.runner.invoke(main, [
+            "agent", "get", "test-agent",
+            "--project-dir", str(project_dir),
+        ])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("test-agent.md", result.output)
+        self.assertTrue((project_dir / ".github" / "agents" / "test-agent.md").exists())
+
     def test_agent_remove(self):
         """agent remove でエージェントが削除されることを確認する。"""
         self.runner.invoke(main, ["agent", "add", str(self.agent_file)])

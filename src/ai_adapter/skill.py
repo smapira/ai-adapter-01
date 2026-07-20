@@ -115,7 +115,13 @@ def skill_add(path: str) -> None:
 @skill_group.command(name="get")
 @click.argument("name")
 @click.option("--force", is_flag=True, help="既存のスキルを上書きする")
-def skill_get(name: str, force: bool) -> None:
+@click.option(
+    "--project-dir", "-d",
+    type=click.Path(exists=True, file_okay=False, readable=True),
+    default=None,
+    help="展開先プロジェクトディレクトリ（デフォルト: カレントディレクトリ）",
+)
+def skill_get(name: str, force: bool, project_dir: str | None) -> None:
     """スキルを .claude/skills/ にコピーする。
 
     NAME: 取得するスキル名。
@@ -142,7 +148,8 @@ def skill_get(name: str, force: bool) -> None:
         click.echo(f"スキルディレクトリ '{src}' が見つかりません。", err=True)
         raise click.ClickException(f"スキル '{name}' のディレクトリが存在しません。")
 
-    claude_dir = get_claude_skills_dir()
+    project_path = Path(project_dir).resolve() if project_dir else None
+    claude_dir = get_claude_skills_dir(project_path)
     claude_dir.mkdir(parents=True, exist_ok=True)
     dest = claude_dir / name
 

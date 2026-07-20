@@ -95,6 +95,20 @@ class TestBinCommands(unittest.TestCase):
         result = self.runner.invoke(main, ["bin", "get", "default", "nonexistent.sh"])
         self.assertNotEqual(result.exit_code, 0)
 
+    def test_bin_get_with_project_dir(self):
+        """bin get --project-dir で指定ディレクトリにコピーされることを確認する。"""
+        self.runner.invoke(main, ["bin", "add", "default", str(self.script_file)])
+
+        project_dir = Path(self.temp_dir.name) / "my-project"
+        project_dir.mkdir(parents=True)
+
+        result = self.runner.invoke(main, [
+            "bin", "get", "default", "deploy-test.sh",
+            "--project-dir", str(project_dir),
+        ])
+        self.assertEqual(result.exit_code, 0)
+        self.assertTrue((project_dir / ".github" / "bin" / "deploy-test.sh").exists())
+
     def test_bin_remove(self):
         """bin remove で登録が解除されることを確認する。"""
         self.runner.invoke(main, ["bin", "add", "default", str(self.script_file)])

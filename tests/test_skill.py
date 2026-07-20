@@ -92,6 +92,21 @@ class TestSkillCommands(unittest.TestCase):
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("見つかりません", result.output)
 
+    def test_skill_get_with_project_dir(self):
+        """skill get --project-dir で指定ディレクトリにコピーされることを確認する。"""
+        self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
+
+        project_dir = Path(self.temp_dir.name) / "my-project"
+        project_dir.mkdir(parents=True)
+
+        result = self.runner.invoke(main, [
+            "skill", "get", "test-skill",
+            "--project-dir", str(project_dir),
+            "--force",
+        ])
+        self.assertEqual(result.exit_code, 0)
+        self.assertTrue((project_dir / ".claude" / "skills" / "test-skill" / "SKILL.md").exists())
+
     def test_skill_remove(self):
         """skill remove でスキルが削除されることを確認する。"""
         self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])

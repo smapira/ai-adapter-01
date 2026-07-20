@@ -86,7 +86,13 @@ def agent_add(path: str) -> None:
 
 @agent_group.command(name="get")
 @click.argument("name")
-def agent_get(name: str) -> None:
+@click.option(
+    "--project-dir", "-d",
+    type=click.Path(exists=True, file_okay=False, readable=True),
+    default=None,
+    help="展開先プロジェクトディレクトリ（デフォルト: カレントディレクトリ）",
+)
+def agent_get(name: str, project_dir: str | None) -> None:
     """エージェントファイルを .github/agents/ にコピーする。
 
     NAME: 取得するエージェント名（拡張子不要）。
@@ -104,7 +110,8 @@ def agent_get(name: str) -> None:
         click.echo(f"エージェント '{name}' が見つかりません。", err=True)
         raise click.ClickException(f"エージェント '{name}' は登録されていません。")
 
-    github_dir = get_github_agents_dir()
+    project_path = Path(project_dir).resolve() if project_dir else None
+    github_dir = get_github_agents_dir(project_path)
     github_dir.mkdir(parents=True, exist_ok=True)
 
     dest = github_dir / src.name

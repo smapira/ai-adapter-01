@@ -6,6 +6,8 @@ Click グループを定義し、全サブコマンドを統合する。
 from __future__ import annotations
 
 import logging
+import shutil
+from pathlib import Path
 
 import click
 
@@ -77,6 +79,70 @@ def cmd_status() -> None:
     click.echo(f"  bin/ ディレクトリ: {'✓' if bins_dir.exists() else '✗'}")
     click.echo(f"  skills/ ディレクトリ: {'✓' if skills_dir.exists() else '✗'}")
     click.echo(f"  mcp/ ディレクトリ: {'✓' if mcp_dir.exists() else '✗'}")
+
+
+@main.command(name="uninstall")
+@click.option("--force", is_flag=True, help="確認プロンプトを表示せずに削除する")
+@click.option("--keep-git", is_flag=True, help="Git リポジトリ情報を保持する")
+def cmd_uninstall(force: bool, keep_git: bool) -> None:
+    """~/.ai-adapter/ を削除して初期状態に戻す。"""
+    adapter_dir = _config.AI_ADAPTER_DIR
+
+    if not adapter_dir.exists():
+        click.echo("ai-adapter は初期化されていません。")
+        click.echo("削除するデータはありません。")
+        return
+
+    # Git リポジトリ確認
+    git_dir = adapter_dir / ".git"
+    is_git_repo = git_dir.exists()
+
+    if is_git_repo and not keep_git:
+        click.echo("警告: ~/.ai-adapter/ は Git リポジトリとして管理されています。")
+        click.echo("リモートの変更を先にプッシュすることを推奨します。")
+        click.echo("  cd ~/.ai-adapter && git status")
+        click.echo("  git push")
+
+    # 確認プロンプト
+    if not force:
+        size_info = _get_dir_size(adapter_dir)
+        click.echo(f"削除対象: {adapter_dir} ({size_info})")
+        click.confirm("本当に削除しますか？", abort=True)
+
+    # ~/.ai-adapter/ を削除
+    if keep_git and is_git_repo:
+        _remove_contents_except_git(adapter_dir)
+        click.echo(f"データを削除しました (Git リポジトリは保持): {adapter_dir}")
+    else:
+        shutil.rmtree(adapter_dir)
+        click.echo(f"アンインストールしました: {adapter_dir}")
+
+    click.echo("ai-adapter init で再初期化できます。")
+
+
+def _get_dir_size(path: Path) -> str:
+    """ディレクトリのサイズを人間が読める形式で返す。"""
+    total = 0
+    for f in path.rglob("*"):
+        if f.is_file():
+            total += f.stat().st_size
+    if total < 1024:
+        return f"{total} B"
+    elif total < 1024 * 1024:
+        return f"{total / 1024:.1f} KB"
+    else:
+        return f"{total / 1024 / 1024:.1f} MB"
+
+
+def _remove_contents_except_git(path: Path) -> None:
+    """Git リポジトリ（.git）を残して中身をすべて削除する。"""
+    for item in path.iterdir():
+        if item.name == ".git":
+            continue
+        if item.is_dir():
+            shutil.rmtree(item)
+        else:
+            item.unlink()
 
 
 # サブコマンドグループを登録

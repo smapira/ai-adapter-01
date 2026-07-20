@@ -209,6 +209,21 @@ ai-adapter mcp export --tool vscode
 ai-adapter mcp export --tool claude
 ```
 
+### `ai-adapter uninstall`
+
+`~/.ai-adapter/` を削除して初期状態に戻します。
+
+| オプション | 説明 |
+|-----------|------|
+| `--force` | 確認プロンプトを表示せずに削除 |
+| `--keep-git` | Git リポジトリ（`.git`）を保持してデータのみ削除 |
+
+```bash
+ai-adapter uninstall
+ai-adapter uninstall --force
+ai-adapter uninstall --keep-git
+```
+
 ### `ai-adapter sync`
 
 `~/.ai-adapter/` を GitHub リモートと同期します。

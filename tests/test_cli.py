@@ -4,6 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from unittest.mock import patch
+
 from click.testing import CliRunner
 
 from ai_adapter.cli import main
@@ -44,6 +46,7 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("skill", result.output)
         self.assertIn("mcp", result.output)
         self.assertIn("sync", result.output)
+        self.assertIn("uninstall", result.output)
 
     def test_version(self):
         """--version が表示されることを確認する。"""
@@ -121,3 +124,70 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("export", result.output)
         self.assertIn("enable", result.output)
         self.assertIn("disable", result.output)
+
+
+class TestUninstallCommand(unittest.TestCase):
+    """uninstall コマンドのテスト。"""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.patch_home = Path(self.temp_dir.name)
+        self.runner = CliRunner()
+
+        import pathlib
+        self._original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.patch_home)
+
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
+
+    def tearDown(self):
+        import pathlib
+        pathlib.Path.home = staticmethod(self._original_home)
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        self.temp_dir.cleanup()
+
+    def test_uninstall_before_init(self):
+        """未初期化時に uninstall するとメッセージが表示されることを確認する。"""
+        result = self.runner.invoke(main, ["uninstall", "--force"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("初期化されていません", result.output)
+        self.assertIn("削除するデータはありません", result.output)
+
+    def test_uninstall_after_init(self):
+        """init → uninstall --force の流れを確認する。"""
+        self.runner.invoke(main, ["init"])
+        adapter_dir = self.patch_home / ".ai-adapter"
+        self.assertTrue(adapter_dir.exists())
+
+        result = self.runner.invoke(main, ["uninstall", "--force"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("アンインストールしました", result.output)
+        self.assertFalse(adapter_dir.exists())
+
+    def test_uninstall_keep_git(self):
+        """--keep-git で .git が保持されることを確認する。"""
+        self.runner.invoke(main, ["init"])
+        adapter_dir = self.patch_home / ".ai-adapter"
+
+        # Git リポジトリを模擬
+        git_dir = adapter_dir / ".git"
+        git_dir.mkdir(parents=True, exist_ok=True)
+        (git_dir / "HEAD").write_text("ref: refs/heads/main\n")
+
+        result = self.runner.invoke(main, ["uninstall", "--force", "--keep-git"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("Git リポジトリは保持", result.output)
+        self.assertTrue((adapter_dir / ".git").exists())
+        self.assertFalse((adapter_dir / "config.json").exists())
+
+    def test_uninstall_cancel(self):
+        """確認プロンプトで No を選択すると削除されないことを確認する。"""
+        self.runner.invoke(main, ["init"])
+        adapter_dir = self.patch_home / ".ai-adapter"
+        self.assertTrue(adapter_dir.exists())
+
+        result = self.runner.invoke(main, ["uninstall"], input="n\n")
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertTrue(adapter_dir.exists())

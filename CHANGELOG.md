@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1] - 2026-07-20
+
+### Changed
+
+- **スキル展開先を統一**: `get_claude_skills_dir()` → `get_github_skills_dir()` に変更
+  - `skill get` / `skill get-all` の出力先を `.claude/skills/` から `.github/skills/` に変更
+  - `agent` / `bin` と同じ `.github/` 配下に統一
+
 ## [0.4.0] - 2026-07-20
 
 ### Added

@@ -74,7 +74,7 @@ ai-adapter mcp add github --command npx --args @modelcontextprotocol/server-gith
 # 7. プロジェクトに展開
 cd your-project
 ai-adapter agent get reviewer      # → .github/agents/reviewer.md
-ai-adapter bin get myhome deploy   # → .github/bin/deploy.sh
+ai-adapter bin get --env myhome deploy   # → .github/bin/deploy.sh
 ai-adapter skill get database-schema  # → .claude/skills/database-schema/
 ai-adapter mcp export --tool vscode   # → .vscode/mcp.json
 
@@ -162,17 +162,19 @@ ai-adapter env link-agent reviewer office
 
 | コマンド | 説明 |
 |---------|------|
-| `bin add [env] <path>` | スクリプトを `~/.ai-adapter/bin/` に追加 |
-| `bin get [env] <name>` | スクリプトを `.github/bin/` にコピー |
-| `bin list [env]` | スクリプト一覧を表示（省略時は全環境） |
-| `bin remove [env] <name>` | スクリプトの登録を解除（ファイルは保持） |
+| `bin add --env <env> <path>` | スクリプトを `~/.ai-adapter/bin/` に追加（--env省略時は環境解決） |
+| `bin get --env <env> <name>` | スクリプトを `.github/bin/` にコピー（--env省略時は環境解決） |
+| `bin list --env <env>` | スクリプト一覧を表示（--env省略時は全環境） |
+| `bin remove --env <env> <name>` | スクリプトの登録を解除（--env省略時は環境解決） |
 
 ```bash
-ai-adapter bin add myhome ~/scripts/deploy.sh
+ai-adapter bin add --env myhome ~/scripts/deploy.sh
 ai-adapter bin list
 ai-adapter bin get deploy
 ai-adapter bin remove deploy
 ```
+
+また、`--env` は省略可能で、省略時は環境解決ロジックが動作します。
 
 ### `ai-adapter skill`
 

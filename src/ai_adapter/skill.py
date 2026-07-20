@@ -14,7 +14,7 @@ import click
 import yaml
 
 from ai_adapter.config import (
-    get_claude_skills_dir,
+    get_github_skills_dir,
     get_skills_dir,
     load_config,
     save_config,
@@ -149,7 +149,7 @@ def skill_get(name: str, force: bool, project_dir: str | None) -> None:
         raise click.ClickException(f"スキル '{name}' のディレクトリが存在しません。")
 
     project_path = Path(project_dir).resolve() if project_dir else None
-    claude_dir = get_claude_skills_dir(project_path)
+    claude_dir = get_github_skills_dir(project_path)
     claude_dir.mkdir(parents=True, exist_ok=True)
     dest = claude_dir / name
 
@@ -286,7 +286,7 @@ def skill_get_all(force: bool, project_dir: str | None) -> None:
 
     skills_dir = get_skills_dir()
     project_path = Path(project_dir).resolve() if project_dir else None
-    claude_dir = get_claude_skills_dir(project_path)
+    claude_dir = get_github_skills_dir(project_path)
     claude_dir.mkdir(parents=True, exist_ok=True)
 
     copied = 0

@@ -66,14 +66,14 @@ def get_github_bins_dir(project_dir: Path | None = None) -> Path:
     return base / ".github" / "bin"
 
 
-def get_claude_skills_dir(project_dir: Path | None = None) -> Path:
-    """カレントプロジェクトの .claude/skills/ を返す。
+def get_github_skills_dir(project_dir: Path | None = None) -> Path:
+    """カレントプロジェクトの .github/skills/ を返す。
 
     Args:
         project_dir: プロジェクトディレクトリ。None の場合はカレントディレクトリ。
     """
     base = project_dir or Path.cwd()
-    return base / ".claude" / "skills"
+    return base / ".github" / "skills"
 
 
 def init() -> bool:

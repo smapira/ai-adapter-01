@@ -9,7 +9,7 @@ from ai_adapter.config import (
     AI_ADAPTER_DIR,
     get_agents_dir,
     get_bins_dir,
-    get_claude_skills_dir,
+    get_github_skills_dir,
     get_config_path,
     get_mcp_dir,
     get_skills_dir,
@@ -53,10 +53,10 @@ class TestConfigPaths(unittest.TestCase):
         """mcp/ ディレクトリのパスを確認する。"""
         self.assertEqual(get_mcp_dir(), AI_ADAPTER_DIR / "mcp")
 
-    def test_get_claude_skills_dir(self):
-        """.claude/skills/ ディレクトリのパスを確認する。"""
-        expected = Path.cwd() / ".claude" / "skills"
-        self.assertEqual(get_claude_skills_dir(), expected)
+    def test_get_github_skills_dir(self):
+        """.github/skills/ ディレクトリのパスを確認する。"""
+        expected = Path.cwd() / ".github" / "skills"
+        self.assertEqual(get_github_skills_dir(), expected)
 
 
 class TestConfigInit(unittest.TestCase):

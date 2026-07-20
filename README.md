@@ -12,7 +12,7 @@ CLI で操作し、AIエージェントの指示ファイル（`.github/instruct
 - **環境切り替え**: 会社・自宅など環境ごとにエージェント設定やスクリプトを切り替え
 - **GitHub 同期**: `ai-adapter sync` で `~/.ai-adapter/` を GitHub リモートと同期。チーム共有やPC移行が簡単
 - **エージェント紐付け**: エージェント名と環境を紐付け、コンテキストに応じた自動解決
-- **スキル管理**: SKILL.md 形式のスキルを管理・展開（`.claude/skills/`）
+- **スキル管理**: SKILL.md 形式のスキルを管理・展開（`.github/skills/`）
 - **MCP サーバー管理**: MCP サーバー設定を一元管理し、各ツール形式で出力
 
 ---
@@ -75,7 +75,7 @@ ai-adapter mcp add github --command npx --args @modelcontextprotocol/server-gith
 cd your-project
 ai-adapter agent get reviewer      # → .github/agents/reviewer.md
 ai-adapter bin get --env myhome deploy   # → .github/bin/deploy.sh
-ai-adapter skill get database-schema  # → .claude/skills/database-schema/
+ai-adapter skill get database-schema  # → .github/skills/database-schema/
 ai-adapter mcp export --tool vscode   # → .vscode/mcp.json
 
 # 8. GitHub と同期（設定を共有）
@@ -191,8 +191,8 @@ ai-adapter bin remove-all --force
 | コマンド | 説明 |
 |---------|------|
 | `skill add <path>` | スキルディレクトリを `~/.ai-adapter/skills/` に追加 |
-| `skill get <name>` | スキルを `.claude/skills/` にコピー |
-| `skill get-all` | 全ての登録済みスキルを `.claude/skills/` にコピー |
+| `skill get <name>` | スキルを `.github/skills/` にコピー |
+| `skill get-all` | 全ての登録済みスキルを `.github/skills/` にコピー |
 | `skill list` | 登録済みスキル一覧を表示（`--tag` でフィルタ） |
 | `skill remove <name>` | スキルを削除（`--purge` でファイルも削除） |
 | `skill remove-all` | 全てのスキルを削除（`--purge`, `--force` 対応） |
@@ -218,7 +218,7 @@ MCP サーバー設定を管理します。
 | `mcp list` | MCP サーバー一覧を表示（`--tool`, `--env` でフィルタ） |
 | `mcp export --tool <tool>` | MCP 設定を各ツール形式で出力（vscode/claude/cursor） |
 | `mcp enable <name>` | MCP サーバーを有効化 |
-| `mcp disable <name>` | MCP サーバーを無効化 |
+| `mcp disable <name>` | MCP サーバーを無効化 |\n| `mcp remove-all` | 全ての MCP サーバー設定を削除（`--force` 対応） |
 
 ```bash
 # 対話的追加

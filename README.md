@@ -259,6 +259,20 @@ ai-adapter opencode install
 ai-adapter opencode uninstall
 ```
 
+### `ai-adapter export`
+
+カレントプロジェクトの `.github/bin/` を PATH に追加するシェル設定を出力・適用します。
+これにより `.github/bin/add_task.sh` を `add_task.sh` として直接実行できるようになります。
+
+```bash
+# 対話的にシェル設定ファイルを選択
+ai-adapter export
+
+# 直接 zshrc に書き込む
+ai-adapter export --shell zshrc
+ai-adapter export --shell bash_profile
+```
+
 ### `ai-adapter uninstall`
 
 `~/.ai-adapter/` を削除して初期状態に戻します。

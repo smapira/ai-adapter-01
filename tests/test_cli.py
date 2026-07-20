@@ -47,6 +47,7 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("skill", result.output)
         self.assertIn("mcp", result.output)
         self.assertIn("opencode", result.output)
+        self.assertIn("export", result.output)
         self.assertIn("sync", result.output)
         self.assertIn("uninstall", result.output)
         self.assertIn("start", result.output)
@@ -262,3 +263,62 @@ class TestStartCommand(unittest.TestCase):
             "start", "git@github.com:user/test.git",
         ], input="n\n")
         self.assertNotEqual(result.exit_code, 0)
+
+
+class TestExportCommand(unittest.TestCase):
+    """export コマンドのテスト。"""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.runner = CliRunner()
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_export_no_github_bin(self):
+        """.github/bin がない場合にメッセージが表示されることを確認する。"""
+        result = self.runner.invoke(main, ["export"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("見つかりません", result.output)
+
+    def test_export_with_github_bin(self):
+        """.github/bin がある場合に export 行が表示されることを確認する。"""
+        github_bin = Path.cwd() / ".github" / "bin"
+        github_bin.mkdir(parents=True, exist_ok=True)
+        (github_bin / "test.sh").write_text("#!/bin/bash")
+
+        # 表示のみ (4 を選択)
+        result = self.runner.invoke(main, ["export"], input="4\n")
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("export PATH", result.output)
+
+        import shutil
+        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+
+    def test_export_to_zshrc(self):
+        """.github/bin がある場合に zshrc に追記されることを確認する。"""
+        # ホームディレクトリを一時的に差し替え
+        import pathlib
+        orig_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: Path(self.temp_dir.name))
+
+        # .github/bin を作成
+        github_bin = Path.cwd() / ".github" / "bin"
+        github_bin.mkdir(parents=True, exist_ok=True)
+        (github_bin / "test.sh").write_text("#!/bin/bash")
+
+        # zshrc を選択 (1)
+        result = self.runner.invoke(main, ["export"], input="1\n")
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("PATH 設定を追加しました", result.output)
+
+        # zshrc に追記されたか確認
+        zshrc = Path(self.temp_dir.name) / ".zshrc"
+        self.assertTrue(zshrc.exists())
+        content = zshrc.read_text()
+        self.assertIn("export PATH", content)
+        self.assertIn(".github/bin", content)
+
+        import shutil
+        pathlib.Path.home = staticmethod(orig_home)
+        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)

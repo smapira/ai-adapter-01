@@ -15,16 +15,6 @@ from ai_adapter import config as _config
 from ai_adapter.models import MCPServer
 
 
-def _get_output_path(tool: str) -> str:
-    """ツール名に対応する出力パスを返す。"""
-    paths = {
-        "vscode": ".vscode/mcp.json",
-        "claude": ".mcp.json",
-        "cursor": ".cursor/mcp.json",
-    }
-    return paths.get(tool, "")
-
-
 @click.group(name="mcp")
 def mcp_group() -> None:
     """MCP サーバー設定を管理する。"""
@@ -158,11 +148,10 @@ def mcp_remove(name: str) -> None:
 
 
 @mcp_group.command(name="export")
-@click.option("--path", required=True,
-              type=click.Choice(["vscode", "claude", "cursor"], case_sensitive=False),
-              help="出力先ツール")
-def mcp_export(path: str) -> None:
-    """MCP 設定を各ツールの形式で出力する。"""
+@click.option("--path", default=None,
+              help="出力先ディレクトリ（デフォルト: カレントディレクトリ）")
+def mcp_export(path: str | None) -> None:
+    """MCP 設定を .mcp.json に出力する。"""
     config = _config.load_config()
     if config is None:
         click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
@@ -172,9 +161,6 @@ def mcp_export(path: str) -> None:
 
     mcp_config: dict = {"mcpServers": {}}
     for server in enabled_servers:
-        if path not in server.tools:
-            continue
-
         env_dict = {}
         for key in server.env_keys:
             env_dict[key] = f"${{{key}}}"
@@ -188,11 +174,8 @@ def mcp_export(path: str) -> None:
 
         mcp_config["mcpServers"][server.name] = entry
 
-    output_path = Path.cwd() / _get_output_path(path)
-    if not output_path:
-        click.echo(f"不明なツール: {path}", err=True)
-        raise click.ClickException(f"ツール '{path}' の出力先が未定義です。")
-
+    output_dir = Path(path).resolve() if path else Path.cwd()
+    output_path = output_dir / ".mcp.json"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as f:
         json.dump(mcp_config, f, indent=2, ensure_ascii=False)

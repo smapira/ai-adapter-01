@@ -216,7 +216,7 @@ MCP サーバー設定を管理します。
 | `mcp add <name>` | MCP サーバー設定を追加（`--command`, `--args`, `--file` 等） |
 | `mcp remove <name>` | MCP サーバー設定を削除 |
 | `mcp list` | MCP サーバー一覧を表示（`--tool`, `--env` でフィルタ） |
-| `mcp export --path <tool>` | MCP 設定を出力（.mcp.json） |
+| `mcp export --path <dir>` | MCP 設定を `.mcp.json` に出力（--path省略時はカレントディレクトリ） |
 | `mcp enable <name>` | MCP サーバーを有効化 |
 | `mcp disable <name>` | MCP サーバーを無効化 |\n| `mcp remove-all` | 全ての MCP サーバー設定を削除（`--force` 対応） |
 
@@ -230,10 +230,10 @@ ai-adapter mcp add my-server --file server-config.json
 # 一覧表示
 ai-adapter mcp list
 
-# VS Code 用に出力
-ai-adapter mcp export --path vscode
-# Claude Code 用に出力
-ai-adapter mcp export --path claude
+# カレントディレクトリに出力
+ai-adapter mcp export
+# 指定ディレクトリに出力
+ai-adapter mcp export --path /path/to/project
 ```
 
 ### `ai-adapter uninstall`

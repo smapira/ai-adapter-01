@@ -132,7 +132,7 @@ class TestMCPCommands(unittest.TestCase):
         self.assertIn("有効化", result.output)
 
     def test_mcp_export(self):
-        """mcp export で設定ファイルが出力されることを確認する。"""
+        """mcp export で .mcp.json が出力されることを確認する。"""
         self.runner.invoke(main, [
             "mcp", "add", "github",
             "--command", "npx",
@@ -141,16 +141,30 @@ class TestMCPCommands(unittest.TestCase):
             "--tool", "vscode",
         ])
 
-        result = self.runner.invoke(main, ["mcp", "export", "--path", "vscode"])
+        result = self.runner.invoke(main, ["mcp", "export"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("出力しました", result.output)
+        self.assertIn(".mcp.json", result.output)
 
-        # 出力ファイル確認
-        output_path = Path.cwd() / ".vscode" / "mcp.json"
+        # カレントディレクトリに .mcp.json が出力される
+        output_path = Path.cwd() / ".mcp.json"
         self.assertTrue(output_path.exists())
         with open(output_path) as f:
             data = json.load(f)
         self.assertIn("github", data["mcpServers"])
 
-        import shutil
-        shutil.rmtree(Path.cwd() / ".vscode", ignore_errors=True)
+        output_path.unlink()
+
+    def test_mcp_export_with_path(self):
+        """mcp export --path で指定ディレクトリに出力されることを確認する。"""
+        self.runner.invoke(main, [
+            "mcp", "add", "github",
+            "--command", "npx",
+            "--args", "@modelcontextprotocol/server-github",
+        ])
+
+        export_dir = Path(self.temp_dir.name) / "my-project"
+        export_dir.mkdir(parents=True)
+
+        result = self.runner.invoke(main, ["mcp", "export", "--path", str(export_dir)])
+        self.assertEqual(result.exit_code, 0)
+        self.assertTrue((export_dir / ".mcp.json").exists())

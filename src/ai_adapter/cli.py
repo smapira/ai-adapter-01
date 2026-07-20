@@ -14,6 +14,8 @@ from ai_adapter import config as _config
 from ai_adapter.agent import agent_group
 from ai_adapter.bin import bin_group
 from ai_adapter.env import env_group
+from ai_adapter.mcp import mcp_group
+from ai_adapter.skill import skill_group
 from ai_adapter.sync import sync_command
 
 logging.basicConfig(
@@ -62,17 +64,25 @@ def cmd_status() -> None:
     click.echo(f"  登録エージェント数: {len(config.agents)}")
     click.echo(f"  登録環境数: {len(config.envs)}")
     click.echo(f"  登録スクリプト数: {len(config.bins)}")
+    click.echo(f"  登録スキル数: {len(config.skills)}")
+    click.echo(f"  MCP サーバー数: {len(config.mcp_servers)}")
     click.echo(f"  エージェント紐付け数: {len(config.agent_bindings)}")
 
     # ディレクトリ存在確認
     agents_dir = adapter_dir / "agents"
     bins_dir = adapter_dir / "bin"
+    skills_dir = adapter_dir / "skills"
+    mcp_dir = adapter_dir / "mcp"
     click.echo(f"  agents/ ディレクトリ: {'✓' if agents_dir.exists() else '✗'}")
     click.echo(f"  bin/ ディレクトリ: {'✓' if bins_dir.exists() else '✗'}")
+    click.echo(f"  skills/ ディレクトリ: {'✓' if skills_dir.exists() else '✗'}")
+    click.echo(f"  mcp/ ディレクトリ: {'✓' if mcp_dir.exists() else '✗'}")
 
 
 # サブコマンドグループを登録
 main.add_command(agent_group)
 main.add_command(env_group)
 main.add_command(bin_group)
+main.add_command(skill_group)
+main.add_command(mcp_group)
 main.add_command(sync_command)

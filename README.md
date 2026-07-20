@@ -12,6 +12,8 @@ CLI で操作し、AIエージェントの指示ファイル（`.github/instruct
 - **環境切り替え**: 会社・自宅など環境ごとにエージェント設定やスクリプトを切り替え
 - **GitHub 同期**: `ai-adapter sync` で `~/.ai-adapter/` を GitHub リモートと同期。チーム共有やPC移行が簡単
 - **エージェント紐付け**: エージェント名と環境を紐付け、コンテキストに応じた自動解決
+- **スキル管理**: SKILL.md 形式のスキルを管理・展開（`.claude/skills/`）
+- **MCP サーバー管理**: MCP サーバー設定を一元管理し、各ツール形式で出力
 
 ---
 
@@ -63,12 +65,20 @@ ai-adapter env add myhome
 # 4. スクリプトを追加
 ai-adapter bin add myhome ~/scripts/deploy.sh
 
-# 5. プロジェクトに展開
+# 5. スキルを追加
+ai-adapter skill add ~/my-skills/database-schema
+
+# 6. MCP サーバーを追加
+ai-adapter mcp add github --command npx --args @modelcontextprotocol/server-github
+
+# 7. プロジェクトに展開
 cd your-project
 ai-adapter agent get reviewer      # → .github/agents/reviewer.md
 ai-adapter bin get myhome deploy   # → .github/bin/deploy.sh
+ai-adapter skill get database-schema  # → .claude/skills/database-schema/
+ai-adapter mcp export --tool vscode   # → .vscode/mcp.json
 
-# 6. GitHub と同期（設定を共有）
+# 8. GitHub と同期（設定を共有）
 ai-adapter sync
 ```
 
@@ -149,6 +159,56 @@ ai-adapter bin get deploy
 ai-adapter bin remove deploy
 ```
 
+### `ai-adapter skill`
+
+スキル（SKILL.md を含むディレクトリ）を管理します。
+
+| コマンド | 説明 |
+|---------|------|
+| `skill add <path>` | スキルディレクトリを `~/.ai-adapter/skills/` に追加 |
+| `skill get <name>` | スキルを `.claude/skills/` にコピー |
+| `skill list` | 登録済みスキル一覧を表示（`--tag` でフィルタ） |
+| `skill remove <name>` | スキルを削除（`--purge` でファイルも削除） |
+| `skill search <keyword>` | スキルをキーワード検索 |
+| `skill link-agent <skill> <agent>` | スキルとエージェントを紐付け |
+
+```bash
+ai-adapter skill add ~/skills/database-schema/
+ai-adapter skill list
+ai-adapter skill get database-schema
+ai-adapter skill search prisma
+ai-adapter skill link-agent database-schema reviewer
+```
+
+### `ai-adapter mcp`
+
+MCP サーバー設定を管理します。
+
+| コマンド | 説明 |
+|---------|------|
+| `mcp add <name>` | MCP サーバー設定を追加（`--command`, `--args`, `--file` 等） |
+| `mcp remove <name>` | MCP サーバー設定を削除 |
+| `mcp list` | MCP サーバー一覧を表示（`--tool`, `--env` でフィルタ） |
+| `mcp export --tool <tool>` | MCP 設定を各ツール形式で出力（vscode/claude/cursor） |
+| `mcp enable <name>` | MCP サーバーを有効化 |
+| `mcp disable <name>` | MCP サーバーを無効化 |
+
+```bash
+# 対話的追加
+ai-adapter mcp add github --command npx --args @modelcontextprotocol/server-github
+
+# JSON ファイルから追加
+ai-adapter mcp add my-server --file server-config.json
+
+# 一覧表示
+ai-adapter mcp list
+
+# VS Code 用に出力
+ai-adapter mcp export --tool vscode
+# Claude Code 用に出力
+ai-adapter mcp export --tool claude
+```
+
 ### `ai-adapter sync`
 
 `~/.ai-adapter/` を GitHub リモートと同期します。
@@ -176,9 +236,17 @@ ai-adapter sync
 │   ├── reviewer.md
 │   ├── implementer.md
 │   └── researcher.md
-└── bin/                        # スクリプトファイル
-    ├── deploy-prod.sh
-    └── deploy-staging.sh
+├── bin/                        # スクリプトファイル
+│   ├── deploy-prod.sh
+│   └── deploy-staging.sh
+├── skills/                     # スキルディレクトリ
+│   ├── database-schema/
+│   │   ├── SKILL.md
+│   │   └── examples/
+│   └── security-review/
+│       └── SKILL.md
+└── mcp/                        # MCP サーバー設定
+    └── servers.json
 ```
 
 このディレクトリを Git リポジトリ化し、GitHub を介して複数PC間で同期できます。
@@ -217,6 +285,25 @@ ai-adapter sync
   "bins": [
     { "name": "deploy-prod.sh", "env": "myhome", "description": "本番デプロイ" },
     { "name": "format-all.sh", "env": "default", "description": "コード整形" }
+  ],
+  "skills": [
+    {
+      "name": "database-schema",
+      "description": "DBスキーマ設計・レビューの知識",
+      "path": "skills/database-schema",
+      "tags": ["database", "prisma", "schema"],
+      "agent": "reviewer"
+    }
+  ],
+  "mcp_servers": [
+    {
+      "name": "github",
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-github"],
+      "env_keys": ["GITHUB_TOKEN"],
+      "enabled": true,
+      "tools": ["vscode", "claude", "cursor"]
+    }
   ]
 }
 ```
@@ -313,6 +400,8 @@ ai-adapter/
 │       ├── agent.py            # agent サブコマンド
 │       ├── env.py              # env サブコマンド
 │       ├── bin.py              # bin サブコマンド
+│       ├── skill.py            # skill サブコマンド
+│       ├── mcp.py              # mcp サブコマンド
 │       ├── sync.py             # sync コマンド（GitHub同期）
 │       └── git.py              # Git 操作ラッパー
 ├── tests/
@@ -321,6 +410,8 @@ ai-adapter/
 │   ├── test_agent.py
 │   ├── test_env.py
 │   ├── test_bin.py
+│   ├── test_skill.py
+│   ├── test_mcp.py
 │   ├── test_sync.py
 │   ├── test_git.py
 │   └── test_cli.py

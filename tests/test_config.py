@@ -9,7 +9,10 @@ from ai_adapter.config import (
     AI_ADAPTER_DIR,
     get_agents_dir,
     get_bins_dir,
+    get_claude_skills_dir,
     get_config_path,
+    get_mcp_dir,
+    get_skills_dir,
     init,
     load_config,
     save_config,
@@ -41,6 +44,19 @@ class TestConfigPaths(unittest.TestCase):
     def test_get_bins_dir(self):
         """bin/ ディレクトリのパスを確認する。"""
         self.assertEqual(get_bins_dir(), AI_ADAPTER_DIR / "bin")
+
+    def test_get_skills_dir(self):
+        """skills/ ディレクトリのパスを確認する。"""
+        self.assertEqual(get_skills_dir(), AI_ADAPTER_DIR / "skills")
+
+    def test_get_mcp_dir(self):
+        """mcp/ ディレクトリのパスを確認する。"""
+        self.assertEqual(get_mcp_dir(), AI_ADAPTER_DIR / "mcp")
+
+    def test_get_claude_skills_dir(self):
+        """.claude/skills/ ディレクトリのパスを確認する。"""
+        expected = Path.cwd() / ".claude" / "skills"
+        self.assertEqual(get_claude_skills_dir(), expected)
 
 
 class TestConfigInit(unittest.TestCase):
@@ -81,6 +97,8 @@ class TestConfigInit(unittest.TestCase):
         self.assertTrue(adapter_dir.exists())
         self.assertTrue((adapter_dir / "agents").exists())
         self.assertTrue((adapter_dir / "bin").exists())
+        self.assertTrue((adapter_dir / "skills").exists())
+        self.assertTrue((adapter_dir / "mcp").exists())
 
     def test_init_creates_config(self):
         """init で設定ファイルが作成されることを確認する。"""

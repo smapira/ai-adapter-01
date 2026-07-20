@@ -41,6 +41,8 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("agent", result.output)
         self.assertIn("env", result.output)
         self.assertIn("bin", result.output)
+        self.assertIn("skill", result.output)
+        self.assertIn("mcp", result.output)
         self.assertIn("sync", result.output)
 
     def test_version(self):
@@ -97,3 +99,25 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("add", result.output)
         self.assertIn("get", result.output)
         self.assertIn("remove", result.output)
+
+    def test_skill_help(self):
+        """skill --help が表示されることを確認する。"""
+        result = self.runner.invoke(main, ["skill", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("list", result.output)
+        self.assertIn("add", result.output)
+        self.assertIn("get", result.output)
+        self.assertIn("remove", result.output)
+        self.assertIn("search", result.output)
+        self.assertIn("link-agent", result.output)
+
+    def test_mcp_help(self):
+        """mcp --help が表示されることを確認する。"""
+        result = self.runner.invoke(main, ["mcp", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("list", result.output)
+        self.assertIn("add", result.output)
+        self.assertIn("remove", result.output)
+        self.assertIn("export", result.output)
+        self.assertIn("enable", result.output)
+        self.assertIn("disable", result.output)

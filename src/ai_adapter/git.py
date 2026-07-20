@@ -94,7 +94,22 @@ def add_all(path: Path) -> bool:
 
 def commit(path: Path, message: str = "ai-adapter sync") -> None:
     """git commit を実行する。"""
-    _run_git(["commit", "-m", message], cwd=path)
+    try:
+        _run_git(["commit", "-m", message], cwd=path)
+    except GitError as e:
+        err_msg = str(e)
+        if "Author identity unknown" in err_msg or "Please tell me who you are" in err_msg:
+            raise GitError(
+                "Git のユーザー設定がされていません。\n"
+                "以下を実行して user.name と user.email を設定してください:\n"
+                "  git config --global user.email \"you@example.com\"\n"
+                "  git config --global user.name \"Your Name\"\n"
+                "または ~/.ai-adapter リポジトリのみに設定する場合:\n"
+                "  cd ~/.ai-adapter\n"
+                "  git config user.email \"you@example.com\"\n"
+                "  git config user.name \"Your Name\""
+            )
+        raise
 
 
 def pull_rebase(path: Path, branch: str = "main") -> None:

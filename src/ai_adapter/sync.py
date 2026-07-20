@@ -79,8 +79,21 @@ def sync_command() -> None:
     click.echo("Step 2: 変更をコミット中...")
     has_changes = add_all(adapter_dir)
     if has_changes:
-        commit(adapter_dir)
-        click.echo("  変更をコミットしました。")
+        try:
+            commit(adapter_dir)
+            click.echo("  変更をコミットしました。")
+        except GitError as e:
+            logger.error("commit 失敗: %s", e)
+            click.echo(f"  コミットに失敗しました。")
+            click.echo("  Git のユーザー設定がされていない可能性があります。")
+            click.echo("  以下を実行してからもう一度試してください:")
+            click.echo("    git config --global user.email 'you@example.com'")
+            click.echo("    git config --global user.name 'Your Name'")
+            click.echo("  または ~/.ai-adapter リポジトリのみに設定:")
+            click.echo("    cd ~/.ai-adapter")
+            click.echo("    git config user.email 'you@example.com'")
+            click.echo("    git config user.name 'Your Name'")
+            return
     else:
         click.echo("  変更はありません。")
 

@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.6.0] - 2026-07-21
+
+### Added
+
+- **`agent add-rec` / `bin add-rec` / `skill add-rec`**: ディレクトリ内の全アイテムを再帰的に一括登録
+- **`mcp remove-all`**: 全ての MCP サーバー設定を削除し、`.mcp.json` も物理削除
+- **`mcp load --file`**: `.mcp.json` から MCP サーバー設定を一括読み込み
+
+### Changed
+
+- **`agent remove` / `bin remove` / `skill remove`**: 削除時に `.github/` 配下の展開済みファイルも物理削除
+
+### Removed
+
+- **`mcp enable` / `mcp disable`**: 不要なコマンドを削除（`remove` / `remove-all` で統一）
+
 ## [0.5.1] - 2026-07-21
 
 ### Changed

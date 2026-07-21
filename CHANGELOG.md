@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.7.0] - 2026-07-22
+
+### Added
+
+- **`add-all-rec` コマンド**: `.github/` 配下と `.mcp.json` から全アイテムを一括登録
+  - `.github/agents/` → `~/.ai-adapter/agents/`
+  - `.github/bin/` → `~/.ai-adapter/bin/`
+  - `.github/skills/` → `~/.ai-adapter/skills/`
+  - `.mcp.json` → `config.json` の `mcp_servers`
+
 ## [0.6.1] - 2026-07-21
 
 ### Changed

@@ -1,5 +1,6 @@
 """CLI 統合テスト。"""
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -47,6 +48,7 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("skill", result.output)
         self.assertIn("mcp", result.output)
         self.assertIn("opencode", result.output)
+        self.assertIn("add-all-rec", result.output)
         self.assertIn("sync", result.output)
         self.assertIn("uninstall", result.output)
         self.assertIn("start", result.output)
@@ -316,3 +318,103 @@ class TestBinAddPathCommand(unittest.TestCase):
         import shutil
         pathlib.Path.home = staticmethod(orig_home)
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+
+
+class TestAddAllRecCommand(unittest.TestCase):
+    """add-all-rec コマンドのテスト。"""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.patch_home = Path(self.temp_dir.name)
+        self.runner = CliRunner()
+
+        import pathlib
+        self._original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.patch_home)
+
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
+
+        # init
+        from ai_adapter.config import init
+        init()
+
+    def tearDown(self):
+        import pathlib
+        pathlib.Path.home = staticmethod(self._original_home)
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        self.temp_dir.cleanup()
+
+    def test_add_all_rec_agents(self):
+        """.github/agents からエージェントが登録されることを確認する。"""
+        github_agents = Path.cwd() / ".github" / "agents"
+        github_agents.mkdir(parents=True, exist_ok=True)
+        (github_agents / "reviewer.md").write_text("# Reviewer")
+        (github_agents / "implementer.md").write_text("# Implementer")
+
+        result = self.runner.invoke(main, ["add-all-rec"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("agents", result.output)
+
+        # list で確認
+        result = self.runner.invoke(main, ["agent", "list"])
+        self.assertIn("reviewer", result.output)
+        self.assertIn("implementer", result.output)
+
+        import shutil
+        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+
+    def test_add_all_rec_bins(self):
+        """.github/bin からスクリプトが登録されることを確認する。"""
+        github_bin = Path.cwd() / ".github" / "bin"
+        github_bin.mkdir(parents=True, exist_ok=True)
+        (github_bin / "script1.sh").write_text("#!/bin/bash")
+        (github_bin / "script2.sh").write_text("#!/bin/bash")
+
+        result = self.runner.invoke(main, ["add-all-rec"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("bin", result.output)
+
+        import shutil
+        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+
+    def test_add_all_rec_skills(self):
+        """.github/skills からスキルが登録されることを確認する。"""
+        github_skills = Path.cwd() / ".github" / "skills"
+        github_skills.mkdir(parents=True, exist_ok=True)
+        skill1 = github_skills / "my-skill"
+        skill1.mkdir()
+        (skill1 / "SKILL.md").write_text("---\nname: my-skill\n---\n# Skill\n")
+
+        result = self.runner.invoke(main, ["add-all-rec"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("skills", result.output)
+
+        import shutil
+        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+
+    def test_add_all_rec_mcp(self):
+        """.mcp.json から MCP サーバーが登録されることを確認する。"""
+        mcp_json = Path.cwd() / ".mcp.json"
+        mcp_json.write_text(json.dumps({
+            "mcpServers": {
+                "test-server": {
+                    "command": "npx",
+                    "args": ["@test/server"],
+                }
+            }
+        }))
+
+        result = self.runner.invoke(main, ["add-all-rec"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn(".mcp.json", result.output)
+        self.assertIn("1件", result.output)
+
+        mcp_json.unlink()
+
+    def test_add_all_rec_no_github(self):
+        """.github がない場合にメッセージが表示されることを確認する。"""
+        result = self.runner.invoke(main, ["add-all-rec"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("見つかりません", result.output)

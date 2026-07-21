@@ -117,6 +117,20 @@ ai-adapter init --remote git@github.com:user/my-agent-config.git
 ai-adapter status
 ```
 
+### `ai-adapter add-all-rec`
+
+`.github/` 配下の全ファイルと `.mcp.json` を `~/.ai-adapter/` に一括登録します。
+同期済みのリポジトリをクローンした後などに実行すると、ファイルから設定を自動復元できます。
+
+```bash
+# プロジェクトルートで実行
+ai-adapter add-all-rec
+```
+
+```bash
+ai-adapter status
+```
+
 ### `ai-adapter agent`
 
 AIエージェントの指示ファイル（`.md` 等）を管理します。

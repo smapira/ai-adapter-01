@@ -265,6 +265,130 @@ main.add_command(mcp_group)
 main.add_command(opencode_group)
 
 
+@main.command(name="add-all-rec")
+def cmd_add_all_rec() -> None:
+    """.github/ 以下の全ファイルを ~/.ai-adapter/ に取り込む。"""
+    github_dir = Path.cwd() / ".github"
+    if not github_dir.exists():
+        click.echo(f"'.github' ディレクトリは見つかりません。")
+
+    config = _config.load_config()
+    if config is None:
+        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        return
+
+    from ai_adapter.agent import _get_agent_name_from_path, _parse_frontmatter
+    from ai_adapter.models import Agent, Bin, Skill, MCPServer
+    from ai_adapter.skill import _parse_skill_metadata
+    import json
+
+    total_added = 0
+
+    # 1) agents/
+    agents_src = github_dir / "agents"
+    if agents_src.exists():
+        agents_dir = _config.get_agents_dir()
+        agents_dir.mkdir(parents=True, exist_ok=True)
+        added = 0
+        for f in sorted(agents_src.rglob("*")):
+            if not f.is_file():
+                continue
+            dest = agents_dir / f.name
+            if str(f).endswith(".agent.md"):
+                fm = _parse_frontmatter(f)
+                if not fm or not fm.get("name", "").strip():
+                    continue
+            name = _get_agent_name_from_path(f)
+            config.agents = [a for a in config.agents if a.name != name]
+            shutil.copy2(f, dest)
+            config.agents.append(Agent(name=name))
+            added += 1
+        if added:
+            click.echo(f"  agents/: {added}件登録")
+            total_added += added
+
+    # 2) bin/
+    bins_src = github_dir / "bin"
+    if bins_src.exists():
+        bins_dir = _config.get_bins_dir()
+        bins_dir.mkdir(parents=True, exist_ok=True)
+        resolved_env = config.default_env
+        added = 0
+        for f in sorted(bins_src.rglob("*")):
+            if not f.is_file():
+                continue
+            dest = bins_dir / f.name
+            config.bins = [b for b in config.bins if b.name != f.name]
+            shutil.copy2(f, dest)
+            config.bins.append(Bin(name=f.name, env=resolved_env))
+            added += 1
+        if added:
+            click.echo(f"  bin/: {added}件登録")
+            total_added += added
+
+    # 3) skills/
+    skills_src = github_dir / "skills"
+    if skills_src.exists():
+        skills_dir = _config.get_skills_dir()
+        skills_dir.mkdir(parents=True, exist_ok=True)
+        added = 0
+        for d in sorted(skills_src.iterdir()):
+            if not d.is_dir():
+                continue
+            skill_file = d / "SKILL.md"
+            if not skill_file.exists():
+                continue
+            try:
+                metadata = _parse_skill_metadata(d)
+            except Exception:
+                continue
+            name = metadata.get("name") or d.name
+            dest = skills_dir / name
+            if dest.exists():
+                shutil.rmtree(dest)
+            config.skills = [s for s in config.skills if s.name != name]
+            shutil.copytree(d, dest)
+            config.skills.append(Skill(
+                name=name,
+                description=metadata.get("description", ""),
+                path=f"skills/{name}",
+                tags=metadata.get("tags", []),
+            ))
+            added += 1
+        if added:
+            click.echo(f"  skills/: {added}件登録")
+            total_added += added
+
+    # 4) .mcp.json
+    mcp_json = Path.cwd() / ".mcp.json"
+    if mcp_json.exists():
+        try:
+            with open(mcp_json) as f:
+                data = json.load(f)
+            servers_data = data.get("mcpServers", {})
+            added = 0
+            for name, sd in servers_data.items():
+                if not any(s.name == name for s in config.mcp_servers):
+                    config.mcp_servers.append(MCPServer(
+                        name=name,
+                        command=sd.get("command", ""),
+                        args=sd.get("args", []),
+                        env_keys=list(sd.get("env", {}).keys()),
+                        enabled=sd.get("enabled", True),
+                        tools=[],
+                        env=None,
+                    ))
+                    added += 1
+            if added:
+                click.echo(f"  .mcp.json: {added}件登録")
+                total_added += added
+        except (json.JSONDecodeError, Exception) as e:
+            click.echo(f"  .mcp.json の読み込みに失敗: {e}")
+
+    _config.save_config(config)
+    click.echo(f"全ての登録が完了しました: 合計{total_added}件")
+
+
 @main.command(name="sync")
 @click.option("--continue", "do_continue", is_flag=True, help="中断されたリベースを続行")
 @click.option("--abort", "do_abort", is_flag=True, help="リベースを中断")

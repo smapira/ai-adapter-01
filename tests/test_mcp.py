@@ -115,24 +115,6 @@ class TestMCPCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("2件追加", result.output)
 
-    def test_mcp_enable_disable(self):
-        """mcp enable/disable で有効/無効が切り替わることを確認する。"""
-        self.runner.invoke(main, [
-            "mcp", "add", "github",
-            "--command", "npx",
-            "--args", "@modelcontextprotocol/server-github",
-        ])
-
-        # disable
-        result = self.runner.invoke(main, ["mcp", "disable", "github"])
-        self.assertEqual(result.exit_code, 0)
-        self.assertIn("無効化", result.output)
-
-        # enable
-        result = self.runner.invoke(main, ["mcp", "enable", "github"])
-        self.assertEqual(result.exit_code, 0)
-        self.assertIn("有効化", result.output)
-
     def test_mcp_export(self):
         """mcp export で .mcp.json が出力されることを確認する。"""
         self.runner.invoke(main, [

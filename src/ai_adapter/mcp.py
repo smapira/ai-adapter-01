@@ -206,47 +206,26 @@ def mcp_load(json_path: str) -> None:
     click.echo(f"MCP サーバー設定を読み込みました: {loaded}件追加, {skipped}件スキップ（重複）")
 
 
-@mcp_group.command(name="enable")
-@click.argument("name")
-def mcp_enable(name: str) -> None:
-    """MCP サーバーを有効化する。
-
-    NAME: 有効化する MCP サーバー名。
-    """
+@mcp_group.command(name="remove-all")
+@click.option("--force", is_flag=True, help="確認プロンプトを表示せずに削除する")
+def mcp_remove_all(force: bool) -> None:
+    """全ての MCP サーバー設定を削除し、.mcp.json を削除する。"""
     config = _config.load_config()
-    if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+    if config is None or not config.mcp_servers:
+        click.echo("登録済みの MCP サーバーはありません。")
         return
 
-    for s in config.mcp_servers:
-        if s.name == name:
-            s.enabled = True
-            _config.save_config(config)
-            click.echo(f"MCP サーバー '{name}' を有効化しました。")
-            return
+    count = len(config.mcp_servers)
+    if not force:
+        click.confirm(f"全ての MCP サーバー ({count}件) を削除しますか？", abort=True)
 
-    click.echo(f"MCP サーバー '{name}' は登録されていません。", err=True)
-    raise click.ClickException(f"MCP サーバー '{name}' が見つかりません。")
+    config.mcp_servers.clear()
+    _config.save_config(config)
 
+    # .mcp.json を削除
+    mcp_json = Path.cwd() / ".mcp.json"
+    if mcp_json.exists():
+        mcp_json.unlink()
+        click.echo(f".mcp.json を削除しました。")
 
-@mcp_group.command(name="disable")
-@click.argument("name")
-def mcp_disable(name: str) -> None:
-    """MCP サーバーを無効化する。
-
-    NAME: 無効化する MCP サーバー名。
-    """
-    config = _config.load_config()
-    if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
-        return
-
-    for s in config.mcp_servers:
-        if s.name == name:
-            s.enabled = False
-            _config.save_config(config)
-            click.echo(f"MCP サーバー '{name}' を無効化しました。")
-            return
-
-    click.echo(f"MCP サーバー '{name}' は登録されていません。", err=True)
-    raise click.ClickException(f"MCP サーバー '{name}' が見つかりません。")
+    click.echo(f"全ての MCP サーバー ({count}件) を削除しました。")

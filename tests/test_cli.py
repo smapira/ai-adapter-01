@@ -135,8 +135,8 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("add", result.output)
         self.assertIn("remove", result.output)
         self.assertIn("export", result.output)
-        self.assertIn("enable", result.output)
-        self.assertIn("disable", result.output)
+        self.assertIn("load", result.output)
+        self.assertIn("remove-all", result.output)
 
     def test_opencode_help(self):
         """opencode --help が表示されることを確認する。"""

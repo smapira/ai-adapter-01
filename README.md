@@ -222,8 +222,7 @@ MCP サーバー設定を管理します。
 | `mcp remove <name>` | MCP サーバー設定を削除 |
 | `mcp list` | MCP サーバー一覧を表示（`--tool`, `--env` でフィルタ） |
 | `mcp export --path <dir>` | MCP 設定を `.mcp.json` に出力（--path省略時はカレントディレクトリ） |
-| `mcp enable <name>` | MCP サーバーを有効化 |
-| `mcp disable <name>` | MCP サーバーを無効化 |\n| `mcp remove-all` | 全ての MCP サーバー設定を削除（`--force` 対応） |
+| `mcp remove-all` | 全ての MCP サーバー設定を削除（`--force` 対応） |
 
 ```bash
 # 対話的追加

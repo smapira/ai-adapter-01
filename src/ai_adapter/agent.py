@@ -129,6 +129,45 @@ def agent_add(path: str) -> None:
     save_config(config)
 
 
+@agent_group.command(name="add-rec")
+@click.argument("dir_path", type=click.Path(exists=True, file_okay=False, readable=True))
+def agent_add_rec(dir_path: str) -> None:
+    """ディレクトリ内の全エージェントファイルを再帰的に登録する。"""
+    src_dir = Path(dir_path).resolve()
+    agents_dir = get_agents_dir()
+    agents_dir.mkdir(parents=True, exist_ok=True)
+
+    config = load_config()
+    if config is None:
+        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        return
+
+    added = 0
+    skipped = 0
+    for f in sorted(src_dir.rglob("*")):
+        if not f.is_file():
+            continue
+        # .agent.md のフォーマットバリデーション
+        if str(f).endswith(".agent.md"):
+            frontmatter = _parse_frontmatter(f)
+            if not frontmatter or not frontmatter.get("name", "").strip():
+                skipped += 1
+                continue
+
+        name = _get_agent_name_from_path(f)
+        dest = agents_dir / f.name
+        if dest.exists():
+            skipped += 1
+            continue
+
+        shutil.copy2(f, dest)
+        config.agents.append(Agent(name=name))
+        added += 1
+
+    save_config(config)
+    click.echo(f"エージェントを追加しました: {added}件追加, {skipped}件スキップ")
+
+
 @agent_group.command(name="get")
 @click.argument("name")
 @click.option(
@@ -297,6 +336,20 @@ def agent_remove(name: str, keep_file: bool) -> None:
             if any(candidates):
                 f.unlink()
                 click.echo(f"ファイル {f.name} を削除しました。")
+                break
+
+    # .github/agents/ からも削除
+    github_dir = get_github_agents_dir()
+    if github_dir.exists():
+        for f in github_dir.iterdir():
+            candidates = [
+                f.name == f"{name}.agent.md",
+                f.name == f"{name}.md",
+                f.name == name,
+            ]
+            if any(candidates):
+                f.unlink()
+                click.echo(f".github/agents/ から {f.name} を削除しました。")
                 break
 
     click.echo(f"エージェント '{name}' を削除しました。")

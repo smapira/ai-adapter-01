@@ -119,6 +119,40 @@ def bin_add(path: str, env: str | None, description: str, agent: str | None) -> 
     save_config(config)
 
 
+@bin_group.command(name="add-rec")
+@click.argument("dir_path", type=click.Path(exists=True, file_okay=False, readable=True))
+@click.option("--env", "-e", default=None, help="環境名（省略時は環境解決ロジックで補完）")
+@click.option("--agent", help="エージェント名（環境解決用）")
+def bin_add_rec(dir_path: str, env: str | None, agent: str | None) -> None:
+    """ディレクトリ内の全スクリプトを再帰的に登録する。"""
+    config = load_config()
+    if config is None:
+        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        return
+
+    resolved_env = resolve_env(config, env, agent)
+    src_dir = Path(dir_path).resolve()
+    bins_dir = get_bins_dir()
+    bins_dir.mkdir(parents=True, exist_ok=True)
+
+    added = 0
+    skipped = 0
+    for f in sorted(src_dir.rglob("*")):
+        if not f.is_file():
+            continue
+        dest = bins_dir / f.name
+        if dest.exists():
+            skipped += 1
+            continue
+
+        shutil.copy2(f, dest)
+        config.bins.append(Bin(name=f.name, env=resolved_env))
+        added += 1
+
+    save_config(config)
+    click.echo(f"スクリプトを追加しました: {added}件追加, {skipped}件スキップ")
+
+
 @bin_group.command(name="get")
 @click.argument("name")
 @click.option("--env", "-e", default=None, help="環境名（省略時は環境解決ロジックで補完）")
@@ -238,6 +272,14 @@ def bin_remove(name: str, env: str | None, agent: str | None) -> None:
 
     config.bins.remove(found)
     save_config(config)
+
+    # .github/bin/ からも削除
+    github_dir = get_github_bins_dir()
+    target = github_dir / name
+    if target.exists():
+        target.unlink()
+        click.echo(f".github/bin/ から {name} を削除しました。")
+
     click.echo(f"スクリプト '{name}' (環境: {resolved_env}) の登録を解除しました。")
 
 

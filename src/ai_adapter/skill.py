@@ -112,6 +112,54 @@ def skill_add(path: str) -> None:
     save_config(config)
 
 
+@skill_group.command(name="add-rec")
+@click.argument("dir_path", type=click.Path(exists=True, file_okay=False, readable=True))
+def skill_add_rec(dir_path: str) -> None:
+    """ディレクトリ内の全スキルディレクトリを再帰的に登録する。"""
+    src_dir = Path(dir_path).resolve()
+    skills_dir = get_skills_dir()
+    skills_dir.mkdir(parents=True, exist_ok=True)
+
+    config = load_config()
+    if config is None:
+        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        return
+
+    added = 0
+    skipped = 0
+    for d in sorted(src_dir.iterdir()):
+        if not d.is_dir():
+            continue
+        skill_file = d / "SKILL.md"
+        if not skill_file.exists():
+            skipped += 1
+            continue
+
+        try:
+            metadata = _parse_skill_metadata(d)
+        except click.ClickException:
+            skipped += 1
+            continue
+
+        name = metadata.get("name") or d.name
+        dest = skills_dir / name
+        if dest.exists():
+            skipped += 1
+            continue
+
+        shutil.copytree(d, dest)
+        config.skills.append(Skill(
+            name=name,
+            description=metadata.get("description", ""),
+            path=f"skills/{name}",
+            tags=metadata.get("tags", []),
+        ))
+        added += 1
+
+    save_config(config)
+    click.echo(f"スキルを追加しました: {added}件追加, {skipped}件スキップ")
+
+
 @skill_group.command(name="get")
 @click.argument("name")
 @click.option("--force", is_flag=True, help="既存のスキルを上書きする")
@@ -196,6 +244,13 @@ def skill_remove(name: str, purge: bool) -> None:
         if target.exists():
             shutil.rmtree(target)
             click.echo(f"スキルディレクトリ {target} を削除しました。")
+
+    # .github/skills/ からも削除
+    github_dir = get_github_skills_dir()
+    target_gh = github_dir / name
+    if target_gh.exists():
+        shutil.rmtree(target_gh)
+        click.echo(f".github/skills/ から {name} を削除しました。")
 
     click.echo(f"スキル '{name}' を削除しました。")
 

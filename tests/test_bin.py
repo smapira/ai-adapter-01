@@ -11,6 +11,47 @@ from ai_adapter.config import init
 from ai_adapter.models import Bin, Config
 
 
+class TestBinAddRecCommand(unittest.TestCase):
+    """bin add-rec コマンドのテスト。"""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.patch_home = Path(self.temp_dir.name)
+        self.runner = CliRunner()
+
+        import pathlib
+        self._original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.patch_home)
+
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
+
+        init()
+
+    def tearDown(self):
+        import pathlib
+        pathlib.Path.home = staticmethod(self._original_home)
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        self.temp_dir.cleanup()
+
+    def test_bin_add_rec(self):
+        """add-rec でディレクトリ内の全スクリプトが登録されることを確認する。"""
+        src_dir = Path(self.temp_dir.name) / "scripts_dir"
+        src_dir.mkdir()
+        (src_dir / "script1.sh").write_text("#!/bin/bash")
+        (src_dir / "script2.sh").write_text("#!/bin/bash")
+
+        result = self.runner.invoke(main, ["bin", "add-rec", "--env", "default", str(src_dir)])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("2件", result.output)
+
+        # list で確認
+        result = self.runner.invoke(main, ["bin", "list"])
+        self.assertIn("script1.sh", result.output)
+        self.assertIn("script2.sh", result.output)
+
+
 class TestBinCommands(unittest.TestCase):
     """bin サブコマンドのテスト。"""
 

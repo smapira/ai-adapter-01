@@ -168,6 +168,54 @@ class TestSkillCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("全てのスキル", result.output)
 
-        # list で空になる
+        # remove-all は config のみ解除（ディレクトリは保持されるが list は config 参照）
         result = self.runner.invoke(main, ["skill", "list"])
         self.assertIn("登録済みのスキルはありません", result.output)
+
+
+class TestSkillAddRecCommand(unittest.TestCase):
+    """skill add-rec コマンドのテスト。"""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.patch_home = Path(self.temp_dir.name)
+        self.runner = CliRunner()
+
+        import pathlib
+        self._original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.patch_home)
+
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
+
+        init()
+
+    def tearDown(self):
+        import pathlib
+        pathlib.Path.home = staticmethod(self._original_home)
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        self.temp_dir.cleanup()
+
+    def test_skill_add_rec(self):
+        """add-rec でディレクトリ内の全スキルが登録されることを確認する。"""
+        src_dir = Path(self.temp_dir.name) / "skills_dir"
+        src_dir.mkdir()
+        skill1 = src_dir / "skill1"
+        skill1.mkdir()
+        (skill1 / "SKILL.md").write_text(
+            "---\nname: skill1\ntags: [test]\n---\n# Skill 1\n"
+        )
+        skill2 = src_dir / "skill2"
+        skill2.mkdir()
+        (skill2 / "SKILL.md").write_text(
+            "---\nname: skill2\ntags: [test]\n---\n# Skill 2\n"
+        )
+
+        result = self.runner.invoke(main, ["skill", "add-rec", str(src_dir)])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("2件", result.output)
+
+        result = self.runner.invoke(main, ["skill", "list"])
+        self.assertIn("skill1", result.output)
+        self.assertIn("skill2", result.output)

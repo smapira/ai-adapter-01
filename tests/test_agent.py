@@ -12,6 +12,47 @@ from ai_adapter.config import init
 from ai_adapter.models import Agent, Config, Env
 
 
+class TestAgentAddRecCommand(unittest.TestCase):
+    """agent add-rec コマンドのテスト。"""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.patch_home = Path(self.temp_dir.name)
+        self.runner = CliRunner()
+
+        import pathlib
+        self._original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.patch_home)
+
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
+
+        init()
+
+    def tearDown(self):
+        import pathlib
+        pathlib.Path.home = staticmethod(self._original_home)
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        self.temp_dir.cleanup()
+
+    def test_agent_add_rec(self):
+        """add-rec でディレクトリ内の全エージェントが登録されることを確認する。"""
+        src_dir = Path(self.temp_dir.name) / "agents_dir"
+        src_dir.mkdir()
+        (src_dir / "agent1.md").write_text("# Agent 1")
+        (src_dir / "agent2.md").write_text("# Agent 2")
+
+        result = self.runner.invoke(main, ["agent", "add-rec", str(src_dir)])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("2件", result.output)
+
+        # list で確認
+        result = self.runner.invoke(main, ["agent", "list"])
+        self.assertIn("agent1", result.output)
+        self.assertIn("agent2", result.output)
+
+
 class TestAgentCommands(unittest.TestCase):
     """agent サブコマンドのテスト。"""
 

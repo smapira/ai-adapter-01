@@ -124,6 +124,7 @@ AIエージェントの指示ファイル（`.md` 等）を管理します。
 | コマンド | 説明 |
 |---------|------|
 | `agent add <path>` | エージェントファイルを `~/.ai-adapter/agents/` に追加 |
+| `agent add-rec <dir>` | ディレクトリ内の全エージェントを再帰的に登録 |
 | `agent get <name>` | エージェントを `.github/agents/` にコピー |
 | `agent get-all` | 全ての登録済みエージェントを `.github/agents/` にコピー |
 | `agent list` | 登録済みエージェント一覧を表示 |
@@ -168,6 +169,7 @@ ai-adapter env remove-all --force
 | コマンド | 説明 |
 |---------|------|
 | `bin add --env <env> <path>` | スクリプトを `~/.ai-adapter/bin/` に追加（--env省略時は環境解決） |
+| `bin add-rec <dir>` | ディレクトリ内の全スクリプトを再帰的に登録 |
 | `bin get --env <env> <name>` | スクリプトを `.github/bin/` にコピー（--env省略時は環境解決） |
 | `bin get-all` | 全ての登録済みスクリプトを `.github/bin/` にコピー |
 | `bin list --env <env>` | スクリプト一覧を表示（--env省略時は全環境） |
@@ -192,6 +194,7 @@ ai-adapter bin remove-all --force
 | コマンド | 説明 |
 |---------|------|
 | `skill add <path>` | スキルディレクトリを `~/.ai-adapter/skills/` に追加 |
+| `skill add-rec <dir>` | ディレクトリ内の全スキルを再帰的に登録 |
 | `skill get <name>` | スキルを `.github/skills/` にコピー |
 | `skill get-all` | 全ての登録済みスキルを `.github/skills/` にコピー |
 | `skill list` | 登録済みスキル一覧を表示（`--tag` でフィルタ） |

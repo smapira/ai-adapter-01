@@ -136,21 +136,17 @@ def bin_add_rec(dir_path: str, env: str | None, agent: str | None) -> None:
     bins_dir.mkdir(parents=True, exist_ok=True)
 
     added = 0
-    skipped = 0
     for f in sorted(src_dir.rglob("*")):
         if not f.is_file():
             continue
         dest = bins_dir / f.name
-        if dest.exists():
-            skipped += 1
-            continue
-
+        config.bins = [b for b in config.bins if b.name != f.name]
         shutil.copy2(f, dest)
         config.bins.append(Bin(name=f.name, env=resolved_env))
         added += 1
 
     save_config(config)
-    click.echo(f"スクリプトを追加しました: {added}件追加, {skipped}件スキップ")
+    click.echo(f"スクリプトを追加しました: {added}件")
 
 
 @bin_group.command(name="get")

@@ -143,29 +143,23 @@ def agent_add_rec(dir_path: str) -> None:
         return
 
     added = 0
-    skipped = 0
     for f in sorted(src_dir.rglob("*")):
         if not f.is_file():
             continue
-        # .agent.md のフォーマットバリデーション
         if str(f).endswith(".agent.md"):
             frontmatter = _parse_frontmatter(f)
             if not frontmatter or not frontmatter.get("name", "").strip():
-                skipped += 1
                 continue
 
         name = _get_agent_name_from_path(f)
         dest = agents_dir / f.name
-        if dest.exists():
-            skipped += 1
-            continue
-
+        config.agents = [a for a in config.agents if a.name != name]
         shutil.copy2(f, dest)
         config.agents.append(Agent(name=name))
         added += 1
 
     save_config(config)
-    click.echo(f"エージェントを追加しました: {added}件追加, {skipped}件スキップ")
+    click.echo(f"エージェントを追加しました: {added}件")
 
 
 @agent_group.command(name="get")

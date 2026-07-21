@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.1] - 2026-07-21
+
+### Changed
+
+- **`agent add-rec` / `bin add-rec` / `skill add-rec`**: 上書き動作に変更（既存ファイルはスキップせず上書き）
+
 ## [0.6.0] - 2026-07-21
 
 ### Added

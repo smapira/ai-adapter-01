@@ -126,27 +126,23 @@ def skill_add_rec(dir_path: str) -> None:
         return
 
     added = 0
-    skipped = 0
     for d in sorted(src_dir.iterdir()):
         if not d.is_dir():
             continue
         skill_file = d / "SKILL.md"
         if not skill_file.exists():
-            skipped += 1
             continue
 
         try:
             metadata = _parse_skill_metadata(d)
         except click.ClickException:
-            skipped += 1
             continue
 
         name = metadata.get("name") or d.name
         dest = skills_dir / name
         if dest.exists():
-            skipped += 1
-            continue
-
+            shutil.rmtree(dest)
+        config.skills = [s for s in config.skills if s.name != name]
         shutil.copytree(d, dest)
         config.skills.append(Skill(
             name=name,
@@ -157,7 +153,7 @@ def skill_add_rec(dir_path: str) -> None:
         added += 1
 
     save_config(config)
-    click.echo(f"スキルを追加しました: {added}件追加, {skipped}件スキップ")
+    click.echo(f"スキルを追加しました: {added}件")
 
 
 @skill_group.command(name="get")

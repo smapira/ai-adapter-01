@@ -1,7 +1,7 @@
 [project]
 name = "ai-adapter"
-version = "0.7.0"
-description = "AIエージェント・スクリプトの共通管理基盤 CLI ツール"
+version = "0.9.0"
+description = "Unified CLI tool for managing AI agent configurations and scripts"
 authors = [
     { name = "smapira" },
 ]

@@ -1,1 +1,6 @@
-__version__ = "0.9.0"
+import importlib.metadata
+
+try:
+    __version__ = importlib.metadata.version("ai-adapter")
+except importlib.metadata.PackageNotFoundError:
+    __version__ = "0.0.0"

@@ -53,7 +53,7 @@ class TestSkillCommands(unittest.TestCase):
         """スキル未登録時に空メッセージが表示されることを確認する。"""
         result = self.runner.invoke(main, ["skill", "list"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("登録済みのスキルはありません", result.output)
+        self.assertIn("No skills registered.", result.output)
 
     def test_skill_add(self):
         """skill add でスキルが追加されることを確認する。"""
@@ -90,7 +90,7 @@ class TestSkillCommands(unittest.TestCase):
         """存在しないスキルの get でエラーになることを確認する。"""
         result = self.runner.invoke(main, ["skill", "get", "nonexistent"])
         self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("見つかりません", result.output)
+        self.assertIn("not found", result.output)
 
     def test_skill_get_with_project_dir(self):
         """skill get --project-dir で指定ディレクトリにコピーされることを確認する。"""
@@ -108,7 +108,7 @@ class TestSkillCommands(unittest.TestCase):
         self.assertTrue((project_dir / ".github" / "skills" / "test-skill" / "SKILL.md").exists())
 
     def test_skill_remove(self):
-        """skill remove でスキルが削除されることを確認する。"""
+        """skill remove でスキルがremovされることを確認する。"""
         self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
         result = self.runner.invoke(main, ["skill", "remove", "test-skill"])
         self.assertEqual(result.exit_code, 0)
@@ -116,7 +116,7 @@ class TestSkillCommands(unittest.TestCase):
 
         # list で表示されないことを確認
         result = self.runner.invoke(main, ["skill", "list"])
-        self.assertIn("登録済みのスキルはありません", result.output)
+        self.assertIn("No skills registered.", result.output)
 
     def test_skill_search(self):
         """skill search でスキルが検索できることを確認する。"""
@@ -130,10 +130,10 @@ class TestSkillCommands(unittest.TestCase):
         self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
         result = self.runner.invoke(main, ["skill", "search", "nonexistent"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("一致するスキルはありません", result.output)
+        self.assertIn("No skills matching", result.output)
 
     def test_skill_link_agent(self):
-        """skill link-agent でスキルとエージェントが紐付けられることを確認する。"""
+        """skill link-agent でスキルとエージェントがbindられることを確認する。"""
         # 先にエージェントを追加
         agent_file = Path(self.temp_dir.name) / "test-agent.md"
         agent_file.write_text("# Test Agent")
@@ -154,23 +154,23 @@ class TestSkillCommands(unittest.TestCase):
 
         result = self.runner.invoke(main, ["skill", "get-all", "--force"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("1件", result.output)
+        self.assertIn("1", result.output)
         self.assertTrue((github_skills / "test-skill" / "SKILL.md").exists())
 
         import shutil
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_skill_remove_all(self):
-        """skill remove-all で全スキルが削除されることを確認する。"""
+        """skill remove-all で全スキルがremovされることを確認する。"""
         self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
 
         result = self.runner.invoke(main, ["skill", "remove-all", "--force"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("全てのスキル", result.output)
+        self.assertIn("All skills", result.output)
 
         # remove-all は config のみ解除（ディレクトリは保持されるが list は config 参照）
         result = self.runner.invoke(main, ["skill", "list"])
-        self.assertIn("登録済みのスキルはありません", result.output)
+        self.assertIn("No skills registered.", result.output)
 
 
 class TestSkillAddRecCommand(unittest.TestCase):
@@ -214,7 +214,7 @@ class TestSkillAddRecCommand(unittest.TestCase):
 
         result = self.runner.invoke(main, ["skill", "add-rec", str(src_dir)])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("2件", result.output)
+        self.assertIn("2", result.output)
 
         result = self.runner.invoke(main, ["skill", "list"])
         self.assertIn("skill1", result.output)

@@ -1,6 +1,6 @@
-"""Git 操作ラッパーモジュール。
+"""Git operation wrapper module.
 
-subprocess で git コマンドをラップする。
+Wraps git commands via subprocess.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from typing import Optional
 
 
 class GitError(Exception):
-    """Git 操作に関連するエラー。"""
+    """Error related to git operations."""
 
 
 def _run_git(

@@ -1,6 +1,6 @@
-"""agent サブコマンドの実装。
+"""agent subcommand implementation.
 
-~/.ai-adapter/agents/ 配下のエージェントファイルを管理する。
+Manages agent files under ~/.ai-adapter/agents/.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from ai_adapter.models import Agent
 
 
 def _parse_frontmatter(path: Path) -> dict:
-    """ファイルの YAML frontmatter をパースする。"""
+    """Parse YAML frontmatter from a file."""
     content = path.read_text(encoding="utf-8")
     match = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
     if match:
@@ -32,10 +32,10 @@ def _parse_frontmatter(path: Path) -> dict:
 
 
 def _get_agent_name_from_path(path: Path) -> str:
-    """ファイルパスからエージェント名を取得する。
+    """Get agent name from a file path.
 
-    .agent.md ファイルの場合、YAML frontmatter の name を優先する。
-    それ以外は全拡張子を除去したファイル名を使用する。
+    For .agent.md files, prefers the YAML frontmatter name.
+    Otherwise strips all extensions from the filename.
     """
     if path.suffixes == [".agent", ".md"] or str(path).endswith(".agent.md"):
         # .agent.md: frontmatter の name を優先
@@ -58,22 +58,22 @@ def _get_agent_name_from_path(path: Path) -> str:
 
 @click.group(name="agent")
 def agent_group() -> None:
-    """AIエージェント指示ファイルを管理する。"""
+    """Manage AI agent instruction files."""
 
 
 @agent_group.command(name="list")
 def agent_list() -> None:
-    """登録済みエージェント一覧を表示する。"""
+    """List registered agents."""
     config = load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     if not config.agents:
-        click.echo("登録済みのエージェントはありません。")
+        click.echo("No agents registered.。")
         return
 
-    click.echo("エージェント一覧:")
+    click.echo("Agents:")
     click.echo("-" * 40)
     for agent in config.agents:
         desc = f" - {agent.description}" if agent.description else ""
@@ -83,9 +83,9 @@ def agent_list() -> None:
 @agent_group.command(name="add")
 @click.argument("path", type=click.Path(exists=True, readable=True))
 def agent_add(path: str) -> None:
-    """エージェントファイルを ~/.ai-adapter/agents/ に追加する。
+    """Add an agent file to ~/.ai-adapter/agents/.
 
-    PATH: 追加するエージェントファイルのパス。
+    PATH: Path to the agent file to add.
     """
     src = Path(path).resolve()
     agents_dir = get_agents_dir()
@@ -96,26 +96,26 @@ def agent_add(path: str) -> None:
         frontmatter = _parse_frontmatter(src)
         if not frontmatter:
             raise click.ClickException(
-                ".agent.md ファイルには YAML frontmatter が必要です。"
+                ".agent.md files require YAML frontmatter."
             )
         name_from_fm = frontmatter.get("name", "").strip()
         if not name_from_fm:
             raise click.ClickException(
-                ".agent.md ファイルの frontmatter に name プロパティが必要です。"
+                ".agent.md files require a name property in frontmatter."
             )
 
     name = _get_agent_name_from_path(src)
     dest = agents_dir / src.name
 
     if dest.exists():
-        click.confirm(f"'{dest.name}' は既に存在します。上書きしますか？", abort=True)
+        click.confirm(f"'{dest.name}' already exists. Overwrite?", abort=True)
 
     shutil.copy2(src, dest)
-    click.echo(f"エージェント '{name}' を追加しました: {dest}")
+    click.echo(f"Agent '{name}' added: {dest}")
 
     config = load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     # 重複チェック
@@ -132,14 +132,14 @@ def agent_add(path: str) -> None:
 @agent_group.command(name="add-rec")
 @click.argument("dir_path", type=click.Path(exists=True, file_okay=False, readable=True))
 def agent_add_rec(dir_path: str) -> None:
-    """ディレクトリ内の全エージェントファイルを再帰的に登録する。"""
+    """Recursively register all agent files in a directory."""
     src_dir = Path(dir_path).resolve()
     agents_dir = get_agents_dir()
     agents_dir.mkdir(parents=True, exist_ok=True)
 
     config = load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     added = 0
@@ -159,21 +159,22 @@ def agent_add_rec(dir_path: str) -> None:
         added += 1
 
     save_config(config)
-    click.echo(f"エージェントを追加しました: {added}件")
+    click.echo(f"Agents added: {added}")
 
 
 @agent_group.command(name="get")
 @click.argument("name")
+@click.option("--force", is_flag=True, help="Overwrite existing files without prompting")
 @click.option(
     "--project-dir", "-d",
     type=click.Path(exists=True, file_okay=False, readable=True),
     default=None,
-    help="展開先プロジェクトディレクトリ（デフォルト: カレントディレクトリ）",
+    help="Target project directory (default: current directory)",
 )
-def agent_get(name: str, project_dir: str | None) -> None:
-    """エージェントファイルを .github/agents/ にコピーする。
+def agent_get(name: str, force: bool, project_dir: str | None) -> None:
+    """Copy agent file to .github/agents/.
 
-    NAME: 取得するエージェント名（拡張子不要）。
+    NAME: Agent name to retrieve (no extension needed).
     """
     config = load_config()
     agents_dir = get_agents_dir()
@@ -218,16 +219,20 @@ def agent_get(name: str, project_dir: str | None) -> None:
                 break
 
     if src is None:
-        click.echo(f"エージェント '{name}' が見つかりません。", err=True)
-        raise click.ClickException(f"エージェント '{name}' は登録されていません。")
+        click.echo(f"Agent '{name}' not found.", err=True)
+        raise click.ClickException(f"Agent '{name}' is not registered.")
 
     project_path = Path(project_dir).resolve() if project_dir else None
     github_dir = get_github_agents_dir(project_path)
     github_dir.mkdir(parents=True, exist_ok=True)
 
     dest = github_dir / src.name
+
+    if dest.exists() and not force:
+        click.confirm(f"'{dest.name}' already exists. Overwrite?", abort=True)
+
     shutil.copy2(src, dest)
-    click.echo(f"エージェント '{name}' を {dest} にコピーしました。")
+    click.echo(f"Agent '{name}' copied to {dest}.")
 
 
 @agent_group.command(name="get-all")
@@ -235,13 +240,13 @@ def agent_get(name: str, project_dir: str | None) -> None:
     "--project-dir", "-d",
     type=click.Path(exists=True, file_okay=False, readable=True),
     default=None,
-    help="展開先プロジェクトディレクトリ（デフォルト: カレントディレクトリ）",
+    help="Target project directory (default: current directory)",
 )
 def agent_get_all(project_dir: str | None) -> None:
-    """全ての登録済みエージェントを .github/agents/ にコピーする。"""
+    """Copy all registered agents to .github/agents/."""
     config = load_config()
     if config is None or not config.agents:
-        click.echo("登録済みのエージェントはありません。")
+        click.echo("No agents registered.。")
         return
 
     agents_dir = get_agents_dir()
@@ -275,14 +280,14 @@ def agent_get_all(project_dir: str | None) -> None:
                     src = c
                     break
         if src is None:
-            click.echo(f"  スキップ: '{name}' のファイルが見つかりません。")
+            click.echo(f"  Skip: '{name}' file not found.")
             continue
 
         dest = github_dir / src.name
         shutil.copy2(src, dest)
         copied += 1
 
-    click.echo(f"全てのエージェント ({copied}件) を {github_dir} にコピーしました。")
+    click.echo(f"All agents ({copied}) copied to {github_dir}.")
 
 
 @agent_group.command(name="remove")
@@ -290,16 +295,16 @@ def agent_get_all(project_dir: str | None) -> None:
 @click.option(
     "--keep-file/--no-keep-file",
     default=False,
-    help="実体ファイルを削除しない（デフォルト: ファイルも削除）",
+    help="Keep physical files (default: also delete files)",
 )
 def agent_remove(name: str, keep_file: bool) -> None:
-    """エージェントを削除する。
+    """Remove an agent.
 
-    NAME: 削除するエージェント名。
+    NAME: Name of the agent to remove.
     """
     config = load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     # config から削除
@@ -311,8 +316,8 @@ def agent_remove(name: str, keep_file: bool) -> None:
             break
 
     if not found:
-        click.echo(f"エージェント '{name}' は登録されていません。", err=True)
-        raise click.ClickException(f"エージェント '{name}' が見つかりません。")
+        click.echo(f"Agent '{name}' is not registered.", err=True)
+        raise click.ClickException(f"Agent '{name}' not found.")
 
     save_config(config)
 
@@ -329,7 +334,7 @@ def agent_remove(name: str, keep_file: bool) -> None:
             ]
             if any(candidates):
                 f.unlink()
-                click.echo(f"ファイル {f.name} を削除しました。")
+                click.echo(f"File {f.name} deleted.")
                 break
 
     # .github/agents/ からも削除
@@ -343,29 +348,29 @@ def agent_remove(name: str, keep_file: bool) -> None:
             ]
             if any(candidates):
                 f.unlink()
-                click.echo(f".github/agents/ から {f.name} を削除しました。")
+                click.echo(f"Removed {f.name} from .github/agents/.")
                 break
 
-    click.echo(f"エージェント '{name}' を削除しました。")
+    click.echo(f"Agent '{name}' removed.")
 
 
 @agent_group.command(name="remove-all")
 @click.option(
     "--keep-file/--no-keep-file",
     default=False,
-    help="実体ファイルを削除しない（デフォルト: ファイルも削除）",
+    help="Keep physical files (default: also delete files)",
 )
-@click.option("--force", is_flag=True, help="確認プロンプトを表示せずに削除する")
+@click.option("--force", is_flag=True, help="Delete without confirmation prompt")
 def agent_remove_all(keep_file: bool, force: bool) -> None:
-    """全てのエージェントを削除する。"""
+    """Remove all agents."""
     config = load_config()
     if config is None or not config.agents:
-        click.echo("登録済みのエージェントはありません。")
+        click.echo("No agents registered.。")
         return
 
     count = len(config.agents)
     if not force:
-        click.confirm(f"全てのエージェント ({count}件) を削除しますか？", abort=True)
+        click.confirm(f"Remove all agents ({count})?", abort=True)
 
     agents_dir = get_agents_dir()
 
@@ -377,4 +382,4 @@ def agent_remove_all(keep_file: bool, force: bool) -> None:
 
     config.agents.clear()
     save_config(config)
-    click.echo(f"全てのエージェント ({count}件) を削除しました。")
+    click.echo(f"All agents ({count}) removed.")

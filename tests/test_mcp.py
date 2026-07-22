@@ -39,7 +39,7 @@ class TestMCPCommands(unittest.TestCase):
         """MCP 未登録時に空メッセージが表示されることを確認する。"""
         result = self.runner.invoke(main, ["mcp", "list"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("登録済みの MCP サーバーはありません", result.output)
+        self.assertIn("No MCP servers registered.", result.output)
 
     def test_mcp_add(self):
         """mcp add で MCP サーバーが追加されることを確認する。"""
@@ -79,10 +79,10 @@ class TestMCPCommands(unittest.TestCase):
             "--args", "@modelcontextprotocol/server-github",
         ])
         self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("既に存在", result.output)
+        self.assertIn("already exists", result.output)
 
     def test_mcp_remove(self):
-        """mcp remove で MCP サーバーが削除されることを確認する。"""
+        """mcp remove で MCP サーバーがremovされることを確認する。"""
         self.runner.invoke(main, [
             "mcp", "add", "github",
             "--command", "npx",
@@ -113,7 +113,7 @@ class TestMCPCommands(unittest.TestCase):
             "mcp", "load", "--file", str(mcp_file),
         ])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("2件追加", result.output)
+        self.assertIn("2 added", result.output)
 
     def test_mcp_export(self):
         """mcp export で .mcp.json が出力されることを確認する。"""

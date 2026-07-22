@@ -1,6 +1,6 @@
-"""sync コマンドの実装。
+"""sync command implementation.
 
-~/.ai-adapter/ を Git リポジトリとして GitHub リモートと同期する。
+Syncs ~/.ai-adapter/ with a GitHub remote as a Git repository.
 """
 
 from __future__ import annotations
@@ -32,12 +32,12 @@ logger = logging.getLogger(__name__)
 
 
 def sync_command(adapter_dir: Path | None = None) -> None:
-    """~/.ai-adapter/ を GitHub リモートと同期する。"""
+    """Sync ~/.ai-adapter/ with a GitHub remote."""
     if adapter_dir is None:
         adapter_dir = _config.AI_ADAPTER_DIR
 
     if not adapter_dir.exists():
-        click.echo(f"'{adapter_dir}' が見つかりません。ai-adapter init を実行してください。")
+        click.echo(f"'{adapter_dir}' not found. Run ai-adapter init first.")
         raise click.ClickException("ai-adapter が初期化されていません。")
 
     # リベース中断検出
@@ -49,7 +49,7 @@ def sync_command(adapter_dir: Path | None = None) -> None:
             for f in conflicted:
                 click.echo(f"    - {f}")
         click.echo("  解決方法: ai-adapter sync --continue / --abort / --skip")
-        raise click.ClickException("リベースを先に解決してください。")
+        raise click.ClickException("Resolve the rebase first.")
 
     # Step 1: Git リポジトリ確認
     click.echo("Step 1: Git リポジトリを確認中...")
@@ -78,7 +78,7 @@ def sync_command(adapter_dir: Path | None = None) -> None:
             ).strip()
 
             if not remote:
-                click.echo("  リモートが設定されていないため、同期をスキップします。")
+                click.echo("  リモートが設定されていないため、Skipping sync.")
                 click.echo("  ai-adapter start <URL> で後から設定できます。")
                 return
 
@@ -163,4 +163,4 @@ def sync_command(adapter_dir: Path | None = None) -> None:
             click.echo(f"    ブランチ: {branch}")
             click.echo(f"    cd ~/.ai-adapter && git push origin {branch} を手動で実行してください。")
 
-    click.echo("同期が完了しました。（一部の処理はスキップされた可能性があります）")
+    click.echo("Sync completed. (Some steps may have been skipped.)")

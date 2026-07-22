@@ -121,6 +121,52 @@ class Skill:
 
 
 @dataclass
+class Command:
+    name: str
+    description: str = ""
+    content: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {"name": self.name}
+        if self.description:
+            d["description"] = self.description
+        if self.content:
+            d["content"] = self.content
+        return d
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Command:
+        return cls(
+            name=data["name"],
+            description=data.get("description", ""),
+            content=data.get("content", ""),
+        )
+
+
+@dataclass
+class Prompt:
+    name: str
+    description: str = ""
+    content: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {"name": self.name}
+        if self.description:
+            d["description"] = self.description
+        if self.content:
+            d["content"] = self.content
+        return d
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Prompt:
+        return cls(
+            name=data["name"],
+            description=data.get("description", ""),
+            content=data.get("content", ""),
+        )
+
+
+@dataclass
 class MCPServer:
     name: str
     command: str
@@ -163,6 +209,8 @@ class Config:
     envs: list[Env] = field(default_factory=list)
     bins: list[Bin] = field(default_factory=list)
     skills: list[Skill] = field(default_factory=list)
+    commands: list[Command] = field(default_factory=list)
+    prompts: list[Prompt] = field(default_factory=list)
     mcp_servers: list[MCPServer] = field(default_factory=list)
     default_env: str = "default"
     agent_bindings: list[AgentBinding] = field(default_factory=list)
@@ -179,6 +227,10 @@ class Config:
         }
         if self.skills:
             d["skills"] = [s.to_dict() for s in self.skills]
+        if self.commands:
+            d["commands"] = [c.to_dict() for c in self.commands]
+        if self.prompts:
+            d["prompts"] = [p.to_dict() for p in self.prompts]
         if self.mcp_servers:
             d["mcp_servers"] = [m.to_dict() for m in self.mcp_servers]
         if self.remote:
@@ -187,17 +239,70 @@ class Config:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Config:
+        """設定ファイルから Config オブジェクトを生成する。
+
+        Raises:
+            ValueError: データの型が不正な場合。
+        """
+        if not isinstance(data, dict):
+            raise ValueError("Invalid config format: must be a dict")
+
+        # version のバリデーション
+        version = data.get("version", 1)
+        if not isinstance(version, int):
+            raise ValueError(f"version must be an integer: {version}")
+
+        # default_env のバリデーション
+        default_env = data.get("default_env", "default")
+        if not isinstance(default_env, str):
+            raise ValueError(f"default_env must be a string: {default_env}")
+
+        # 各リストフィールドのバリデーション
+        agents_data = data.get("agents", [])
+        if not isinstance(agents_data, list):
+            raise ValueError(f"agents must be a list")
+
+        envs_data = data.get("envs", [])
+        if not isinstance(envs_data, list):
+            raise ValueError(f"envs must be a list")
+
+        bins_data = data.get("bins", [])
+        if not isinstance(bins_data, list):
+            raise ValueError(f"bins must be a list")
+
+        skills_data = data.get("skills", [])
+        if not isinstance(skills_data, list):
+            raise ValueError(f"skills must be a list")
+
+        commands_data = data.get("commands", [])
+        if not isinstance(commands_data, list):
+            raise ValueError(f"commands must be a list")
+
+        prompts_data = data.get("prompts", [])
+        if not isinstance(prompts_data, list):
+            raise ValueError(f"prompts must be a list")
+
+        mcp_servers_data = data.get("mcp_servers", [])
+        if not isinstance(mcp_servers_data, list):
+            raise ValueError(f"mcp_servers must be a list")
+
+        agent_bindings_data = data.get("agent_bindings", [])
+        if not isinstance(agent_bindings_data, list):
+            raise ValueError(f"agent_bindings must be a list")
+
         return cls(
-            version=data.get("version", 1),
-            default_env=data.get("default_env", "default"),
+            version=version,
+            default_env=default_env,
             agent_bindings=[
                 AgentBinding.from_dict(b)
-                for b in data.get("agent_bindings", [])
+                for b in agent_bindings_data
             ],
-            agents=[Agent.from_dict(a) for a in data.get("agents", [])],
-            envs=[Env.from_dict(e) for e in data.get("envs", [])],
-            bins=[Bin.from_dict(b) for b in data.get("bins", [])],
-            skills=[Skill.from_dict(s) for s in data.get("skills", [])],
-            mcp_servers=[MCPServer.from_dict(m) for m in data.get("mcp_servers", [])],
+            agents=[Agent.from_dict(a) for a in agents_data],
+            envs=[Env.from_dict(e) for e in envs_data],
+            bins=[Bin.from_dict(b) for b in bins_data],
+            skills=[Skill.from_dict(s) for s in skills_data],
+            commands=[Command.from_dict(c) for c in commands_data],
+            prompts=[Prompt.from_dict(p) for p in prompts_data],
+            mcp_servers=[MCPServer.from_dict(m) for m in mcp_servers_data],
             remote=data.get("remote"),
         )

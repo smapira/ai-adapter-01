@@ -53,7 +53,7 @@ class TestOpencodeCommands(unittest.TestCase):
         output_path.unlink()
 
     def test_opencode_uninstall(self):
-        """opencode uninstall で opencode.json が削除されることを確認する。"""
+        """opencode uninstall で opencode.json がremovされることを確認する。"""
         # 先にインストール
         output_path = Path.cwd() / "opencode.json"
         output_path.write_text("{}")
@@ -64,13 +64,13 @@ class TestOpencodeCommands(unittest.TestCase):
         self.assertFalse(output_path.exists())
 
     def test_opencode_uninstall_not_found(self):
-        """opencode.json がない状態で uninstall してもエラーにならない。"""
+        """opencode.json がないStatusで uninstall してもエラーにならない。"""
         result = self.runner.invoke(main, ["opencode", "uninstall"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("見つかりません", result.output)
+        self.assertIn("not found", result.output)
 
     def test_opencode_alias_no_github(self):
-        """.github がない状態で alias するとエラーになることを確認する。"""
+        """.github がないStatusで alias するとエラーになることを確認する。"""
         result = self.runner.invoke(main, ["opencode", "alias"])
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn(".github", result.output)

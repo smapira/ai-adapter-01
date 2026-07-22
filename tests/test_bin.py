@@ -44,7 +44,7 @@ class TestBinAddRecCommand(unittest.TestCase):
 
         result = self.runner.invoke(main, ["bin", "add-rec", "--env", "default", str(src_dir)])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("2件", result.output)
+        self.assertIn("2", result.output)
 
         # list で確認
         result = self.runner.invoke(main, ["bin", "list"])
@@ -84,7 +84,7 @@ class TestBinCommands(unittest.TestCase):
         """bin list で空メッセージが表示されることを確認する。"""
         result = self.runner.invoke(main, ["bin", "list"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("登録済みのスクリプトはありません", result.output)
+        self.assertIn("No scripts registered.", result.output)
 
     def test_bin_add(self):
         """bin add でスクリプトが追加されることを確認する。"""
@@ -114,7 +114,7 @@ class TestBinCommands(unittest.TestCase):
 
         result = self.runner.invoke(main, ["bin", "list", "--env", "nonexistent"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("登録されたスクリプトはありません", result.output)
+        self.assertIn("has no scripts registered", result.output)
 
     def test_bin_get(self):
         """bin get で .github/bin/ にコピーされることを確認する。"""
@@ -164,7 +164,7 @@ class TestBinCommands(unittest.TestCase):
 
         result = self.runner.invoke(main, ["bin", "get-all"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("2件", result.output)
+        self.assertIn("2", result.output)
         self.assertTrue((github_bin / "test1.sh").exists())
         self.assertTrue((github_bin / "test2.sh").exists())
 
@@ -178,7 +178,7 @@ class TestBinCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("deploy-test.sh", result.output)
 
-        # ファイルは削除されないことを確認
+        # ファイルはremovされないことを確認
         bins_dir = self.patch_home / ".ai-adapter" / "bin"
         self.assertTrue((bins_dir / "deploy-test.sh").exists())
 
@@ -198,8 +198,8 @@ class TestBinCommands(unittest.TestCase):
 
         result = self.runner.invoke(main, ["bin", "remove-all", "--force"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("全てのスクリプト", result.output)
+        self.assertIn("All scripts", result.output)
 
         # list で空になる
         result = self.runner.invoke(main, ["bin", "list"])
-        self.assertIn("登録済みのスクリプトはありません", result.output)
+        self.assertIn("No scripts registered.", result.output)

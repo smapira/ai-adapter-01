@@ -1,6 +1,6 @@
-"""opencode サブコマンドの実装。
+"""opencode subcommand implementation.
 
-.opencode シンボリックリンクの管理と opencode.json のインストール/アンインストールを行う。
+Manages .opencode symlinks and opencode.json installation/uninstallation.
 """
 
 from __future__ import annotations
@@ -16,25 +16,25 @@ from ai_adapter import config as _config
 
 @click.group(name="opencode")
 def opencode_group() -> None:
-    """OpenCode 連携設定を管理する。"""
+    """Manage OpenCode integration settings."""
 
 
 @opencode_group.command(name="alias")
 def opencode_alias() -> None:
-    """カレントディレクトリに .opencode → .github のシンボリックリンクを作成する。
+    """Create a .opencode → .github symlink in the current directory.
 
-    .github/ ディレクトリへの絶対パスのシンボリックリンクを .opencode として作成する。
+    Creates a .opencode symlink pointing to the absolute path of .github/.
     """
     github_path = Path.cwd().resolve() / ".github"
     opencode_path = Path.cwd().resolve() / ".opencode"
 
     if not github_path.exists():
-        click.echo(f"'.github' ディレクトリが見つかりません: {github_path}", err=True)
-        raise click.ClickException(".github ディレクトリが存在しません。")
+        click.echo(f"'.github' directory not found: {github_path}", err=True)
+        raise click.ClickException(".github directory does not exist.")
 
     if opencode_path.exists() or opencode_path.is_symlink():
-        click.echo(f"'.opencode' は既に存在します。")
-        click.confirm("置き換えますか？", abort=True)
+        click.echo(f"'.opencode' already exists.")
+        click.confirm("Replace it?", abort=True)
         if opencode_path.is_symlink() or opencode_path.is_dir():
             import shutil
             if opencode_path.is_symlink() or opencode_path.is_file():
@@ -43,12 +43,12 @@ def opencode_alias() -> None:
                 shutil.rmtree(opencode_path)
 
     os.symlink(str(github_path), str(opencode_path))
-    click.echo(f"シンボリックリンクを作成しました: {opencode_path} → {github_path}")
+    click.echo(f"Symlink created: {opencode_path} → {github_path}")
 
 
 @opencode_group.command(name="install")
 def opencode_install() -> None:
-    """opencode.json をカレントディレクトリに生成する。"""
+    """Generate opencode.json in the current directory."""
     config = {
         "$schema": "https://opencode.ai/config.json",
         "instructions": [
@@ -71,17 +71,17 @@ def opencode_install() -> None:
     with open(output_path, "w") as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
 
-    click.echo(f"opencode.json を生成しました: {output_path}")
+    click.echo(f"opencode.json generated: {output_path}")
 
 
 @opencode_group.command(name="uninstall")
 def opencode_uninstall() -> None:
-    """カレントディレクトリの opencode.json を削除する。"""
+    """Remove opencode.json from the current directory."""
     output_path = Path.cwd() / "opencode.json"
 
     if not output_path.exists():
-        click.echo("opencode.json が見つかりません。")
+        click.echo("opencode.json not found.")
         return
 
     output_path.unlink()
-    click.echo(f"opencode.json を削除しました: {output_path}")
+    click.echo(f"opencode.json removed: {output_path}")

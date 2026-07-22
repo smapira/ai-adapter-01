@@ -1,173 +1,200 @@
 # Changelog
 
+## [0.9.0] - 2026-07-23
+
+### Changed
+
+- **i18n: All user-facing text translated to English**: README, CHANGELOG, CLI help,
+  docstrings, and error messages
+
+## [0.8.0] - 2026-07-23
+
+### Added
+
+- **`command` subcommand**: Manage VS Code custom command definitions
+  - `command add <path>` / `command list` / `command get <name>` / `command remove <name>`
+  - `command add-rec <dir>` / `command get-all` / `command remove-all [--force]`
+- **`prompt` subcommand**: Manage prompt templates
+  - `prompt add <path>` / `prompt list` / `prompt get <name>` / `prompt remove <name>`
+  - `prompt add-rec <dir>` / `prompt get-all` / `prompt remove-all [--force]`
+- **`agent get --force`**: `--force` option to skip overwrite confirmation when deploying agents
+- **`Config.from_dict()` validation**: Added type checking for all fields in config files
+  - Display user-friendly error messages when loading a broken `config.json`
+
+### Changed
+
+- **`command get` / `prompt get`**: Changed extension list from hardcoded to dynamic scanning
+  - Auto-detect any extension (`.rb`, `.js`, `.json`, `.yaml`, etc.)
+- **`skill get-all`**: Fixed docstring pointing to `.claude/skills/` to `.github/skills/`
+
 ## [0.7.0] - 2026-07-22
 
 ### Added
 
-- **`add-all-rec` コマンド**: `.github/` 配下と `.mcp.json` から全アイテムを一括登録
+- **`add-all-rec` command**: Bulk register all items from `.github/` and `.mcp.json`
   - `.github/agents/` → `~/.ai-adapter/agents/`
   - `.github/bin/` → `~/.ai-adapter/bin/`
   - `.github/skills/` → `~/.ai-adapter/skills/`
-  - `.mcp.json` → `config.json` の `mcp_servers`
+  - `.mcp.json` → `mcp_servers` in `config.json`
 
 ## [0.6.1] - 2026-07-21
 
 ### Changed
 
-- **`agent add-rec` / `bin add-rec` / `skill add-rec`**: 上書き動作に変更（既存ファイルはスキップせず上書き）
+- **`agent add-rec` / `bin add-rec` / `skill add-rec`**: Changed to overwrite behavior (overwrite existing files instead of skipping)
 
 ## [0.6.0] - 2026-07-21
 
 ### Added
 
-- **`agent add-rec` / `bin add-rec` / `skill add-rec`**: ディレクトリ内の全アイテムを再帰的に一括登録
-- **`mcp remove-all`**: 全ての MCP サーバー設定を削除し、`.mcp.json` も物理削除
-- **`mcp load --file`**: `.mcp.json` から MCP サーバー設定を一括読み込み
+- **`agent add-rec` / `bin add-rec` / `skill add-rec`**: Recursively bulk register all items in a directory
+- **`mcp remove-all`**: Remove all MCP server configurations and physically delete `.mcp.json`
+- **`mcp load --file`**: Bulk load MCP server configurations from `.mcp.json`
 
 ### Changed
 
-- **`agent remove` / `bin remove` / `skill remove`**: 削除時に `.github/` 配下の展開済みファイルも物理削除
+- **`agent remove` / `bin remove` / `skill remove`**: Also physically delete deployed files under `.github/` on removal
 
 ### Removed
 
-- **`mcp enable` / `mcp disable`**: 不要なコマンドを削除（`remove` / `remove-all` で統一）
+- **`mcp enable` / `mcp disable`**: Removed unnecessary commands (unified with `remove` / `remove-all`)
 
 ## [0.5.1] - 2026-07-21
 
 ### Changed
 
-- **`export` を `bin add-path` に移動**: トップレベルコマンドから `bin` サブコマンドに統合
-  - `ai-adapter bin add-path` で `.github/bin/` を PATH に追加
+- **Moved `export` to `bin add-path`**: Integrated from top-level command to `bin` subcommand
+  - `ai-adapter bin add-path` adds `.github/bin/` to PATH
 
 ## [0.5.0] - 2026-07-21
 
 ### Added
 
-- **`opencode` サブコマンド**: OpenCode 連携設定（`alias`, `install`, `uninstall`）
-  - `alias`: `.opencode` → `.github` のシンボリックリンクを作成
-  - `install`: テンプレートを元に `opencode.json` を生成
-  - `uninstall`: `opencode.json` を削除
-- **`mcp load --file` コマンド**: `.mcp.json` から MCP サーバー設定を一括読み込み
-- **`bin add-path` コマンド**: カレントプロジェクトの `.github/bin/` を PATH に追加するシェル設定を出力・適用
-  - 対話的または `--shell` オプションで zshrc/bash_profile/bashrc に自動追記
-- **`agent get-all` / `bin get-all` / `skill get-all`**: 全登録アイテムの一括展開コマンド
-- **`agent remove-all` / `env remove-all` / `bin remove-all` / `skill remove-all`**: 全登録アイテムの一括削除コマンド
-- **`skill get-all` / `skill remove-all`**: スキルの一括展開・削除コマンド
-- **ファイルベース同期**: `rebuild_config()` による自動復元機能
-  - `sync` の pull 成功後に設定をファイルから自動再構築
-  - `start` の clone/init 後に設定を自動再構築
-  - `status` で実ファイル数を表示
-  - `list` / `get-all` が config 空でもファイルシステムから動作
+- **`opencode` subcommand**: OpenCode integration settings (`alias`, `install`, `uninstall`)
+  - `alias`: Create symbolic link `.opencode` → `.github`
+  - `install`: Generate `opencode.json` from template
+  - `uninstall`: Remove `opencode.json`
+- **`mcp load --file` command**: Bulk load MCP server configurations from `.mcp.json`
+- **`bin add-path` command**: Output and apply shell configuration to add current project's `.github/bin/` to PATH
+  - Interactive or with `--shell` option, automatically appends to zshrc/bash_profile/bashrc
+- **`agent get-all` / `bin get-all` / `skill get-all`**: Bulk deploy all registered items
+- **`agent remove-all` / `env remove-all` / `bin remove-all` / `skill remove-all`**: Bulk remove all registered items
+- **`skill get-all` / `skill remove-all`**: Bulk deploy/remove skills
+- **File-based sync**: Auto-restore via `rebuild_config()`
+  - Auto-rebuild configuration from files after successful `sync` pull
+  - Auto-rebuild configuration after `start` clone/init
+  - Show actual file count in `status`
+  - `list` / `get-all` works from filesystem even when config is empty
 
 ### Changed
 
-- **`mcp export`**: 出力先をカレントディレクトリに変更、出力ファイルを常に `.mcp.json` に固定
-  - `--path` オプションで出力先ディレクトリを指定可能
-- **`mcp export` の `--tool` オプションを `--path` に名称変更**
-- **`mcp add`**: `--file` オプションを廃止し `--command` 必須に簡略化
-- **`bin` コマンド**: `env` を位置引数（`click.argument`）から `--env` オプション（`click.option`）に変更
-  - `bin get script.py` のように単一引数でファイル名のみ渡せるよう改善
-- **スキル展開先を統一**: `get_claude_skills_dir()` → `get_github_skills_dir()` に変更
-  - `skill get` / `skill get-all` の出力先を `.claude/skills/` から `.github/skills/` に変更
-  - `agent` / `bin` と同じ `.github/` 配下に統一
-- **`agent add`**: `.agent.md` ファイルの frontmatter から `name` を読み取り登録名として使用
+- **`mcp export`**: Changed output destination to current directory, always use `.mcp.json` as output file
+  - Can specify output directory with `--path` option
+- **Renamed `mcp export` `--tool` option to `--path`**
+- **`mcp add`**: Removed `--file` option, simplified to require `--command`
+- **`bin` command**: Changed `env` from positional argument (`click.argument`) to `--env` option (`click.option`)
+  - Improved to accept only filename as single argument like `bin get script.py`
+- **Unified skill deployment directory**: Changed `get_claude_skills_dir()` → `get_github_skills_dir()`
+  - Changed `skill get` / `skill get-all` output destination from `.claude/skills/` to `.github/skills/`
+  - Unified under `.github/` same as `agent` / `bin`
+- **`agent add`**: Read `name` from frontmatter of `.agent.md` file and use as registration name
 
 ### Fixed
 
-- **`sync`**: `git diff --cached --quiet` の exit code 1（変更あり）でクラッシュしないよう修正
-- **`sync`**: pull/push 失敗時にクラッシュせずガイドメッセージを表示（接続不可/ブランチ不一致/コンフリクト）
-- **`sync`**: Git user config（user.name / user.email）未設定時にクラッシュせず設定手順を表示
-- **`skill get-all`**: `--force` なしで既存ディレクトリに当たるとクラッシュする問題を修正
+- **`sync`**: Fixed crash on exit code 1 from `git diff --cached --quiet` (changes exist)
+- **`sync`**: Show guide message instead of crash on pull/push failure (no connection/branch mismatch/conflict)
+- **`sync`**: Show setup instructions instead of crash when Git user config (user.name/user.email) is not set
+- **`skill get-all`**: Fixed crash when hitting existing directory without `--force`
 
 ## [0.4.1] - 2026-07-20
 
 ### Changed
 
-- **スキル展開先を統一**: `get_claude_skills_dir()` → `get_github_skills_dir()` に変更
-  - `skill get` / `skill get-all` の出力先を `.claude/skills/` から `.github/skills/` に変更
-  - `agent` / `bin` と同じ `.github/` 配下に統一
+- **Unified skill deployment directory**: Changed `get_claude_skills_dir()` → `get_github_skills_dir()`
+  - Changed `skill get` / `skill get-all` output destination from `.claude/skills/` to `.github/skills/`
+  - Unified under `.github/` same as `agent` / `bin`
 
 ## [0.4.0] - 2026-07-20
 
 ### Added
 
-- **`agent remove-all` コマンド**: 全てのエージェントを一括削除（`--keep-file`, `--force` オプション対応）
-- **`env remove-all` コマンド**: デフォルト環境を除く全ての環境を一括削除（`--force` オプション対応）
-- **`bin remove-all` コマンド**: 全てのスクリプトの登録を一括解除（`--force` オプション対応）
+- **`agent remove-all` command**: Bulk remove all agents (supports `--keep-file`, `--force` options)
+- **`env remove-all` command**: Bulk remove all environments except default (`--force` option)
+- **`bin remove-all` command**: Bulk unregister all script registrations (`--force` option)
 
 ### Changed
 
-- `bin` コマンドの `env` を位置引数（`click.argument`）から `--env` オプション（`click.option`）に変更
-  - `bin get script.py` のように単一引数でファイル名のみ渡せるよう改善
-  - `--env` 省略時は従来通り環境解決ロジックで補完
+- Changed `env` in `bin` command from positional argument (`click.argument`) to `--env` option (`click.option`)
+  - Improved to accept only filename as single argument like `bin get script.py`
+  - When `--env` is omitted, falls back to environment resolution logic as before
 
 ## [0.3.0] - 2026-07-20
 
 ### Added
 
-- **`start <URL>` コマンド**: GitHub リモートリポジトリと連携した一発セットアップ
-  - `git clone` を試行し、失敗した場合は `git init` + `remote add` で初期化
-  - `~/.ai-adapter/` のディレクトリ構造と `config.json` を自動生成
-  - リモートURLは `Config.remote` フィールドに保存
-- **`init --remote` オプション**: コマンドラインからリモートURLを指定して初期化
-- **`init` 対話的プロンプト**: `--remote` 未指定時に対話的にリモートURLを質問（スキップ可能）
-- **`sync` リモート未設定時の対話的入力**: `config.remote` の保存値 → 手動入力 → スキップ の順で処理
-- **`status` リモート表示**: 設定ファイルに `remote` が保存されていれば表示
-- **`git.py`**: `clone()`, `add_remote()`, `get_current_branch()` 関数を追加
-- **`Config.remote` フィールド**: 設定ファイルに Git リモートURLを永続化
+- **`start <URL>` command**: One-shot setup linked with GitHub remote repository
+  - Attempts `git clone`, falls back to `git init` + `remote add` on failure
+  - Auto-generates `~/.ai-adapter/` directory structure and `config.json`
+  - Remote URL saved in `Config.remote` field
+- **`init --remote` option**: Initialize with remote URL specified from command line
+- **`init` interactive prompt**: Interactively asks for remote URL when `--remote` is not specified (can skip)
+- **`sync` interactive input when remote not configured**: Processes in order: saved `config.remote` → manual input → skip
+- **`status` remote display**: Display `remote` if saved in config file
+- **`git.py`**: Added `clone()`, `add_remote()`, `get_current_branch()` functions
+- **`Config.remote` field**: Persist Git remote URL in config file
 
 ### Changed
 
-- `init` が Git リポジトリ初期化 + リモート設定まで行うように改善
-- `sync` がリモート未設定でもエラー終了せず、対話的入力で補完するように改善
+- Improved `init` to perform Git repo initialization + remote setup
+- Improved `sync` to not error-exit when remote is not set, but complete via interactive input
 
 ## [0.2.0] - 2026-07-20
 
 ### Added
 
-- **`uninstall` コマンド**: `~/.ai-adapter/` を削除して初期状態に戻す（`--force`, `--keep-git` オプション対応）
-- **`status` コマンド**: skills/mcp の登録数とディレクトリ状態を表示するように拡張
-- **`CHANGELOG.md`**: 新規作成
+- **`uninstall` command**: Remove `~/.ai-adapter/` to restore initial state (supports `--force`, `--keep-git` options)
+- **`status` command**: Extended to display skills/mcp registration counts and directory status
+- **`CHANGELOG.md`**: Newly created
 
 ## [0.1.0] - 2026-07-20
 
 ### Added
 
-- **CLI 基盤**: Click フレームワークによる CLI エントリーポイント (`ai-adapter` / `python -m ai_adapter`)
-- **`init` コマンド**: `~/.ai-adapter/` ディレクトリの初期化（`agents/`, `bin/`, `skills/`, `mcp/` ディレクトリ + `config.json` 作成）
-- **`status` コマンド**: 現在の設定状態（登録数、デフォルト環境、ディレクトリ状態）を表示
-- **`agent` サブコマンド**: AIエージェント指示ファイルの管理（`add`, `get`, `list`, `remove`）
-  - `~/.ai-adapter/agents/` にファイルを保存し、`.github/agents/` に展開
-- **`env` サブコマンド**: 環境設定の管理（`add`, `remove`, `list`, `default`, `set-default`, `link-agent`, `unlink-agent`）
-  - デフォルト環境の保護（削除不可）、エージェントと環境の紐付け機能
-- **`bin` サブコマンド**: スクリプトファイルの管理（`add`, `get`, `list`, `remove`）
-  - env 省略時の環境解決ロジック（エージェント紐付け → デフォルト環境）
-  - `--agent` オプションによる明示的なエージェント指定
-- **`skill` サブコマンド**: スキルディレクトリの管理（`add`, `get`, `list`, `remove`, `search`, `link-agent`）
-  - SKILL.md の YAML frontmatter 自動パース
-  - `.claude/skills/` への展開、タグフィルタ・キーワード検索対応
-- **`mcp` サブコマンド**: MCP サーバー設定の管理（`add`, `remove`, `list`, `export`, `enable`, `disable`）
-  - 対話的追加・JSON ファイルからの追加に対応
-  - `export` で VS Code / Claude / Cursor 形式に出力（`.vscode/mcp.json`, `.mcp.json`, `.cursor/mcp.json`）
-  - `--tool`, `--env` フィルタ対応
-- **`sync` コマンド**: `~/.ai-adapter/` を GitHub リモートと同期（`git add` → `commit` → `pull --rebase` → `push`）
-- **データモデル**: `Agent`, `Env`, `AgentBinding`, `Bin`, `Skill`, `MCPServer`, `Config` の dataclass 定義と JSON シリアライズ
-- **設定ファイル管理**: `~/.ai-adapter/config.json` の読み書き（環境変数 `AI_ADAPTER_CONFIG` でパス上書き可能）
-- **Git 操作ラッパー**: `subprocess` による git コマンドラッパー（`is_repo`, `init_repo`, `add_all`, `commit`, `pull_rebase`, `push`, `has_remote`, `get_remotes`）
-- **テスト**: 84 の単体テスト（Click CliRunner + unittest.mock によるファイル操作/CLI/モックテスト）
+- **CLI foundation**: CLI entry point using Click framework (`ai-adapter` / `python -m ai_adapter`)
+- **`init` command**: Initialize `~/.ai-adapter/` directory (create `agents/`, `bin/`, `skills/`, `mcp/` directories + `config.json`)
+- **`status` command**: Display current configuration state (registration counts, default environment, directory status)
+- **`agent` subcommand**: Manage AI agent instruction files (`add`, `get`, `list`, `remove`)
+  - Save files to `~/.ai-adapter/agents/` and deploy to `.github/agents/`
+- **`env` subcommand**: Manage environment settings (`add`, `remove`, `list`, `default`, `set-default`, `link-agent`, `unlink-agent`)
+  - Default environment protection (cannot be deleted), agent-environment linking
+- **`bin` subcommand**: Manage script files (`add`, `get`, `list`, `remove`)
+  - Environment resolution logic when env is omitted (agent binding → default environment)
+  - Explicit agent specification via `--agent` option
+- **`skill` subcommand**: Manage skill directory (`add`, `get`, `list`, `remove`, `search`, `link-agent`)
+  - Auto-parse YAML frontmatter from SKILL.md
+  - Deploy to `.claude/skills/`, support tag filters and keyword search
+- **`mcp` subcommand**: Manage MCP server settings (`add`, `remove`, `list`, `export`, `enable`, `disable`)
+  - Support interactive addition and addition from JSON files
+  - `export` outputs to VS Code / Claude / Cursor format (`.vscode/mcp.json`, `.mcp.json`, `.cursor/mcp.json`)
+  - Support `--tool`, `--env` filters
+- **`sync` command**: Sync `~/.ai-adapter/` with GitHub remote (`git add` → `commit` → `pull --rebase` → `push`)
+- **Data models**: Dataclass definitions and JSON serialization for `Agent`, `Env`, `AgentBinding`, `Bin`, `Skill`, `MCPServer`, `Config`
+- **Config file management**: Read/write `~/.ai-adapter/config.json` (path overridable via `AI_ADAPTER_CONFIG` environment variable)
+- **Git operation wrapper**: Git command wrapper using `subprocess` (`is_repo`, `init_repo`, `add_all`, `commit`, `pull_rebase`, `push`, `has_remote`, `get_remotes`)
+- **Tests**: 84 unit tests (Click CliRunner + unittest.mock based file operation/CLI/mock tests)
 
 ### Changed
 
-- 設定ファイル形式を YAML（`.ai-adapter.yaml`）から JSON（`config.json`）に変更
-- 全データ保存先をプロジェクトルートから `~/.ai-adapter/` に統一
+- Changed config file format from YAML (`.ai-adapter.yaml`) to JSON (`config.json`)
+- Unified all data storage from project root to `~/.ai-adapter/`
 
 ### Removed
 
-- `pyyaml` 依存を削除（設定ファイルの JSON 化に伴い）
+- Removed `pyyaml` dependency (due to config file format change to JSON)
 
 ---
 
-## 注意事項
+## Notes
 
-- 本バージョンは開発初期フェーズのため、API は予告なく変更される可能性があります
-- `~/.ai-adapter/` に保存されたデータは `ai-adapter uninstall` で削除可能です
+- This version is in early development phase, so the API may change without notice
+- Data stored in `~/.ai-adapter/` can be removed with `ai-adapter uninstall`

@@ -1,7 +1,7 @@
-"""bin サブコマンドの実装。
+"""bin subcommand implementation.
 
-~/.ai-adapter/bin/ 配下のスクリプトファイルを管理する。
-env 引数が省略された場合は環境解決ロジックで補完する。
+Manages script files under ~/.ai-adapter/bin/.
+Auto-resolves env via environment resolution logic when omitted.
 """
 
 from __future__ import annotations
@@ -21,15 +21,16 @@ from ai_adapter.models import Bin, Config
 
 
 def resolve_env(config: Config, env_arg: str | None, agent_name: str | None = None) -> str:
-    """env 引数が省略された場合に、エージェント紐付け → デフォルト環境の順で解決する。
+    """Resolve env when the argument is omitted.
+    Order: agent binding -> default environment.
 
     Args:
-        config: Config オブジェクト。
-        env_arg: 明示指定された env 名（None の場合は解決が必要）。
-        agent_name: 現在のエージェント名（省略可）。
+        config: Config object.
+        env_arg: Explicitly specified env name (None means resolution needed).
+        agent_name: Current agent name (optional).
 
     Returns:
-        解決された環境名。
+        Resolved environment name.
     """
     if env_arg:
         return env_arg
@@ -42,37 +43,37 @@ def resolve_env(config: Config, env_arg: str | None, agent_name: str | None = No
 
 @click.group(name="bin")
 def bin_group() -> None:
-    """スクリプトファイルを管理する。"""
+    """Manage script files."""
 
 
 @bin_group.command(name="list")
-@click.option("--env", "-e", default=None, help="環境名（省略時は全環境のスクリプトを表示）")
+@click.option("--env", "-e", default=None, help="Environment name (default: show all environments)")
 def bin_list(env: str | None) -> None:
-    """スクリプト一覧を表示する。
+    """List scripts.
 
-    --env で環境名を指定するとフィルタリングされます。
+    Use --env to filter by environment name.
     """
     config = load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     if not config.bins:
-        click.echo("登録済みのスクリプトはありません。")
+        click.echo("No scripts registered.")
         return
 
     if env:
         filtered = [b for b in config.bins if b.env == env]
         if not filtered:
-            click.echo(f"環境 '{env}' に登録されたスクリプトはありません。")
+            click.echo(f"Environment '{env}' has no scripts registered.")
             return
-        click.echo(f"スクリプト一覧 (環境: {env}):")
+        click.echo(f"Scripts (env: {env}):")
         click.echo("-" * 40)
         for b in filtered:
             desc = f" - {b.description}" if b.description else ""
             click.echo(f"  {b.name}{desc}")
     else:
-        click.echo("全スクリプト一覧:")
+        click.echo("All Scripts:")
         click.echo("-" * 40)
         for b in config.bins:
             desc = f" - {b.description}" if b.description else ""
@@ -81,19 +82,19 @@ def bin_list(env: str | None) -> None:
 
 @bin_group.command(name="add")
 @click.argument("path", type=click.Path(exists=True, readable=True))
-@click.option("--env", "-e", default=None, help="環境名（省略時は環境解決ロジックで補完）")
-@click.option("--description", "-d", default="", help="スクリプトの説明")
-@click.option("--agent", help="エージェント名（環境解決用）")
+@click.option("--env", "-e", default=None, help="Environment name (auto-resolved when omitted)")
+@click.option("--description", "-d", default="", help="Script description")
+@click.option("--agent", help="Agent name (for env resolution)")
 def bin_add(path: str, env: str | None, description: str, agent: str | None) -> None:
-    """スクリプトを ~/.ai-adapter/bin/ に追加する。
+    """Add a script to ~/.ai-adapter/bin/.
 
-    PATH: 追加するスクリプトファイルのパス。
+    PATH: Path to the script file to add.
 
-    --env を省略した場合、環境解決ロジックで自動補完されます。
+    When --env is omitted, auto-resolves via environment resolution logic.
     """
     config = load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     resolved_env = resolve_env(config, env, agent)
@@ -104,10 +105,10 @@ def bin_add(path: str, env: str | None, description: str, agent: str | None) -> 
     dest = bins_dir / src.name
 
     if dest.exists():
-        click.confirm(f"'{dest.name}' は既に存在します。上書きしますか？", abort=True)
+        click.confirm(f"'{dest.name}' already exists. Overwrite?", abort=True)
 
     shutil.copy2(src, dest)
-    click.echo(f"スクリプト '{src.name}' を追加しました (環境: {resolved_env}): {dest}")
+    click.echo(f"Script '{src.name}' added (env: {resolved_env}): {dest}")
 
     # 重複チェック
     for existing in config.bins:
@@ -121,13 +122,13 @@ def bin_add(path: str, env: str | None, description: str, agent: str | None) -> 
 
 @bin_group.command(name="add-rec")
 @click.argument("dir_path", type=click.Path(exists=True, file_okay=False, readable=True))
-@click.option("--env", "-e", default=None, help="環境名（省略時は環境解決ロジックで補完）")
-@click.option("--agent", help="エージェント名（環境解決用）")
+@click.option("--env", "-e", default=None, help="Environment name (auto-resolved when omitted)")
+@click.option("--agent", help="Agent name (for env resolution)")
 def bin_add_rec(dir_path: str, env: str | None, agent: str | None) -> None:
-    """ディレクトリ内の全スクリプトを再帰的に登録する。"""
+    """Recursively register all scripts in a directory."""
     config = load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     resolved_env = resolve_env(config, env, agent)
@@ -146,29 +147,29 @@ def bin_add_rec(dir_path: str, env: str | None, agent: str | None) -> None:
         added += 1
 
     save_config(config)
-    click.echo(f"スクリプトを追加しました: {added}件")
+    click.echo(f"Scripts added: {added}")
 
 
 @bin_group.command(name="get")
 @click.argument("name")
-@click.option("--env", "-e", default=None, help="環境名（省略時は環境解決ロジックで補完）")
-@click.option("--agent", help="エージェント名（環境解決用）")
+@click.option("--env", "-e", default=None, help="Environment name (auto-resolved when omitted)")
+@click.option("--agent", help="Agent name (for env resolution)")
 @click.option(
     "--project-dir", "-d",
     type=click.Path(exists=True, file_okay=False, readable=True),
     default=None,
-    help="展開先プロジェクトディレクトリ（デフォルト: カレントディレクトリ）",
+    help="Target project directory (default: current directory)",
 )
 def bin_get(name: str, env: str | None, agent: str | None, project_dir: str | None) -> None:
-    """スクリプトを .github/bin/ にコピーする。
+    """Copy script to .github/bin/.
 
-    NAME: 取得するスクリプト名。
+    NAME: Name of the script to retrieve.
 
-    --env を省略した場合、環境解決ロジックで自動補完されます。
+    When --env is omitted, auto-resolves via environment resolution logic.
     """
     config = load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     resolved_env = resolve_env(config, env, agent)
@@ -181,14 +182,14 @@ def bin_get(name: str, env: str | None, agent: str | None, project_dir: str | No
             break
 
     if bin_entry is None:
-        click.echo(f"スクリプト '{name}' (環境: {resolved_env}) は登録されていません。", err=True)
-        raise click.ClickException(f"スクリプト '{name}' が見つかりません。")
+        click.echo(f"Script '{name}' (env: {resolved_env}) is not registered.", err=True)
+        raise click.ClickException(f"Script '{name}' not found.")
 
     bins_dir = get_bins_dir()
     src = bins_dir / name
     if not src.exists():
-        click.echo(f"ファイル '{src}' が見つかりません。", err=True)
-        raise click.ClickException(f"ファイル '{name}' が ~/.ai-adapter/bin/ に存在しません。")
+        click.echo(f"File '{src}' not found.", err=True)
+        raise click.ClickException(f"File '{name}' does not exist in ~/.ai-adapter/bin/.")
 
     project_path = Path(project_dir).resolve() if project_dir else None
     github_dir = get_github_bins_dir(project_path)
@@ -196,22 +197,22 @@ def bin_get(name: str, env: str | None, agent: str | None, project_dir: str | No
 
     dest = github_dir / name
     shutil.copy2(src, dest)
-    click.echo(f"スクリプト '{name}' を {dest} にコピーしました。")
+    click.echo(f"Script '{name}' copied to {dest}.")
 
 
 @bin_group.command(name="get-all")
-@click.option("--env", "-e", default=None, help="環境名（省略時は全環境）")
+@click.option("--env", "-e", default=None, help="Environment name (default: show all)")
 @click.option(
     "--project-dir", "-d",
     type=click.Path(exists=True, file_okay=False, readable=True),
     default=None,
-    help="展開先プロジェクトディレクトリ（デフォルト: カレントディレクトリ）",
+    help="Target project directory (default: current directory)",
 )
 def bin_get_all(env: str | None, project_dir: str | None) -> None:
-    """全ての登録済みスクリプトを .github/bin/ にコピーする（--env でフィルタ可能）。"""
+    """Copy all registered scripts to .github/bin/ (--env to filter)."""
     config = load_config()
     if config is None or not config.bins:
-        click.echo("登録済みのスクリプトはありません。")
+        click.echo("No scripts registered.")
         return
 
     bins_dir = get_bins_dir()
@@ -227,30 +228,30 @@ def bin_get_all(env: str | None, project_dir: str | None) -> None:
     for bin_entry in targets:
         src = bins_dir / bin_entry.name
         if not src.exists():
-            click.echo(f"  スキップ: '{bin_entry.name}' のファイルが見つかりません。")
+            click.echo(f"   Skip: '{bin_entry.name}'  file not found.")
             continue
         dest = github_dir / bin_entry.name
         shutil.copy2(src, dest)
         copied += 1
 
-    env_info = f" (環境: {env})" if env else ""
-    click.echo(f"全てのスクリプト ({copied}件){env_info} を {github_dir} にコピーしました。")
+    env_info = f" (env: {env})" if env else ""
+    click.echo(f"All scripts ({copied}){env_info} copied to {github_dir}.")
 
 
 @bin_group.command(name="remove")
 @click.argument("name")
-@click.option("--env", "-e", default=None, help="環境名（省略時は環境解決ロジックで補完）")
-@click.option("--agent", help="エージェント名（環境解決用）")
+@click.option("--env", "-e", default=None, help="Environment name (auto-resolved when omitted)")
+@click.option("--agent", help="Agent name (for env resolution)")
 def bin_remove(name: str, env: str | None, agent: str | None) -> None:
-    """スクリプトの登録を解除する（ファイルは削除しない）。
+    """Unregister a script (does not delete the file).
 
-    NAME: 削除するスクリプト名。
+    NAME: Script name to remove.
 
-    --env を省略した場合、環境解決ロジックで自動補完されます。
+    When --env is omitted, auto-resolves via environment resolution logic.
     """
     config = load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     resolved_env = resolve_env(config, env, agent)
@@ -263,8 +264,8 @@ def bin_remove(name: str, env: str | None, agent: str | None) -> None:
             break
 
     if found is None:
-        click.echo(f"スクリプト '{name}' (環境: {resolved_env}) は登録されていません。", err=True)
-        raise click.ClickException(f"スクリプト '{name}' が見つかりません。")
+        click.echo(f"Script '{name}' (env: {resolved_env}) is not registered.", err=True)
+        raise click.ClickException(f"Script '{name}' not found.")
 
     config.bins.remove(found)
     save_config(config)
@@ -274,40 +275,40 @@ def bin_remove(name: str, env: str | None, agent: str | None) -> None:
     target = github_dir / name
     if target.exists():
         target.unlink()
-        click.echo(f".github/bin/ から {name} を削除しました。")
+        click.echo(f"Removed {name} from .github/bin/.")
 
-    click.echo(f"スクリプト '{name}' (環境: {resolved_env}) の登録を解除しました。")
+    click.echo(f"Script '{name}' (env: {resolved_env}) unregistered.")
 
 
 @bin_group.command(name="remove-all")
-@click.option("--force", is_flag=True, help="確認プロンプトを表示せずに削除する")
+@click.option("--force", is_flag=True, help="Delete without confirmation prompt")
 def bin_remove_all(force: bool) -> None:
-    """全てのスクリプトの登録を解除する（ファイルは削除しない）。"""
+    """Unregister all scripts (files are not deleted)."""
     config = load_config()
     if config is None or not config.bins:
-        click.echo("登録済みのスクリプトはありません。")
+        click.echo("No scripts registered.")
         return
 
     count = len(config.bins)
     if not force:
-        click.confirm(f"全てのスクリプト ({count}件) の登録を解除しますか？", abort=True)
+        click.confirm(f"Unregister all scripts ({count})?", abort=True)
 
     config.bins.clear()
     save_config(config)
-    click.echo(f"全てのスクリプト ({count}件) の登録を解除しました。")
+    click.echo(f"All scripts ({count}) unregistered.")
 
 
 @bin_group.command(name="add-path")
 @click.option("--shell", default=None,
               type=click.Choice(["zshrc", "bash_profile", "bashrc"], case_sensitive=False),
-              help="シェル設定ファイル（省略時は対話的に選択）")
+              help="Shell config file (interactive selection when omitted)")
 def bin_add_path(shell: str | None) -> None:
-    """カレントプロジェクトの .github/bin を PATH に追加する。"""
+    """Add current project .github/bin to PATH."""
     github_bin = Path.cwd() / ".github" / "bin"
 
     if not github_bin.exists():
-        click.echo(f"'.github/bin' ディレクトリが見つかりません: {github_bin}")
-        click.echo("ai-adapter bin get <name> または ai-adapter bin get-all で先にスクリプトを展開してください。")
+        click.echo(f"'.github/bin' directory not found: {github_bin}")
+        click.echo("Run ai-adapter bin get <name> or ai-adapter bin get-all to deploy scripts first.")
         return
 
     export_line = f'export PATH="$PATH:{github_bin.resolve()}"'
@@ -324,16 +325,16 @@ def bin_add_path(shell: str | None) -> None:
         chosen = shell.lower()
     else:
         click.echo()
-        click.echo(f"以下の行をシェル設定ファイルに追加すると、スクリプトを短い名前で実行できます:")
+        click.echo(f"Add the following line to your shell config to run scripts by short name:")
         click.echo(f"  {export_line}")
         click.echo()
-        click.echo("シェル設定ファイルを選択してください:")
+        click.echo("Select a shell config file:")
         for i, (key, path) in enumerate(shell_configs.items(), 1):
             exists_mark = " ✓" if path.exists() else ""
             click.echo(f"  {i}) {key} ({path}{exists_mark})")
-        click.echo("  4) 表示のみ（自動追加しない）")
+        click.echo("  4) Display only (do not auto-add)")
         click.echo()
-        choice = click.prompt("番号を選択", type=int, default=4)
+        choice = click.prompt("Choose a number", type=int, default=4)
 
         if 1 <= choice <= 3:
             chosen = list(shell_configs.keys())[choice - 1]
@@ -345,17 +346,17 @@ def bin_add_path(shell: str | None) -> None:
         if config_path.exists():
             content = config_path.read_text()
             if export_line in content:
-                click.echo(f"既に設定されています: {config_path}")
+                click.echo(f"Already configured: {config_path}")
                 click.echo(f"  {export_line}")
                 return
 
         with open(config_path, "a") as f:
             f.write(f"\n# ai-adapter PATH\n{export_line}\n")
 
-        click.echo(f"PATH 設定を追加しました: {config_path}")
+        click.echo(f"PATH setting added: {config_path}")
         click.echo(f"  {export_line}")
-        click.echo("設定を反映するには、シェルを再起動するか以下を実行してください:")
+        click.echo("To apply, restart your shell or run:")
         click.echo(f"  source {config_path}")
     else:
-        click.echo("以下の行を ~/.zshrc などに追加してください:")
+        click.echo("Add the following line to ~/.zshrc etc.:")
         click.echo(f"  {export_line}")

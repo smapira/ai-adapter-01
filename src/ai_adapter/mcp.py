@@ -1,7 +1,7 @@
-"""mcp サブコマンドの実装。
+"""mcp subcommand implementation.
 
-~/.ai-adapter/mcp/ 配下の MCP サーバー設定を管理する。
-各ツール（VS Code / Claude / Cursor）の形式で設定を出力する。
+Manages MCP server configurations under ~/.ai-adapter/mcp/.
+Exports settings in formats compatible with various tools (VS Code / Claude / Cursor).
 """
 
 from __future__ import annotations
@@ -17,17 +17,17 @@ from ai_adapter.models import MCPServer
 
 @click.group(name="mcp")
 def mcp_group() -> None:
-    """MCP サーバー設定を管理する。"""
+    """Manage MCP server configurations."""
 
 
 @mcp_group.command(name="list")
-@click.option("--tool", help="ツール名でフィルタ（vscode/claude/cursor）")
-@click.option("--env", help="環境名でフィルタ")
+@click.option("--tool", help="Filter by tool name (vscode/claude/cursor)")
+@click.option("--env", help="Filter by environment name")
 def mcp_list(tool: str | None, env: str | None) -> None:
-    """MCP サーバー一覧を表示する。"""
+    """List MCP servers."""
     config = _config.load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     servers = config.mcp_servers
@@ -37,10 +37,10 @@ def mcp_list(tool: str | None, env: str | None) -> None:
         servers = [s for s in servers if s.env is None or s.env == env]
 
     if not servers:
-        click.echo("登録済みの MCP サーバーはありません。")
+        click.echo("No MCP servers registered.")
         return
 
-    click.echo("MCP サーバー一覧:")
+    click.echo("MCP Servers:")
     click.echo("-" * 70)
     for s in servers:
         enabled_mark = "✓" if s.enabled else "✗"
@@ -52,11 +52,11 @@ def mcp_list(tool: str | None, env: str | None) -> None:
 
 @mcp_group.command(name="add")
 @click.argument("name")
-@click.option("--command", "-c", help="実行コマンド")
-@click.option("--args", "-a", multiple=True, help="コマンド引数（複数指定可）")
-@click.option("--env-key", "-e", multiple=True, help="必要な環境変数キー（複数指定可）")
-@click.option("--tool", "-t", multiple=True, help="対応ツール（vscode/claude/cursor、複数指定可）")
-@click.option("--env", help="有効環境")
+@click.option("--command", "-c", help="Command to execute")
+@click.option("--args", "-a", multiple=True, help="Command arguments (can be specified multiple times)")
+@click.option("--env-key", "-e", multiple=True, help="Required environment variable keys (can be specified multiple times)")
+@click.option("--tool", "-t", multiple=True, help="Compatible tools: vscode/claude/cursor (can be specified multiple times)")
+@click.option("--env", help="Target environment")
 def mcp_add(
     name: str,
     command: str | None,
@@ -65,24 +65,24 @@ def mcp_add(
     tool: tuple[str, ...],
     env: str | None,
 ) -> None:
-    """MCP サーバー設定を追加する。
+    """Add an MCP server configuration.
 
-    NAME: MCP サーバー名。
+    NAME: MCP server name.
     """
     config = _config.load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     # 重複チェック
     for existing in config.mcp_servers:
         if existing.name == name:
-            click.echo(f"MCP サーバー '{name}' は既に存在します。", err=True)
-            raise click.ClickException(f"MCP サーバー '{name}' は既に登録されています。")
+            click.echo(f"MCP server '{name}' already exists.", err=True)
+            raise click.ClickException(f"MCP server '{name}' is already registered.")
 
     if not command:
-        click.echo("--command は必須です。", err=True)
-        raise click.ClickException("--command オプションが必要です。")
+        click.echo("--command is required.", err=True)
+        raise click.ClickException("--command option is required.")
 
     server = MCPServer(
         name=name,
@@ -96,19 +96,19 @@ def mcp_add(
 
     config.mcp_servers.append(server)
     _config.save_config(config)
-    click.echo(f"MCP サーバー '{name}' を追加しました。")
+    click.echo(f"MCP server '{name}' added.")
 
 
 @mcp_group.command(name="remove")
 @click.argument("name")
 def mcp_remove(name: str) -> None:
-    """MCP サーバー設定を削除する。
+    """Remove an MCP server configuration.
 
-    NAME: 削除する MCP サーバー名。
+    NAME: MCP server name to remove.
     """
     config = _config.load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     found = None
@@ -118,22 +118,22 @@ def mcp_remove(name: str) -> None:
             break
 
     if found is None:
-        click.echo(f"MCP サーバー '{name}' は登録されていません。", err=True)
-        raise click.ClickException(f"MCP サーバー '{name}' が見つかりません。")
+        click.echo(f"MCP server '{name}' is not registered.", err=True)
+        raise click.ClickException(f"MCP server '{name}' not found.")
 
     config.mcp_servers.remove(found)
     _config.save_config(config)
-    click.echo(f"MCP サーバー '{name}' を削除しました。")
+    click.echo(f"MCP server '{name}' removed.")
 
 
 @mcp_group.command(name="export")
 @click.option("--path", default=None,
-              help="出力先ディレクトリ（デフォルト: カレントディレクトリ）")
+              help="Output directory (default: current directory)")
 def mcp_export(path: str | None) -> None:
-    """MCP 設定を .mcp.json に出力する。"""
+    """Export MCP configuration to .mcp.json."""
     config = _config.load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     enabled_servers = [s for s in config.mcp_servers if s.enabled]
@@ -159,18 +159,18 @@ def mcp_export(path: str | None) -> None:
     with open(output_path, "w") as f:
         json.dump(mcp_config, f, indent=2, ensure_ascii=False)
 
-    click.echo(f"MCP 設定を出力しました: {output_path}")
+    click.echo(f"MCP configuration exported: {output_path}")
 
 
 @mcp_group.command(name="load")
 @click.option("--file", "-f", "json_path", type=click.Path(exists=True, readable=True),
               default=".mcp.json",
-              help=".mcp.json ファイルのパス（デフォルト: .mcp.json）")
+              help="Path to .mcp.json file (default: .mcp.json)")
 def mcp_load(json_path: str) -> None:
-    """.mcp.json から MCP サーバー設定を一括読み込みする。"""
+    """Load MCP server configurations from .mcp.json."""
     config = _config.load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     with open(json_path) as f:
@@ -178,8 +178,8 @@ def mcp_load(json_path: str) -> None:
 
     servers_data = data.get("mcpServers", {})
     if not servers_data:
-        click.echo(f"'{json_path}' に mcpServers が見つかりません。", err=True)
-        raise click.ClickException("有効な .mcp.json ファイルではありません。")
+        click.echo(f"'{json_path}' has no mcpServers.", err=True)
+        raise click.ClickException("Not a valid .mcp.json file.")
 
     loaded = 0
     skipped = 0
@@ -203,21 +203,21 @@ def mcp_load(json_path: str) -> None:
         loaded += 1
 
     _config.save_config(config)
-    click.echo(f"MCP サーバー設定を読み込みました: {loaded}件追加, {skipped}件スキップ（重複）")
+    click.echo(f"MCP server configurations loaded: {loaded} added, {skipped} skipped (duplicate)")
 
 
 @mcp_group.command(name="remove-all")
 @click.option("--force", is_flag=True, help="確認プロンプトを表示せずに削除する")
 def mcp_remove_all(force: bool) -> None:
-    """全ての MCP サーバー設定を削除し、.mcp.json を削除する。"""
+    """Remove all MCP server configurations and delete .mcp.json."""
     config = _config.load_config()
     if config is None or not config.mcp_servers:
-        click.echo("登録済みの MCP サーバーはありません。")
+        click.echo("No MCP servers registered.")
         return
 
     count = len(config.mcp_servers)
     if not force:
-        click.confirm(f"全ての MCP サーバー ({count}件) を削除しますか？", abort=True)
+        click.confirm(f"全ての MCP サーバー ({count})?", abort=True)
 
     config.mcp_servers.clear()
     _config.save_config(config)
@@ -226,6 +226,6 @@ def mcp_remove_all(force: bool) -> None:
     mcp_json = Path.cwd() / ".mcp.json"
     if mcp_json.exists():
         mcp_json.unlink()
-        click.echo(f".mcp.json を削除しました。")
+        click.echo(f".mcp.json deleted.")
 
-    click.echo(f"全ての MCP サーバー ({count}件) を削除しました。")
+    click.echo(f"全ての MCP サーバー ({count}) removed.")

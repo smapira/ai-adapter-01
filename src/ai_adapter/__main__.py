@@ -1,4 +1,4 @@
-"""python -m ai_adapter 対応エントリーポイント。"""
+"""Entry point for python -m ai_adapter."""
 
 from ai_adapter.cli import main
 

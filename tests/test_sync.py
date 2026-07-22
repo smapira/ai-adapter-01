@@ -67,7 +67,7 @@ class TestSyncCommand(unittest.TestCase):
 
         result = self.runner.invoke(main, ["sync"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("同期", result.output)
+        self.assertIn("Sync", result.output)
         mock_is_repo.assert_called_once()
         mock_has_remote.assert_called_once()
         mock_add_all.assert_called_once()
@@ -79,7 +79,7 @@ class TestSyncCommand(unittest.TestCase):
     @patch("ai_adapter.sync.has_remote")
     def test_sync_not_initialized(self, mock_has_remote, mock_is_repo):
         """sync コマンドで init が必要と表示されることを確認する。"""
-        # init の一時ディレクトリを削除して未初期化状態にする
+        # init の一時ディレクトリをremovして未初期化Statusにする
         import shutil
         shutil.rmtree(self.patch_home / ".ai-adapter")
 
@@ -94,14 +94,14 @@ class TestSyncCommand(unittest.TestCase):
     def test_sync_no_remote_skip(
         self, mock_has_remote, mock_is_repo, mock_get_remotes, mock_load_config,
     ):
-        """リモート未設定の sync でスキップできることを確認する。"""
+        """リモート未設定の sync でSkipできることを確認する。"""
         from ai_adapter.models import Config
         mock_is_repo.return_value = True
         mock_has_remote.return_value = False
         mock_get_remotes.return_value = []
         mock_load_config.return_value = Config()
 
-        # Enter でスキップ
+        # Enter でSkip
         result = self.runner.invoke(main, ["sync"], input="\n")
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("同期をスキップ", result.output)
+        self.assertIn("Skipping sync", result.output)

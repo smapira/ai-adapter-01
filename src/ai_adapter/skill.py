@@ -23,31 +23,31 @@ from ai_adapter.models import Skill
 
 
 def _parse_skill_metadata(skill_dir: Path) -> dict:
-    """SKILL.md から frontmatter をパースしてメタデータを返す。"""
+    """Parse frontmatter from SKILL.md and return metadata."""
     skill_file = skill_dir / "SKILL.md"
     if not skill_file.exists():
-        raise click.ClickException(f"SKILL.md が見つかりません: {skill_file}")
+        raise click.ClickException(f"SKILL.md not found: {skill_file}")
 
     content = skill_file.read_text(encoding="utf-8")
     match = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
     if not match:
-        raise click.ClickException("SKILL.md に YAML frontmatter が見つかりません")
+        raise click.ClickException("No YAML frontmatter found in SKILL.md")
 
     return yaml.safe_load(match.group(1)) or {}
 
 
 @click.group(name="skill")
 def skill_group() -> None:
-    """スキルを管理する。"""
+    """Manage skills."""
 
 
 @skill_group.command(name="list")
-@click.option("--tag", help="タグでフィルタリング")
+@click.option("--tag", help="Filter by tag")
 def skill_list(tag: str | None) -> None:
-    """登録済みスキル一覧を表示する。"""
+    """List registered skills."""
     config = load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     skills = config.skills
@@ -55,10 +55,10 @@ def skill_list(tag: str | None) -> None:
         skills = [s for s in skills if tag in s.tags]
 
     if not skills:
-        click.echo("登録済みのスキルはありません。")
+        click.echo("No skills registered.")
         return
 
-    click.echo("スキル一覧:")
+    click.echo("Skills:")
     click.echo("-" * 60)
     for skill in skills:
         agent_info = f" [agent: {skill.agent}]" if skill.agent else ""
@@ -70,9 +70,9 @@ def skill_list(tag: str | None) -> None:
 @skill_group.command(name="add")
 @click.argument("path", type=click.Path(exists=True, file_okay=False, readable=True))
 def skill_add(path: str) -> None:
-    """スキルディレクトリを ~/.ai-adapter/skills/ に追加する。
+    """Add a skill directory to ~/.ai-adapter/skills/.
 
-    PATH: SKILL.md を含むスキルディレクトリのパス。
+    PATH: Path to the skill directory containing SKILL.md.
     """
     src = Path(path).resolve()
     metadata = _parse_skill_metadata(src)
@@ -83,15 +83,15 @@ def skill_add(path: str) -> None:
     dest = skills_dir / name
 
     if dest.exists():
-        click.confirm(f"スキル '{name}' は既に存在します。上書きしますか？", abort=True)
+        click.confirm(f"Skill '{name}' already exists. Overwrite?", abort=True)
         shutil.rmtree(dest)
 
     shutil.copytree(src, dest)
-    click.echo(f"スキル '{name}' を追加しました: {dest}")
+    click.echo(f"Skill '{name}' added: {dest}")
 
     config = load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     # 重複チェック
@@ -115,14 +115,14 @@ def skill_add(path: str) -> None:
 @skill_group.command(name="add-rec")
 @click.argument("dir_path", type=click.Path(exists=True, file_okay=False, readable=True))
 def skill_add_rec(dir_path: str) -> None:
-    """ディレクトリ内の全スキルディレクトリを再帰的に登録する。"""
+    """Recursively register all skill directories in a directory."""
     src_dir = Path(dir_path).resolve()
     skills_dir = get_skills_dir()
     skills_dir.mkdir(parents=True, exist_ok=True)
 
     config = load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     added = 0
@@ -153,17 +153,17 @@ def skill_add_rec(dir_path: str) -> None:
         added += 1
 
     save_config(config)
-    click.echo(f"スキルを追加しました: {added}件")
+    click.echo(f"Skills added: {added}")
 
 
 @skill_group.command(name="get")
 @click.argument("name")
-@click.option("--force", is_flag=True, help="既存のスキルを上書きする")
+@click.option("--force", is_flag=True, help="Overwrite existing skills")
 @click.option(
     "--project-dir", "-d",
     type=click.Path(exists=True, file_okay=False, readable=True),
     default=None,
-    help="展開先プロジェクトディレクトリ（デフォルト: カレントディレクトリ）",
+    help="Target project directory (default: current directory)",
 )
 def skill_get(name: str, force: bool, project_dir: str | None) -> None:
     """スキルを .github/skills/ にコピーする。
@@ -172,7 +172,7 @@ def skill_get(name: str, force: bool, project_dir: str | None) -> None:
     """
     config = load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     # 検索
@@ -183,14 +183,14 @@ def skill_get(name: str, force: bool, project_dir: str | None) -> None:
             break
 
     if skill_entry is None:
-        click.echo(f"スキル '{name}' は登録されていません。", err=True)
-        raise click.ClickException(f"スキル '{name}' が見つかりません。")
+        click.echo(f"Skill '{name}' is not registered.", err=True)
+        raise click.ClickException(f"Skill '{name}' not found.")
 
     skills_dir = get_skills_dir()
     src = skills_dir / name
     if not src.exists():
-        click.echo(f"スキルディレクトリ '{src}' が見つかりません。", err=True)
-        raise click.ClickException(f"スキル '{name}' のディレクトリが存在しません。")
+        click.echo(f"Skill directory '{src}' not found.", err=True)
+        raise click.ClickException(f"Skill '{name}' directory does not exist.")
 
     project_path = Path(project_dir).resolve() if project_dir else None
     claude_dir = get_github_skills_dir(project_path)
@@ -201,24 +201,24 @@ def skill_get(name: str, force: bool, project_dir: str | None) -> None:
         if force:
             shutil.rmtree(dest)
         else:
-            click.confirm(f"'{dest}' は既に存在します。上書きしますか？", abort=True)
+            click.confirm(f"'{dest}' already exists. Overwrite?", abort=True)
             shutil.rmtree(dest)
 
     shutil.copytree(src, dest)
-    click.echo(f"スキル '{name}' を {dest} にコピーしました。")
+    click.echo(f"Skill '{name}' copied to {dest}.")
 
 
 @skill_group.command(name="remove")
 @click.argument("name")
-@click.option("--purge", is_flag=True, help="スキルファイルも削除する")
+@click.option("--purge", is_flag=True, help="Also delete skill files")
 def skill_remove(name: str, purge: bool) -> None:
-    """スキルを削除する。
+    """Remove a skill.
 
-    NAME: 削除するスキル名。
+    NAME: Name of the skill to remove.
     """
     config = load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     found = None
@@ -228,8 +228,8 @@ def skill_remove(name: str, purge: bool) -> None:
             break
 
     if found is None:
-        click.echo(f"スキル '{name}' は登録されていません。", err=True)
-        raise click.ClickException(f"スキル '{name}' が見つかりません。")
+        click.echo(f"Skill '{name}' is not registered.", err=True)
+        raise click.ClickException(f"Skill '{name}' not found.")
 
     config.skills.remove(found)
     save_config(config)
@@ -239,28 +239,28 @@ def skill_remove(name: str, purge: bool) -> None:
         target = skills_dir / name
         if target.exists():
             shutil.rmtree(target)
-            click.echo(f"スキルディレクトリ {target} を削除しました。")
+            click.echo(f"Skill directory {target} removed.")
 
     # .github/skills/ からも削除
     github_dir = get_github_skills_dir()
     target_gh = github_dir / name
     if target_gh.exists():
         shutil.rmtree(target_gh)
-        click.echo(f".github/skills/ から {name} を削除しました。")
+        click.echo(f"Removed {name} from .github/skills/.")
 
-    click.echo(f"スキル '{name}' を削除しました。")
+    click.echo(f"Skill '{name}' removed.")
 
 
 @skill_group.command(name="search")
 @click.argument("keyword")
 def skill_search(keyword: str) -> None:
-    """スキルをキーワード検索する。
+    """Search skills by keyword.
 
-    KEYWORD: スキル名、説明、タグに部分一致するキーワード。
+    KEYWORD: Keyword to match against skill name, description, and tags.
     """
     config = load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     kw = keyword.lower()
@@ -272,10 +272,10 @@ def skill_search(keyword: str) -> None:
             results.append(s)
 
     if not results:
-        click.echo(f"キーワード '{keyword}' に一致するスキルはありません。")
+        click.echo(f"No skills matching '{keyword}'.")
         return
 
-    click.echo(f"検索結果: '{keyword}'")
+    click.echo(f"Search results: '{keyword}'")
     click.echo("-" * 60)
     for s in results:
         tags_str = f" ({', '.join(s.tags)})" if s.tags else ""
@@ -288,14 +288,14 @@ def skill_search(keyword: str) -> None:
 @click.argument("skill")
 @click.argument("agent")
 def skill_link_agent(skill: str, agent: str) -> None:
-    """スキルとエージェントを紐付ける。
+    """Link a skill to an agent.
 
-    SKILL: スキル名。
-    AGENT: エージェント名。
+    SKILL: Skill name.
+    AGENT: Agent name.
     """
     config = load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     # スキル存在チェック
@@ -306,33 +306,33 @@ def skill_link_agent(skill: str, agent: str) -> None:
             break
 
     if skill_entry is None:
-        click.echo(f"スキル '{skill}' は登録されていません。", err=True)
-        raise click.ClickException(f"スキル '{skill}' が見つかりません。")
+        click.echo(f"Skill '{skill}' is not registered.", err=True)
+        raise click.ClickException(f"Skill '{skill}' not found.")
 
     # エージェント存在チェック
     agent_found = any(a.name == agent for a in config.agents)
     if not agent_found:
-        click.echo(f"エージェント '{agent}' は登録されていません。", err=True)
-        raise click.ClickException(f"エージェント '{agent}' が見つかりません。")
+        click.echo(f"Agent '{agent}' は登録されていません。", err=True)
+        raise click.ClickException(f"Agent '{agent}' not found.")
 
     skill_entry.agent = agent
     save_config(config)
-    click.echo(f"スキル '{skill}' をエージェント '{agent}' に紐付けました。")
+    click.echo(f"Skill '{skill}' linked to agent '{agent}'.")
 
 
 @skill_group.command(name="get-all")
-@click.option("--force", is_flag=True, help="既存のスキルを上書きする")
+@click.option("--force", is_flag=True, help="Overwrite existing skills")
 @click.option(
     "--project-dir", "-d",
     type=click.Path(exists=True, file_okay=False, readable=True),
     default=None,
-    help="展開先プロジェクトディレクトリ（デフォルト: カレントディレクトリ）",
+    help="Target project directory (default: current directory)",
 )
 def skill_get_all(force: bool, project_dir: str | None) -> None:
-    """全ての登録済みスキルを .claude/skills/ にコピーする。"""
+    """All imports済みスキルを .github/skills/ にコピーする。"""
     config = load_config()
     if config is None or not config.skills:
-        click.echo("登録済みのスキルはありません。")
+        click.echo("No skills registered.")
         return
 
     skills_dir = get_skills_dir()
@@ -344,34 +344,34 @@ def skill_get_all(force: bool, project_dir: str | None) -> None:
     for skill_entry in config.skills:
         src = skills_dir / skill_entry.name
         if not src.exists():
-            click.echo(f"  スキップ: '{skill_entry.name}' のディレクトリが見つかりません。")
+            click.echo(f"   Skip: '{skill_entry.name}' directory not found.")
             continue
         dest = claude_dir / skill_entry.name
         if dest.exists():
             if force:
                 shutil.rmtree(dest)
             else:
-                click.confirm(f"'{dest}' は既に存在します。上書きしますか？", abort=True)
+                click.confirm(f"'{dest}' already exists. Overwrite?", abort=True)
                 shutil.rmtree(dest)
         shutil.copytree(src, dest)
         copied += 1
 
-    click.echo(f"全てのスキル ({copied}件) を {claude_dir} にコピーしました。")
+    click.echo(f"All skills ({copied}) を {claude_dir} にコピーしました。")
 
 
 @skill_group.command(name="remove-all")
-@click.option("--force", is_flag=True, help="確認プロンプトを表示せずに削除する")
-@click.option("--purge", is_flag=True, help="スキルファイルも削除する")
+@click.option("--force", is_flag=True, help="Delete without confirmation prompt")
+@click.option("--purge", is_flag=True, help="Also delete skill files")
 def skill_remove_all(force: bool, purge: bool) -> None:
-    """全てのスキルを削除する。"""
+    """Remove all skills."""
     config = load_config()
     if config is None or not config.skills:
-        click.echo("登録済みのスキルはありません。")
+        click.echo("No skills registered.")
         return
 
     count = len(config.skills)
     if not force:
-        click.confirm(f"全てのスキル ({count}件) を削除しますか？", abort=True)
+        click.confirm(f"All skills ({count})?", abort=True)
 
     if purge:
         skills_dir = get_skills_dir()
@@ -382,4 +382,4 @@ def skill_remove_all(force: bool, purge: bool) -> None:
 
     config.skills.clear()
     save_config(config)
-    click.echo(f"全てのスキル ({count}件) を削除しました。")
+    click.echo(f"All skills ({count}) removed.")

@@ -1,6 +1,6 @@
-"""CLI エントリーポイント。
+"""CLI entry point.
 
-Click グループを定義し、全サブコマンドを統合する。
+Defines Click groups and integrates all subcommands.
 """
 
 from __future__ import annotations
@@ -16,9 +16,11 @@ from ai_adapter import config as _config
 from ai_adapter import git as _git
 from ai_adapter.agent import agent_group
 from ai_adapter.bin import bin_group
+from ai_adapter.command import command_group
 from ai_adapter.env import env_group
 from ai_adapter.mcp import mcp_group
 from ai_adapter.opencode import opencode_group
+from ai_adapter.prompt import prompt_group
 from ai_adapter.skill import skill_group
 from ai_adapter.git import GitError, is_rebasing, get_conflicted_files
 from ai_adapter.sync import sync_command
@@ -32,22 +34,22 @@ logging.basicConfig(
 @click.group()
 @click.version_option(version=__version__, prog_name="ai-adapter")
 def main() -> None:
-    """AIエージェント・スクリプトの共通管理基盤 CLI ツール"""
+    """Unified CLI tool for managing AI agent configurations and scripts"""
 
 
 @main.command(name="init")
-@click.option("--remote", "-r", help="Git リモートリポジトリのURL")
+@click.option("--remote", "-r", help="Git remote repository URL")
 def cmd_init(remote: str | None) -> None:
-    """~/.ai-adapter/ を初期化する。
+    """Initialize ~/.ai-adapter/.
 
-    リモートURLが未指定の場合、対話的に入力を促します。
+    Prompts interactively when no remote URL is provided.
     """
     created = _config.init()
     if created:
-        click.echo(f"初期化しました: {_config.AI_ADAPTER_DIR}")
-        click.echo(f"設定ファイル: {_config.get_config_path()}")
+        click.echo(f"Initialized: {_config.AI_ADAPTER_DIR}")
+        click.echo(f"Config file: {_config.get_config_path()}")
     else:
-        click.echo(f"既に初期化されています: {_config.AI_ADAPTER_DIR}")
+        click.echo(f"Already initialized: {_config.AI_ADAPTER_DIR}")
 
     # リモート設定
     adapter_dir = _config.AI_ADAPTER_DIR
@@ -58,11 +60,11 @@ def cmd_init(remote: str | None) -> None:
     if not _git.has_remote(adapter_dir):
         if remote is None:
             click.echo()
-            click.echo("--- GitHub 同期の設定 ---")
-            click.echo("設定を複数PCで共有するには、GitHub リポジトリのURLを入力してください。")
-            click.echo("（スキップする場合は何も入力せず Enter を押してください）")
+            click.echo("--- GitHub Sync Configuration ---")
+            click.echo("Enter a GitHub repository URL to share settings across PCs.")
+            click.echo("(Press Enter with no input to skip)")
             remote_input = click.prompt(
-                "Git リモートリポジトリURL",
+                "Git remote repository URL",
                 default="",
                 show_default=False,
             ).strip()
@@ -74,88 +76,88 @@ def cmd_init(remote: str | None) -> None:
             if config:
                 config.remote = remote
                 _config.save_config(config)
-            click.echo(f"リモートを設定しました: {remote}")
-            click.echo("ai-adapter sync で設定を同期できます。")
+            click.echo(f"Remote set: {remote}")
+            click.echo("Use ai-adapter sync to sync settings.")
         else:
-            click.echo("リモートは設定されませんでした。")
-            click.echo("後から ai-adapter start <URL> で設定することもできます。")
+            click.echo("Remote was not configured.")
+            click.echo("You can also set it later with ai-adapter start <URL>.")
     else:
         remotes = _git.get_remotes(adapter_dir)
-        click.echo(f"リモートは既に設定されています: {', '.join(remotes)}")
+        click.echo(f"Remote already configured: {', '.join(remotes)}")
 
 
 @main.command(name="status")
 def cmd_status() -> None:
-    """現在の状態を表示する。"""
+    """Show current status."""
     adapter_dir = _config.AI_ADAPTER_DIR
     if not adapter_dir.exists():
-        click.echo("ai-adapter は初期化されていません。")
-        click.echo("ai-adapter init を実行してください。")
+        click.echo("ai-adapter is not initialized.")
+        click.echo("Run ai-adapter init first.")
         return
 
     config = _config.load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。")
-        click.echo("ai-adapter init を実行してください。")
+        click.echo("Configuration file not found.")
+        click.echo("Run ai-adapter init first.")
         return
 
-    click.echo("ai-adapter 状態:")
-    click.echo(f"  データディレクトリ: {adapter_dir}")
-    click.echo(f"  設定ファイル: {_config.get_config_path()}")
-    click.echo(f"  バージョン: {config.version}")
-    click.echo(f"  デフォルト環境: {config.default_env}")
-    click.echo(f"  登録エージェント数: {len(config.agents)}")
-    click.echo(f"  登録環境数: {len(config.envs)}")
-    click.echo(f"  登録スクリプト数: {len(config.bins)}")
-    click.echo(f"  登録スキル数: {len(config.skills)}")
-    click.echo(f"  MCP サーバー数: {len(config.mcp_servers)}")
-    click.echo(f"  エージェント紐付け数: {len(config.agent_bindings)}")
+    click.echo("ai-adapter Status:")
+    click.echo(f"  Data directory: {adapter_dir}")
+    click.echo(f"  Config file: {_config.get_config_path()}")
+    click.echo(f"  Version: {config.version}")
+    click.echo(f"  Default environment: {config.default_env}")
+    click.echo(f"  Registered agents: {len(config.agents)}")
+    click.echo(f"  Environments: {len(config.envs)}")
+    click.echo(f"  Registered scripts: {len(config.bins)}")
+    click.echo(f"  Registered skills: {len(config.skills)}")
+    click.echo(f"  MCP servers: {len(config.mcp_servers)}")
+    click.echo(f"  Agent bindings: {len(config.agent_bindings)}")
     if config.remote:
-        click.echo(f"  リモート: {config.remote}")
+        click.echo(f"  Remote: {config.remote}")
 
     # ディレクトリ存在確認
     agents_dir = adapter_dir / "agents"
     bins_dir = adapter_dir / "bin"
     skills_dir = adapter_dir / "skills"
     mcp_dir = adapter_dir / "mcp"
-    click.echo(f"  agents/ ディレクトリ: {'✓' if agents_dir.exists() else '✗'}")
-    click.echo(f"  bin/ ディレクトリ: {'✓' if bins_dir.exists() else '✗'}")
-    click.echo(f"  skills/ ディレクトリ: {'✓' if skills_dir.exists() else '✗'}")
-    click.echo(f"  mcp/ ディレクトリ: {'✓' if mcp_dir.exists() else '✗'}")
+    click.echo(f"  agents/ directory: {'✓' if agents_dir.exists() else '✗'}")
+    click.echo(f"  bin/ directory: {'✓' if bins_dir.exists() else '✗'}")
+    click.echo(f"  skills/ directory: {'✓' if skills_dir.exists() else '✗'}")
+    click.echo(f"  mcp/ directory: {'✓' if mcp_dir.exists() else '✗'}")
 
-    # リベース状態
+    # リベースStatus
     rebasing = is_rebasing(adapter_dir)
-    click.echo(f"  リベース状態: {'⚠ 中断中' if rebasing else '✓'}")
+    click.echo(f"  Rebase state: {'⚠ In progress' if rebasing else '✓'}")
     if rebasing:
         conflicted = get_conflicted_files(adapter_dir)
         if conflicted:
-            click.echo(f"  コンフリクトファイル: {', '.join(conflicted)}")
+            click.echo(f"  Conflicted files: {', '.join(conflicted)}")
 
 
 @main.command(name="start")
 @click.argument("url")
 def cmd_start(url: str) -> None:
-    """GitHub リモートと連携して ~/.ai-adapter/ を初期化する。
+    """Initialize ~/.ai-adapter/ with a GitHub remote.
 
-    URL: Git リモートリポジトリのURL（例: git@github.com:user/my-agent-config.git）
+    URL: Git remote repository URL (e.g. git@github.com:user/my-agent-config.git)
     """
     adapter_dir = _config.AI_ADAPTER_DIR
 
     if adapter_dir.exists():
-        click.echo(f"'{adapter_dir}' は既に存在します。")
-        click.confirm("既存の設定を上書きしますか？（設定はマージされます）", abort=True)
+        click.echo(f"'{adapter_dir}' already exists.")
+        click.confirm("Overwrite existing settings? (Settings will be merged)", abort=True)
 
     # Step 1: git clone を試みる
-    click.echo(f"リモートリポジトリからクローン中: {url}")
+    click.echo(f"Cloning from remote repository: {url}")
     try:
         _git.clone(url, adapter_dir)
-        click.echo("クローンしました。")
+        click.echo("Cloned.")
     except _git.GitError:
-        click.echo("クローンに失敗しました。新規リポジトリとして初期化します。")
+        click.echo("Clone failed. Initializing as a new repository.")
         adapter_dir.mkdir(parents=True, exist_ok=True)
         _git.init_repo(adapter_dir)
         _git.add_remote(adapter_dir, "origin", url)
-        click.echo(f"リモートを設定しました: {url}")
+        click.echo(f"Remote set: {url}")
 
     # Step 2: ディレクトリ構造を初期化
     dirs = [
@@ -174,12 +176,12 @@ def cmd_start(url: str) -> None:
         config = Config(
             version=1,
             default_env="default",
-            envs=[Env(name="default", description="デフォルト環境")],
+            envs=[Env(name="default", description="Default environment")],
             agent_bindings=[],
             remote=url,
         )
         _config.save_config(config)
-        click.echo("デフォルト設定ファイルを生成しました。")
+        click.echo("Default configuration file generated.")
     else:
         # remote フィールドを更新
         cfg = _config.load_config()
@@ -187,21 +189,21 @@ def cmd_start(url: str) -> None:
             cfg.remote = url
             _config.save_config(cfg)
 
-    click.echo(f"セットアップ完了: {adapter_dir}")
-    click.echo(f"リモート: {url}")
-    click.echo("ai-adapter sync で設定を同期できます。")
+    click.echo(f"Setup complete: {adapter_dir}")
+    click.echo(f"Remote: {url}")
+    click.echo("Use ai-adapter sync to sync settings.")
 
 
 @main.command(name="uninstall")
-@click.option("--force", is_flag=True, help="確認プロンプトを表示せずに削除する")
-@click.option("--keep-git", is_flag=True, help="Git リポジトリ情報を保持する")
+@click.option("--force", is_flag=True, help="Delete without confirmation prompt")
+@click.option("--keep-git", is_flag=True, help="Keep Git repository information")
 def cmd_uninstall(force: bool, keep_git: bool) -> None:
-    """~/.ai-adapter/ を削除して初期状態に戻す。"""
+    """Remove ~/.ai-adapter/ and reset to initial state."""
     adapter_dir = _config.AI_ADAPTER_DIR
 
     if not adapter_dir.exists():
-        click.echo("ai-adapter は初期化されていません。")
-        click.echo("削除するデータはありません。")
+        click.echo("ai-adapter is not initialized.")
+        click.echo("Nothing to delete.")
         return
 
     # Git リポジトリ確認
@@ -209,30 +211,30 @@ def cmd_uninstall(force: bool, keep_git: bool) -> None:
     is_git_repo = git_dir.exists()
 
     if is_git_repo and not keep_git:
-        click.echo("警告: ~/.ai-adapter/ は Git リポジトリとして管理されています。")
-        click.echo("リモートの変更を先にプッシュすることを推奨します。")
+        click.echo("Warning: ~/.ai-adapter/ is managed as a Git repository.")
+        click.echo("It is recommended to push remote changes first.")
         click.echo("  cd ~/.ai-adapter && git status")
         click.echo("  git push")
 
     # 確認プロンプト
     if not force:
         size_info = _get_dir_size(adapter_dir)
-        click.echo(f"削除対象: {adapter_dir} ({size_info})")
-        click.confirm("本当に削除しますか？", abort=True)
+        click.echo(f"Delete target: {adapter_dir} ({size_info})")
+        click.confirm("Are you sure you want to delete?", abort=True)
 
     # ~/.ai-adapter/ を削除
     if keep_git and is_git_repo:
         _remove_contents_except_git(adapter_dir)
-        click.echo(f"データを削除しました (Git リポジトリは保持): {adapter_dir}")
+        click.echo(f"Data removed (Git repo kept): {adapter_dir}")
     else:
         shutil.rmtree(adapter_dir)
-        click.echo(f"アンインストールしました: {adapter_dir}")
+        click.echo(f"Uninstalled: {adapter_dir}")
 
-    click.echo("ai-adapter init で再初期化できます。")
+    click.echo("You can reinitialize with ai-adapter init.")
 
 
 def _get_dir_size(path: Path) -> str:
-    """ディレクトリのサイズを人間が読める形式で返す。"""
+    """Return directory size in human-readable format."""
     total = 0
     for f in path.rglob("*"):
         if f.is_file():
@@ -246,7 +248,7 @@ def _get_dir_size(path: Path) -> str:
 
 
 def _remove_contents_except_git(path: Path) -> None:
-    """Git リポジトリ（.git）を残して中身をすべて削除する。"""
+    """Remove all contents except the Git repository (.git)."""
     for item in path.iterdir():
         if item.name == ".git":
             continue
@@ -261,20 +263,22 @@ main.add_command(agent_group)
 main.add_command(env_group)
 main.add_command(bin_group)
 main.add_command(skill_group)
+main.add_command(command_group)
+main.add_command(prompt_group)
 main.add_command(mcp_group)
 main.add_command(opencode_group)
 
 
 @main.command(name="add-all-rec")
 def cmd_add_all_rec() -> None:
-    """.github/ 以下の全ファイルを ~/.ai-adapter/ に取り込む。"""
+    """Import all files under .github/ into ~/.ai-adapter/."""
     github_dir = Path.cwd() / ".github"
     if not github_dir.exists():
-        click.echo(f"'.github' ディレクトリは見つかりません。")
+        click.echo(f"'.github' directory not found.")
 
     config = _config.load_config()
     if config is None:
-        click.echo("設定ファイルが見つかりません。ai-adapter init を実行してください。")
+        click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
     from ai_adapter.agent import _get_agent_name_from_path, _parse_frontmatter
@@ -304,7 +308,7 @@ def cmd_add_all_rec() -> None:
             config.agents.append(Agent(name=name))
             added += 1
         if added:
-            click.echo(f"  agents/: {added}件登録")
+            click.echo(f"  agents/: {added} registered")
             total_added += added
 
     # 2) bin/
@@ -323,7 +327,7 @@ def cmd_add_all_rec() -> None:
             config.bins.append(Bin(name=f.name, env=resolved_env))
             added += 1
         if added:
-            click.echo(f"  bin/: {added}件登録")
+            click.echo(f"  bin/: {added} registered")
             total_added += added
 
     # 3) skills/
@@ -356,7 +360,7 @@ def cmd_add_all_rec() -> None:
             ))
             added += 1
         if added:
-            click.echo(f"  skills/: {added}件登録")
+            click.echo(f"  skills/: {added} registered")
             total_added += added
 
     # 4) .mcp.json
@@ -380,26 +384,26 @@ def cmd_add_all_rec() -> None:
                     ))
                     added += 1
             if added:
-                click.echo(f"  .mcp.json: {added}件登録")
+                click.echo(f"  .mcp.json: {added} registered")
                 total_added += added
         except (json.JSONDecodeError, Exception) as e:
-            click.echo(f"  .mcp.json の読み込みに失敗: {e}")
+            click.echo(f"  .mcp.json  failed to load: {e}")
 
     _config.save_config(config)
-    click.echo(f"全ての登録が完了しました: 合計{total_added}件")
+    click.echo(f"All imports completed: Total: {total_added}")
 
 
 @main.command(name="sync")
-@click.option("--continue", "do_continue", is_flag=True, help="中断されたリベースを続行")
-@click.option("--abort", "do_abort", is_flag=True, help="リベースを中断")
-@click.option("--skip", "do_skip", is_flag=True, help="コミットをスキップ")
+@click.option("--continue", "do_continue", is_flag=True, help="Continue an interrupted rebase")
+@click.option("--abort", "do_abort", is_flag=True, help="Abort the rebase")
+@click.option("--skip", "do_skip", is_flag=True, help="Skip the commit")
 def cmd_sync(do_continue: bool, do_abort: bool, do_skip: bool) -> None:
-    """~/.ai-adapter/ を GitHub リモートと同期する。"""
+    """Sync ~/.ai-adapter/ with a GitHub remote."""
     adapter_dir = _config.AI_ADAPTER_DIR
 
     if not adapter_dir.exists():
-        click.echo(f"'{adapter_dir}' が見つかりません。ai-adapter init を実行してください。")
-        raise click.ClickException("ai-adapter が初期化されていません。")
+        click.echo(f"'{adapter_dir}' not found. Run ai-adapter init first.")
+        raise click.ClickException("ai-adapter is not initialized.")
 
     # リベース操作モード
     if do_continue or do_abort or do_skip:
@@ -411,41 +415,41 @@ def cmd_sync(do_continue: bool, do_abort: bool, do_skip: bool) -> None:
     try:
         sync_command(adapter_dir)
     except GitError as e:
-        click.echo(f"エラー: {e}", err=True)
+        click.echo(f"Error: {e}", err=True)
         raise click.ClickException(str(e))
 
 
 def _handle_rebase_operation(
     adapter_dir: Path, do_continue: bool, do_abort: bool, do_skip: bool
 ) -> None:
-    """リベース操作を処理する。"""
+    """Handle rebase operations."""
     if not is_rebasing(adapter_dir):
-        click.echo("リベース中の状態ではありません。")
+        click.echo("Not currently in a rebase state.")
         return
 
     if do_abort:
-        click.echo("リベースを中断中...")
+        click.echo("Aborting rebase...")
         _git._run_git(["rebase", "--abort"], cwd=adapter_dir)
-        click.echo("リベースを中断しました。元の状態に戻りました。")
+        click.echo("Rebase aborted. Restored to original state.")
     elif do_skip:
-        click.echo("コミットをスキップしてリベースを続行中...")
+        click.echo("Skipping commit and continuing rebase...")
         _git._run_git(["rebase", "--skip"], cwd=adapter_dir)
         if is_rebasing(adapter_dir):
-            click.echo("まだリベース中のコミットがあります。git status で確認してください。")
+            click.echo("There are still commits in the rebase. Check with git status.")
         else:
-            click.echo("ai-adapter sync でプッシュしてください。")
+            click.echo("Push with ai-adapter sync.")
     elif do_continue:
-        click.echo("リベースを続行中...")
+        click.echo("continuing rebase...")
         try:
             _git._run_git(["rebase", "--continue"], cwd=adapter_dir)
             if is_rebasing(adapter_dir):
-                click.echo("まだリベース中のコミットがあります。")
+                click.echo("There are still commits in the rebase.")
             else:
-                click.echo("ai-adapter sync でプッシュしてください。")
+                click.echo("Push with ai-adapter sync.")
         except GitError as e:
             if "Author identity unknown" in str(e):
-                click.echo("Git ユーザー設定がされていません。")
+                click.echo("Git user configuration not set.")
                 click.echo("  git config --global user.email 'you@example.com'")
                 click.echo("  git config --global user.name 'Your Name'")
             else:
-                click.echo(f"リベース続行に失敗: {e}")
+                click.echo(f"Failed to continue rebase: {e}")

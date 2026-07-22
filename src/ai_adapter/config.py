@@ -1,6 +1,6 @@
-"""設定ファイル管理モジュール。
+"""Configuration file management module.
 
-~/.ai-adapter/config.json の読み書き・バリデーションを担当する。
+Handles reading, writing, and validation of ~/.ai-adapter/config.json.
 """
 
 from __future__ import annotations
@@ -10,15 +10,17 @@ import os
 from pathlib import Path
 from typing import Optional
 
+import click
+
 from ai_adapter.models import Config, Env
 
 AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
 
 
 def get_config_path() -> Path:
-    """設定ファイルのパスを返す。
+    """Return the path to the config file.
 
-    環境変数 AI_ADAPTER_CONFIG で上書き可能。
+    Can be overridden via the AI_ADAPTER_CONFIG environment variable.
     """
     env = os.environ.get("AI_ADAPTER_CONFIG")
     if env:
@@ -27,66 +29,86 @@ def get_config_path() -> Path:
 
 
 def get_agents_dir() -> Path:
-    """~/.ai-adapter/agents/ を返す。"""
+    """Return ~/.ai-adapter/agents/."""
     return AI_ADAPTER_DIR / "agents"
 
 
 def get_bins_dir() -> Path:
-    """~/.ai-adapter/bin/ を返す。"""
+    """Return ~/.ai-adapter/bin/."""
     return AI_ADAPTER_DIR / "bin"
 
 
 def get_skills_dir() -> Path:
-    """~/.ai-adapter/skills/ を返す。"""
+    """Return ~/.ai-adapter/skills/."""
     return AI_ADAPTER_DIR / "skills"
 
 
 def get_mcp_dir() -> Path:
-    """~/.ai-adapter/mcp/ を返す。"""
+    """Return ~/.ai-adapter/mcp/."""
     return AI_ADAPTER_DIR / "mcp"
 
 
 def get_github_agents_dir(project_dir: Path | None = None) -> Path:
-    """カレントプロジェクトの .github/agents/ を返す。
+    """Return the current project's .github/agents/ directory.
 
     Args:
-        project_dir: プロジェクトディレクトリ。None の場合はカレントディレクトリ。
+        project_dir: Project directory. Defaults to current directory if None.
     """
     base = project_dir or Path.cwd()
     return base / ".github" / "agents"
 
 
 def get_github_bins_dir(project_dir: Path | None = None) -> Path:
-    """カレントプロジェクトの .github/bin/ を返す。
+    """Return the current project's .github/bin/ directory.
 
     Args:
-        project_dir: プロジェクトディレクトリ。None の場合はカレントディレクトリ。
+        project_dir: Project directory. Defaults to current directory if None.
     """
     base = project_dir or Path.cwd()
     return base / ".github" / "bin"
 
 
 def get_github_skills_dir(project_dir: Path | None = None) -> Path:
-    """カレントプロジェクトの .github/skills/ を返す。
-
-    Args:
-        project_dir: プロジェクトディレクトリ。None の場合はカレントディレクトリ。
-    """
+    """Return the current project's .github/skills/ directory."""
     base = project_dir or Path.cwd()
     return base / ".github" / "skills"
 
 
+def get_commands_dir() -> Path:
+    """Return ~/.ai-adapter/commands/."""
+    return AI_ADAPTER_DIR / "commands"
+
+
+def get_prompts_dir() -> Path:
+    """Return ~/.ai-adapter/prompts/."""
+    return AI_ADAPTER_DIR / "prompts"
+
+
+def get_github_commands_dir(project_dir: Path | None = None) -> Path:
+    """Return the current project's .github/commands/ directory."""
+    base = project_dir or Path.cwd()
+    return base / ".github" / "commands"
+
+
+def get_github_prompts_dir(project_dir: Path | None = None) -> Path:
+    """Return the current project's .github/prompts/ directory."""
+    base = project_dir or Path.cwd()
+    return base / ".github" / "prompts"
+
+
 def init() -> bool:
-    """~/.ai-adapter/ ディレクトリを初期化する。
+    """Initialize the ~/.ai-adapter/ directory.
 
     Returns:
-        新規作成された場合は True、既存の場合は False。
+        True if newly created, False if already exists.
     """
     dirs = [
         AI_ADAPTER_DIR,
         AI_ADAPTER_DIR / "agents",
         AI_ADAPTER_DIR / "bin",
         AI_ADAPTER_DIR / "skills",
+        AI_ADAPTER_DIR / "commands",
+        AI_ADAPTER_DIR / "prompts",
         AI_ADAPTER_DIR / "mcp",
     ]
     for d in dirs:
@@ -100,7 +122,7 @@ def init() -> bool:
         version=1,
         default_env="default",
         envs=[
-            Env(name="default", description="デフォルト環境"),
+            Env(name="default", description="Default environment"),
         ],
         agent_bindings=[],
     )
@@ -109,10 +131,13 @@ def init() -> bool:
 
 
 def load_config() -> Optional[Config]:
-    """設定ファイルを読み込む。
+    """Load the configuration file.
 
     Returns:
-        設定が見つかれば Config オブジェクト、見つからなければ None。
+        Config object if found, None otherwise.
+
+    Raises:
+        click.ClickException: If the configuration file format is invalid.
     """
     config_path = get_config_path()
     if not config_path.exists():
@@ -121,11 +146,17 @@ def load_config() -> Optional[Config]:
     with open(config_path) as f:
         data = json.load(f)
 
-    return Config.from_dict(data)
+    try:
+        return Config.from_dict(data)
+    except ValueError as e:
+        click.echo(f"Invalid configuration file format: {e}", err=True)
+        click.echo(f"  File: {config_path}", err=True)
+        click.echo("  Fix config.json or run ai-adapter uninstall to reset.", err=True)
+        raise click.ClickException("Failed to load configuration file.")
 
 
 def save_config(config: Config) -> None:
-    """設定ファイルを保存する。"""
+    """Save the configuration file."""
     config_path = get_config_path()
     config_path.parent.mkdir(parents=True, exist_ok=True)
     with open(config_path, "w") as f:

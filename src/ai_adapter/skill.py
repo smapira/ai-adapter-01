@@ -1,7 +1,7 @@
-"""skill サブコマンドの実装。
+"""skill subcommand implementation.
 
-~/.ai-adapter/skills/ 配下のスキルディレクトリを管理する。
-SKILL.md の YAML frontmatter からメタデータをパースする。
+Manages skill directories under ~/.ai-adapter/skills/.
+Parses metadata from SKILL.md YAML frontmatter.
 """
 
 from __future__ import annotations
@@ -166,9 +166,9 @@ def skill_add_rec(dir_path: str) -> None:
     help="Target project directory (default: current directory)",
 )
 def skill_get(name: str, force: bool, project_dir: str | None) -> None:
-    """スキルを .github/skills/ にコピーする。
+    """Copy skill to .github/skills/.
 
-    NAME: 取得するスキル名。
+    NAME: Name of the skill to retrieve.
     """
     config = load_config()
     if config is None:
@@ -312,7 +312,7 @@ def skill_link_agent(skill: str, agent: str) -> None:
     # エージェント存在チェック
     agent_found = any(a.name == agent for a in config.agents)
     if not agent_found:
-        click.echo(f"Agent '{agent}' は登録されていません。", err=True)
+        click.echo(f"Agent '{agent}' is not registered.", err=True)
         raise click.ClickException(f"Agent '{agent}' not found.")
 
     skill_entry.agent = agent
@@ -329,7 +329,7 @@ def skill_link_agent(skill: str, agent: str) -> None:
     help="Target project directory (default: current directory)",
 )
 def skill_get_all(force: bool, project_dir: str | None) -> None:
-    """All imports済みスキルを .github/skills/ にコピーする。"""
+    """Copy all registered skills to .github/skills/."""
     config = load_config()
     if config is None or not config.skills:
         click.echo("No skills registered.")
@@ -356,7 +356,7 @@ def skill_get_all(force: bool, project_dir: str | None) -> None:
         shutil.copytree(src, dest)
         copied += 1
 
-    click.echo(f"All skills ({copied}) を {claude_dir} にコピーしました。")
+    click.echo(f"All skills ({copied}) copied to {claude_dir}.")
 
 
 @skill_group.command(name="remove-all")

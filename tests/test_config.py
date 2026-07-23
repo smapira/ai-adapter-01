@@ -1,4 +1,4 @@
-"""config.py のテスト。"""
+"""Tests for config.py."""
 
 import os
 import tempfile
@@ -21,15 +21,15 @@ from ai_adapter.models import Config, Env
 
 
 class TestConfigPaths(unittest.TestCase):
-    """設定ファイルのパス解決のテスト。"""
+    """Tests for configuration file path resolution."""
 
     def test_get_config_path_default(self):
-        """デフォルトの設定ファイルパスを確認する。"""
+        """Verify default config file path."""
         expected = AI_ADAPTER_DIR / "config.json"
         self.assertEqual(get_config_path(), expected)
 
     def test_get_config_path_env_override(self):
-        """環境変数で設定ファイルパスを上書きできることを確認する。"""
+        """Verify config file path can be overridden by env var."""
         with tempfile.NamedTemporaryFile(suffix=".json") as f:
             os.environ["AI_ADAPTER_CONFIG"] = f.name
             try:
@@ -38,29 +38,29 @@ class TestConfigPaths(unittest.TestCase):
                 del os.environ["AI_ADAPTER_CONFIG"]
 
     def test_get_agents_dir(self):
-        """agents/ ディレクトリのパスを確認する。"""
+        """Verify agents/ directory path."""
         self.assertEqual(get_agents_dir(), AI_ADAPTER_DIR / "agents")
 
     def test_get_bins_dir(self):
-        """bin/ ディレクトリのパスを確認する。"""
+        """Verify bin/ directory path."""
         self.assertEqual(get_bins_dir(), AI_ADAPTER_DIR / "bin")
 
     def test_get_skills_dir(self):
-        """skills/ ディレクトリのパスを確認する。"""
+        """Verify skills/ directory path."""
         self.assertEqual(get_skills_dir(), AI_ADAPTER_DIR / "skills")
 
     def test_get_mcp_dir(self):
-        """mcp/ ディレクトリのパスを確認する。"""
+        """Verify mcp/ directory path."""
         self.assertEqual(get_mcp_dir(), AI_ADAPTER_DIR / "mcp")
 
     def test_get_github_skills_dir(self):
-        """.github/skills/ ディレクトリのパスを確認する。"""
+        """.github/Verify skills/ directory path."""
         expected = Path.cwd() / ".github" / "skills"
         self.assertEqual(get_github_skills_dir(), expected)
 
 
 class TestConfigInit(unittest.TestCase):
-    """init 関数のテスト。"""
+    """Tests for the init function."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -88,7 +88,7 @@ class TestConfigInit(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_init_creates_directories(self):
-        """init でディレクトリが作成されることを確認する。"""
+        """Verify init creates directories."""
         adapter_dir = self.patch_home / ".ai-adapter"
         self.assertFalse(adapter_dir.exists())
 
@@ -101,7 +101,7 @@ class TestConfigInit(unittest.TestCase):
         self.assertTrue((adapter_dir / "mcp").exists())
 
     def test_init_creates_config(self):
-        """init で設定ファイルが作成されることを確認する。"""
+        """Verify init creates config file."""
         init()
         config_path = self.patch_home / ".ai-adapter" / "config.json"
         self.assertTrue(config_path.exists())
@@ -113,14 +113,14 @@ class TestConfigInit(unittest.TestCase):
         self.assertEqual(config.envs[0].name, "default")
 
     def test_init_idempotent(self):
-        """init が冪等であることを確認する（2回実行してもエラーにならない）。"""
+        """Verify init is idempotent (running twice does not error)."""
         init()
         result = init()
         self.assertFalse(result)
 
 
 class TestConfigSaveLoad(unittest.TestCase):
-    """Config の保存と読み込みのテスト。"""
+    """Tests for saving and loading Config."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -132,12 +132,12 @@ class TestConfigSaveLoad(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_save_and_load(self):
-        """保存した Config が正しく読み込めることを確認する。"""
+        """Verify saved Config loads correctly."""
         config = Config(
             version=1,
             default_env="myenv",
             agents=[],
-            envs=[Env(name="myenv", description="テスト環境")],
+            envs=[Env(name="myenv", description="Test environment")],
             bins=[],
             agent_bindings=[],
         )
@@ -150,25 +150,25 @@ class TestConfigSaveLoad(unittest.TestCase):
         self.assertEqual(loaded.envs[0].name, "myenv")
 
     def test_load_nonexistent(self):
-        """存在しない設定ファイルを読み込むと None が返ることを確認する。"""
+        """Verify loading non-existent config returns None."""
         config = load_config()
         self.assertIsNone(config)
 
 
 class TestConfigFromDictValidation(unittest.TestCase):
-    """Config.from_dict のバリデーションのテスト。"""
+    """Tests for Config.from_dict validation."""
 
     def test_from_dict_invalid_version(self):
-        """version が整数でない場合に ValueError が上がることを確認する。"""
+        """Verify ValueError is raised when version is not an integer."""
         with self.assertRaises(ValueError):
             Config.from_dict({"version": "1"})
 
     def test_from_dict_invalid_agents(self):
-        """agents が配列でない場合に ValueError が上がることを確認する。"""
+        """Verify ValueError is raised when agents is not a list."""
         with self.assertRaises(ValueError):
             Config.from_dict({"agents": "not a list"})
 
     def test_from_dict_invalid_default_env(self):
-        """default_env が文字列でない場合に ValueError が上がることを確認する。"""
+        """Verify ValueError is raised when default_env is not a string."""
         with self.assertRaises(ValueError):
             Config.from_dict({"default_env": 123})

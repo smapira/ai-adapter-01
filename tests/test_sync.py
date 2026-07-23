@@ -1,4 +1,4 @@
-"""sync.py のテスト。"""
+"""Tests for sync.py."""
 
 import tempfile
 import unittest
@@ -11,7 +11,7 @@ from ai_adapter.cli import main
 
 
 class TestSyncCommand(unittest.TestCase):
-    """sync コマンドのテスト。"""
+    """Tests for the sync command."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -57,10 +57,10 @@ class TestSyncCommand(unittest.TestCase):
         mock_has_remote,
         mock_is_repo,
     ):
-        """sync コマンドが正常に実行されることを確認する。"""
+        """Verify sync command executes successfully."""
         mock_is_repo.return_value = True
         mock_has_remote.return_value = True
-        mock_add_all.return_value = False  # 変更なし
+        mock_add_all.return_value = False  # no changes
         mock_get_branch.return_value = "main"
         mock_connectivity.return_value = True
         mock_remote_branch_exists.return_value = True
@@ -71,15 +71,15 @@ class TestSyncCommand(unittest.TestCase):
         mock_is_repo.assert_called_once()
         mock_has_remote.assert_called_once()
         mock_add_all.assert_called_once()
-        mock_commit.assert_not_called()  # 変更なし
+        mock_commit.assert_not_called()  # no changes
         mock_pull.assert_called_once()
         mock_push.assert_called_once()
 
     @patch("ai_adapter.sync.is_repo")
     @patch("ai_adapter.sync.has_remote")
     def test_sync_not_initialized(self, mock_has_remote, mock_is_repo):
-        """sync コマンドで init が必要と表示されることを確認する。"""
-        # init の一時ディレクトリをremovして未初期化Statusにする
+        """Verify sync command shows init required message."""
+        # init の一時ディレクトリをremovedして未初期化Statusにする
         import shutil
         shutil.rmtree(self.patch_home / ".ai-adapter")
 
@@ -94,7 +94,7 @@ class TestSyncCommand(unittest.TestCase):
     def test_sync_no_remote_skip(
         self, mock_has_remote, mock_is_repo, mock_get_remotes, mock_load_config,
     ):
-        """リモート未設定の sync でSkipできることを確認する。"""
+        """Verify sync can be skipped when no remote is configured."""
         from ai_adapter.models import Config
         mock_is_repo.return_value = True
         mock_has_remote.return_value = False

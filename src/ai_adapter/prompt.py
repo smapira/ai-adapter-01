@@ -1,6 +1,6 @@
-"""prompt サブコマンドの実装。
+"""prompt subcommand implementation.
 
-~/.ai-adapter/prompts/ 配下のプロンプトファイルを管理する。
+Manages prompt files under ~/.ai-adapter/prompts/.
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ def prompt_add(path: str) -> None:
     dest = prompts_dir / src.name
 
     if dest.exists():
-        click.confirm(f"'{dest.name}' は既に存在します。上書きしますか？", abort=True)
+        click.confirm(f"'{dest.name}' already exists. Overwrite?", abort=True)
 
     shutil.copy2(src, dest)
     content = src.read_text(encoding="utf-8")[:200]
@@ -75,7 +75,7 @@ def prompt_add(path: str) -> None:
 
 
 def _find_prompt_by_name(prompts_dir: Path, name: str) -> Path | None:
-    """プロンプト名からファイルを検索する。"""
+    """Find a prompt file by name."""
     # 1. 完全一致
     exact = prompts_dir / name
     if exact.exists() and exact.is_file():
@@ -93,7 +93,7 @@ def _find_prompt_by_name(prompts_dir: Path, name: str) -> Path | None:
 @click.argument("name")
 @click.option("--project-dir", "-d", type=click.Path(exists=True, file_okay=False, readable=True), default=None)
 def prompt_get(name: str, project_dir: str | None) -> None:
-    """プロンプトを .github/prompts/ にコピーする。"""
+    """Copy prompt to .github/prompts/."""
     prompts_dir = get_prompts_dir()
     src = _find_prompt_by_name(prompts_dir, name)
 
@@ -113,7 +113,7 @@ def prompt_get(name: str, project_dir: str | None) -> None:
 @prompt_group.command(name="remove")
 @click.argument("name")
 def prompt_remove(name: str) -> None:
-    """プロンプトを削除する。"""
+    """Remove a prompt."""
     config = load_config()
     if config is None:
         return
@@ -135,7 +135,7 @@ def prompt_remove(name: str) -> None:
     for f in prompts_dir.iterdir():
         if f.stem == name or f.name == name:
             f.unlink()
-            click.echo(f"ファイル {f.name} removed.")
+            click.echo(f"File {f.name} removed.")
             break
 
     # .github/prompts/ からも削除
@@ -201,11 +201,11 @@ def prompt_get_all(project_dir: str | None) -> None:
         shutil.copy2(src, dest)
         copied += 1
 
-    click.echo(f"All prompts ({copied}) を {github_dir} にコピーしました。")
+    click.echo(f"All prompts ({copied}) copied to {github_dir}.")
 
 
 @prompt_group.command(name="remove-all")
-@click.option("--force", is_flag=True, help="確認プロンプトを表示せずに削除")
+@click.option("--force", is_flag=True, help="Delete without confirmation")
 def prompt_remove_all(force: bool) -> None:
     """Remove all registered prompts."""
     config = load_config()

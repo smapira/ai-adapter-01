@@ -1,4 +1,4 @@
-"""agent.py のテスト。"""
+"""Tests for agent.py."""
 
 import os
 import tempfile
@@ -13,7 +13,7 @@ from ai_adapter.models import Agent, Config, Env
 
 
 class TestAgentAddRecCommand(unittest.TestCase):
-    """agent add-rec コマンドのテスト。"""
+    """Tests for the agent add-rec command."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -37,7 +37,7 @@ class TestAgentAddRecCommand(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_agent_add_rec(self):
-        """add-rec でディレクトリ内の全エージェントが登録されることを確認する。"""
+        """Verify add-rec registers all agents in a directory."""
         src_dir = Path(self.temp_dir.name) / "agents_dir"
         src_dir.mkdir()
         (src_dir / "agent1.md").write_text("# Agent 1")
@@ -54,7 +54,7 @@ class TestAgentAddRecCommand(unittest.TestCase):
 
 
 class TestAgentCommands(unittest.TestCase):
-    """agent サブコマンドのテスト。"""
+    """Tests for agent subcommands."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -84,13 +84,13 @@ class TestAgentCommands(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_agent_list_empty(self):
-        """エージェント未登録時に空メッセージが表示されることを確認する。"""
+        """Verify empty message is shown when no agents registered."""
         result = self.runner.invoke(main, ["agent", "list"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("No agents registered.", result.output)
 
     def test_agent_add(self):
-        """agent add でエージェントが追加されることを確認する。"""
+        """Verify agent add adds an agent."""
         result = self.runner.invoke(main, ["agent", "add", str(self.agent_file)])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("test-agent", result.output)
@@ -100,14 +100,14 @@ class TestAgentCommands(unittest.TestCase):
         self.assertTrue((agents_dir / "test-agent.md").exists())
 
     def test_agent_add_and_list(self):
-        """agent add → agent list の流れを確認する。"""
+        """Verify agent add → agent list flow."""
         self.runner.invoke(main, ["agent", "add", str(self.agent_file)])
         result = self.runner.invoke(main, ["agent", "list"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("test-agent", result.output)
 
     def test_agent_get(self):
-        """agent get で .github/agents/ にコピーされることを確認する。"""
+        """Verify agent get copies to .github/agents/."""
         self.runner.invoke(main, ["agent", "add", str(self.agent_file)])
 
         # カレントディレクトリに .github/agents/ を作成（一時ディレクトリ内）
@@ -124,13 +124,13 @@ class TestAgentCommands(unittest.TestCase):
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_agent_get_not_found(self):
-        """存在しないエージェントの get でエラーになることを確認する。"""
+        """Verify get fails for non-existent agent."""
         result = self.runner.invoke(main, ["agent", "get", "nonexistent"])
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("not found", result.output)
 
     def test_agent_get_force_overwrite(self):
-        """agent get --force で確認なしで上書きされることを確認する。"""
+        """Verify agent get --force overwrites without confirmation."""
         self.runner.invoke(main, ["agent", "add", str(self.agent_file)])
 
         github_dir = Path.cwd() / ".github" / "agents"
@@ -149,7 +149,7 @@ class TestAgentCommands(unittest.TestCase):
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_agent_get_with_project_dir(self):
-        """agent get --project-dir で指定ディレクトリにコピーされることを確認する。"""
+        """Verify agent get --project-dir copies to the specified directory."""
         self.runner.invoke(main, ["agent", "add", str(self.agent_file)])
 
         # 任意のプロジェクトディレクトリを作成
@@ -165,7 +165,7 @@ class TestAgentCommands(unittest.TestCase):
         self.assertTrue((project_dir / ".github" / "agents" / "test-agent.md").exists())
 
     def test_agent_get_all(self):
-        """agent get-all で全エージェントが .github/agents/ にコピーされることを確認する。"""
+        """Verify agent get-all copies all agents to .github/agents/."""
         agent1 = Path(self.temp_dir.name) / "agent1.md"
         agent1.write_text("# Agent 1")
         agent2 = Path(self.temp_dir.name) / "agent2.md"
@@ -186,7 +186,7 @@ class TestAgentCommands(unittest.TestCase):
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_agent_remove(self):
-        """agent remove でエージェントがremovされることを確認する。"""
+        """Verify agent remove removes an agent."""
         self.runner.invoke(main, ["agent", "add", str(self.agent_file)])
         result = self.runner.invoke(main, ["agent", "remove", "test-agent"])
         self.assertEqual(result.exit_code, 0)
@@ -197,7 +197,7 @@ class TestAgentCommands(unittest.TestCase):
         self.assertIn("No agents registered.", result.output)
 
     def test_agent_remove_all(self):
-        """agent remove-all で全エージェントがremovされることを確認する。"""
+        """Verify agent remove-all removes all agents."""
         # 2つのエージェントを追加
         agent1 = Path(self.temp_dir.name) / "agent1.md"
         agent1.write_text("# Agent 1")
@@ -215,12 +215,12 @@ class TestAgentCommands(unittest.TestCase):
         self.assertIn("No agents registered.", result.output)
 
     def test_agent_add_agent_md_with_frontmatter(self):
-        """.agent.md ファイル追加時に frontmatter の name が登録名になることを確認する。"""
+        """Verify registering an .agent.md file uses the frontmatter name."""
         agent_md_file = Path(self.temp_dir.name) / "reviewer.agent.md"
         agent_md_file.write_text(
             "---\n"
             "name: Implementer\n"
-            "description: 実装用エージェント\n"
+            "description: Dev Agent\n"
             "---\n"
             "\n"
             "# Implementer\n"
@@ -238,7 +238,7 @@ class TestAgentCommands(unittest.TestCase):
         self.assertNotIn("reviewer", result.output)
 
     def test_agent_add_agent_md_without_frontmatter_fails(self):
-        """frontmatter がない .agent.md ファイルはエラーになることを確認する。"""
+        """Verify .agent.md without frontmatter raises an error."""
         bad_file = Path(self.temp_dir.name) / "bad.agent.md"
         bad_file.write_text("# Just a markdown\nNo frontmatter here.\n")
 
@@ -247,7 +247,7 @@ class TestAgentCommands(unittest.TestCase):
         self.assertIn("frontmatter", result.output)
 
     def test_agent_add_agent_md_without_name_fails(self):
-        """frontmatter に name がない .agent.md ファイルはエラーになることを確認する。"""
+        """Verify .agent.md without name in frontmatter raises an error."""
         bad_file = Path(self.temp_dir.name) / "bad.agent.md"
         bad_file.write_text(
             "---\n"
@@ -261,7 +261,7 @@ class TestAgentCommands(unittest.TestCase):
         self.assertIn("name", result.output)
 
     def test_agent_get_agent_md_backward_compat(self):
-        """.agent.md で登録したエージェントを短い名前で取得できることを確認する。"""
+        """Verify an agent registered with .agent.md can be retrieved by short name."""
         agent_md_file = Path(self.temp_dir.name) / "reviewer.agent.md"
         agent_md_file.write_text(
             "---\n"
@@ -283,7 +283,7 @@ class TestAgentCommands(unittest.TestCase):
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_agent_get_with_dot_agent_suffix(self):
-        """後方互換性: .agent 付きの名前でも取得できることを確認する。"""
+        """Verify backward compatibility: agents can be retrieved with .agent suffix."""
         agent_md_file = Path(self.temp_dir.name) / "reviewer.agent.md"
         agent_md_file.write_text(
             "---\n"

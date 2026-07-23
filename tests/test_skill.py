@@ -1,4 +1,4 @@
-"""skill.py のテスト。"""
+"""Tests for skill.py."""
 
 import tempfile
 import unittest
@@ -11,7 +11,7 @@ from ai_adapter.config import init
 
 
 class TestSkillCommands(unittest.TestCase):
-    """skill サブコマンドのテスト。"""
+    """Tests for skill subcommands."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -34,12 +34,12 @@ class TestSkillCommands(unittest.TestCase):
         skill_md.write_text(
             "---\n"
             "name: test-skill\n"
-            "description: テスト用スキル\n"
+            "description: Test Skill\n"
             "tags: [test, python]\n"
             "---\n"
             "\n"
             "# Test Skill\n"
-            "テスト用スキルです。\n"
+            "This is a test skill.\n"
         )
 
     def tearDown(self):
@@ -50,13 +50,13 @@ class TestSkillCommands(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_skill_list_empty(self):
-        """スキル未登録時に空メッセージが表示されることを確認する。"""
+        """Verify empty message when no skills registered."""
         result = self.runner.invoke(main, ["skill", "list"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("No skills registered.", result.output)
 
     def test_skill_add(self):
-        """skill add でスキルが追加されることを確認する。"""
+        """Verify skill add adds a skill."""
         result = self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("test-skill", result.output)
@@ -65,14 +65,14 @@ class TestSkillCommands(unittest.TestCase):
         self.assertTrue((skills_dir / "test-skill" / "SKILL.md").exists())
 
     def test_skill_add_and_list(self):
-        """skill add → skill list の流れを確認する。"""
+        """Verify skill add → skill list flow."""
         self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
         result = self.runner.invoke(main, ["skill", "list"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("test-skill", result.output)
 
     def test_skill_get(self):
-        """skill get で .github/skills/ にコピーされることを確認する。"""
+        """Verify skill get copies to .github/skills/."""
         self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
 
         github_skills = Path.cwd() / ".github" / "skills"
@@ -87,13 +87,13 @@ class TestSkillCommands(unittest.TestCase):
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_skill_get_not_found(self):
-        """存在しないスキルの get でエラーになることを確認する。"""
+        """Verify get fails for non-existent skill."""
         result = self.runner.invoke(main, ["skill", "get", "nonexistent"])
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("not found", result.output)
 
     def test_skill_get_with_project_dir(self):
-        """skill get --project-dir で指定ディレクトリにコピーされることを確認する。"""
+        """Verify skill get --project-dir copies to specified directory."""
         self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
 
         project_dir = Path(self.temp_dir.name) / "my-project"
@@ -108,7 +108,7 @@ class TestSkillCommands(unittest.TestCase):
         self.assertTrue((project_dir / ".github" / "skills" / "test-skill" / "SKILL.md").exists())
 
     def test_skill_remove(self):
-        """skill remove でスキルがremovされることを確認する。"""
+        """Verify skill remove removes a skill."""
         self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
         result = self.runner.invoke(main, ["skill", "remove", "test-skill"])
         self.assertEqual(result.exit_code, 0)
@@ -119,21 +119,21 @@ class TestSkillCommands(unittest.TestCase):
         self.assertIn("No skills registered.", result.output)
 
     def test_skill_search(self):
-        """skill search でスキルが検索できることを確認する。"""
+        """Verify skill search finds skills."""
         self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
         result = self.runner.invoke(main, ["skill", "search", "python"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("test-skill", result.output)
 
     def test_skill_search_no_match(self):
-        """skill search で一致しない場合のメッセージを確認する。"""
+        """Verify skill search shows message when no match."""
         self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
         result = self.runner.invoke(main, ["skill", "search", "nonexistent"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("No skills matching", result.output)
 
     def test_skill_link_agent(self):
-        """skill link-agent でスキルとエージェントがbindられることを確認する。"""
+        """Verify skill link-agent binds skill to agent."""
         # 先にエージェントを追加
         agent_file = Path(self.temp_dir.name) / "test-agent.md"
         agent_file.write_text("# Test Agent")
@@ -146,7 +146,7 @@ class TestSkillCommands(unittest.TestCase):
         self.assertIn("test-agent", result.output)
 
     def test_skill_get_all(self):
-        """skill get-all で全スキルが .github/skills/ にコピーされることを確認する。"""
+        """Verify skill get-all copies all skills to .github/skills/."""
         self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
 
         github_skills = Path.cwd() / ".github" / "skills"
@@ -161,7 +161,7 @@ class TestSkillCommands(unittest.TestCase):
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_skill_remove_all(self):
-        """skill remove-all で全スキルがremovされることを確認する。"""
+        """Verify skill remove-all removes all skills."""
         self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
 
         result = self.runner.invoke(main, ["skill", "remove-all", "--force"])
@@ -174,7 +174,7 @@ class TestSkillCommands(unittest.TestCase):
 
 
 class TestSkillAddRecCommand(unittest.TestCase):
-    """skill add-rec コマンドのテスト。"""
+    """Tests for the skill add-rec command."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -198,7 +198,7 @@ class TestSkillAddRecCommand(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_skill_add_rec(self):
-        """add-rec でディレクトリ内の全スキルが登録されることを確認する。"""
+        """Verify add-rec registers all skills in a directory."""
         src_dir = Path(self.temp_dir.name) / "skills_dir"
         src_dir.mkdir()
         skill1 = src_dir / "skill1"

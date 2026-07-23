@@ -1,4 +1,4 @@
-"""env.py のテスト。"""
+"""Tests for env.py."""
 
 import tempfile
 import unittest
@@ -11,7 +11,7 @@ from ai_adapter.config import init
 
 
 class TestEnvCommands(unittest.TestCase):
-    """env サブコマンドのテスト。"""
+    """Tests for env subcommands."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -35,14 +35,14 @@ class TestEnvCommands(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_env_list_default(self):
-        """env list でデフォルト環境が表示されることを確認する。"""
+        """Verify env list shows default environment."""
         result = self.runner.invoke(main, ["env", "list"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("default", result.output)
-        self.assertIn("*", result.output)  # デフォルトマーク
+        self.assertIn("*", result.output)  # default mark
 
     def test_env_add(self):
-        """env add で環境が追加されることを確認する。"""
+        """Verify env add adds an environment."""
         result = self.runner.invoke(main, ["env", "add", "myenv"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("myenv", result.output)
@@ -52,39 +52,39 @@ class TestEnvCommands(unittest.TestCase):
         self.assertIn("myenv", result.output)
 
     def test_env_add_duplicate(self):
-        """重複した環境名の追加でエラーになることを確認する。"""
+        """Verify duplicate env name raises error."""
         self.runner.invoke(main, ["env", "add", "myenv"])
         result = self.runner.invoke(main, ["env", "add", "myenv"])
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("already exists", result.output)
 
     def test_env_remove(self):
-        """env remove で環境がremovされることを確認する。"""
+        """Verify env remove removes an environment."""
         self.runner.invoke(main, ["env", "add", "myenv"])
         result = self.runner.invoke(main, ["env", "remove", "myenv"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("myenv", result.output)
 
     def test_env_remove_default_fails(self):
-        """デフォルト環境のremovがエラーになることを確認する。"""
+        """Verify removing default environment raises error."""
         result = self.runner.invoke(main, ["env", "remove", "default"])
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("cannot be removed", result.output)
 
     def test_env_remove_nonexistent(self):
-        """存在しない環境のremovでエラーになることを確認する。"""
+        """Verify removing non-existent environment raises error."""
         result = self.runner.invoke(main, ["env", "remove", "nonexistent"])
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("not found", result.output)
 
     def test_env_default(self):
-        """env default でデフォルト環境名が表示されることを確認する。"""
+        """Verify env default shows the default environment name."""
         result = self.runner.invoke(main, ["env", "default"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("default", result.output)
 
     def test_env_set_default(self):
-        """env set-default でデフォルト環境が変更されることを確認する。"""
+        """Verify env set-default changes the default environment."""
         self.runner.invoke(main, ["env", "add", "myenv"])
         result = self.runner.invoke(main, ["env", "set-default", "myenv"])
         self.assertEqual(result.exit_code, 0)
@@ -94,13 +94,13 @@ class TestEnvCommands(unittest.TestCase):
         self.assertIn("myenv", result.output)
 
     def test_env_set_default_nonexistent(self):
-        """存在しない環境名の set-default でエラーになることを確認する。"""
+        """Verify set-default fails for non-existent env name."""
         result = self.runner.invoke(main, ["env", "set-default", "nonexistent"])
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("not found", result.output)
 
     def test_env_link_agent(self):
-        """env link-agent でエージェントと環境のbindができることを確認する。"""
+        """Verify env link-agent binds agent to environment."""
         self.runner.invoke(main, ["env", "add", "myenv"])
         result = self.runner.invoke(main, ["env", "link-agent", "reviewer", "myenv"])
         self.assertEqual(result.exit_code, 0)
@@ -108,13 +108,13 @@ class TestEnvCommands(unittest.TestCase):
         self.assertIn("myenv", result.output)
 
     def test_env_link_agent_nonexistent_env(self):
-        """存在しない環境への link-agent でエラーになることを確認する。"""
+        """Verify link-agent fails for non-existent environment."""
         result = self.runner.invoke(main, ["env", "link-agent", "reviewer", "nonexistent"])
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("not found", result.output)
 
     def test_env_unlink_agent(self):
-        """env unlink-agent でbindが解除できることを確認する。"""
+        """Verify env unlink-agent unbinds agent from environment."""
         self.runner.invoke(main, ["env", "add", "myenv"])
         self.runner.invoke(main, ["env", "link-agent", "reviewer", "myenv"])
         result = self.runner.invoke(main, ["env", "unlink-agent", "reviewer"])
@@ -122,13 +122,13 @@ class TestEnvCommands(unittest.TestCase):
         self.assertIn("reviewer", result.output)
 
     def test_env_unlink_agent_nonexistent(self):
-        """存在しないエージェントの unlink-agent でエラーになることを確認する。"""
+        """Verify unlink-agent fails for non-existent agent."""
         result = self.runner.invoke(main, ["env", "unlink-agent", "nonexistent"])
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("not found", result.output)
 
     def test_env_remove_all(self):
-        """env remove-all でデフォルト環境を除く全環境がremovされることを確認する。"""
+        """Verify env remove-all removes all environments except default."""
         self.runner.invoke(main, ["env", "add", "myenv"])
         self.runner.invoke(main, ["env", "add", "otherenv"])
 

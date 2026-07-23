@@ -1,4 +1,4 @@
-"""CLI 統合テスト。"""
+"""CLI integration tests."""
 
 import json
 import tempfile
@@ -14,7 +14,7 @@ from ai_adapter.git import GitError
 
 
 class TestCLIIntegration(unittest.TestCase):
-    """CLI 全体の統合テスト。"""
+    """Overall CLI integration tests."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -36,7 +36,7 @@ class TestCLIIntegration(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_help(self):
-        """--help が正常に表示されることを確認する。"""
+        """Verify --help displays correctly."""
         result = self.runner.invoke(main, ["--help"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("ai-adapter", result.output)
@@ -56,14 +56,14 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("start", result.output)
 
     def test_version(self):
-        """--version が表示されることを確認する。"""
+        """Verify --version is displayed."""
         from ai_adapter import __version__
         result = self.runner.invoke(main, ["--version"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn(__version__, result.output)
 
     def test_init_and_status(self):
-        """init → status の流れを確認する。"""
+        """Verify init → status flow."""
         # init (空 Enter でリモート入力をSkip)
         result = self.runner.invoke(main, ["init"], input="\n")
         self.assertEqual(result.exit_code, 0)
@@ -76,7 +76,7 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("default", result.output)
 
     def test_init_with_remote(self):
-        """init --remote でリモートが設定されることを確認する。"""
+        """Verify init --remote sets up a remote."""
         result = self.runner.invoke(main, [
             "init", "--remote", "git@github.com:user/test.git",
         ])
@@ -85,13 +85,13 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("git@github.com:user/test.git", result.output)
 
     def test_status_before_init(self):
-        """init 前の status で適切なメッセージが表示されることを確認する。"""
+        """Verify status before init shows appropriate message."""
         result = self.runner.invoke(main, ["status"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("is not initialized", result.output)
 
     def test_agent_help(self):
-        """agent --help が表示されることを確認する。"""
+        """Verify agent --help is displayed."""
         result = self.runner.invoke(main, ["agent", "--help"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("list", result.output)
@@ -100,14 +100,14 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("remove", result.output)
 
     def test_agent_get_help(self):
-        """agent get --help に --force オプションが表示されることを確認する。"""
+        """Verify agent get --help shows --force option."""
         result = self.runner.invoke(main, ["agent", "get", "--help"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("--force", result.output)
         self.assertIn("Overwrite", result.output)
 
     def test_env_help(self):
-        """env --help が表示されることを確認する。"""
+        """Verify env --help is displayed."""
         result = self.runner.invoke(main, ["env", "--help"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("list", result.output)
@@ -119,7 +119,7 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("unlink-agent", result.output)
 
     def test_bin_help(self):
-        """bin --help が表示されることを確認する。"""
+        """Verify bin --help is displayed."""
         result = self.runner.invoke(main, ["bin", "--help"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("list", result.output)
@@ -128,7 +128,7 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("remove", result.output)
 
     def test_skill_help(self):
-        """skill --help が表示されることを確認する。"""
+        """Verify skill --help is displayed."""
         result = self.runner.invoke(main, ["skill", "--help"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("list", result.output)
@@ -139,7 +139,7 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("link-agent", result.output)
 
     def test_mcp_help(self):
-        """mcp --help が表示されることを確認する。"""
+        """Verify mcp --help is displayed."""
         result = self.runner.invoke(main, ["mcp", "--help"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("list", result.output)
@@ -150,7 +150,7 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("remove-all", result.output)
 
     def test_command_help(self):
-        """command --help が表示されることを確認する。"""
+        """Verify command --help is displayed."""
         result = self.runner.invoke(main, ["command", "--help"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("list", result.output)
@@ -162,7 +162,7 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("remove-all", result.output)
 
     def test_prompt_help(self):
-        """prompt --help が表示されることを確認する。"""
+        """Verify prompt --help is displayed."""
         result = self.runner.invoke(main, ["prompt", "--help"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("list", result.output)
@@ -174,7 +174,7 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("remove-all", result.output)
 
     def test_opencode_help(self):
-        """opencode --help が表示されることを確認する。"""
+        """Verify opencode --help is displayed."""
         result = self.runner.invoke(main, ["opencode", "--help"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("alias", result.output)
@@ -183,7 +183,7 @@ class TestCLIIntegration(unittest.TestCase):
 
 
 class TestUninstallCommand(unittest.TestCase):
-    """uninstall コマンドのテスト。"""
+    """Tests for the uninstall command."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -205,14 +205,14 @@ class TestUninstallCommand(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_uninstall_before_init(self):
-        """未初期化時に uninstall するとメッセージが表示されることを確認する。"""
+        """Verify uninstall before init shows message."""
         result = self.runner.invoke(main, ["uninstall", "--force"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("is not initialized", result.output)
         self.assertIn("Nothing to delete", result.output)
 
     def test_uninstall_after_init(self):
-        """init → uninstall --force の流れを確認する。"""
+        """Verify init → uninstall --force flow."""
         self.runner.invoke(main, ["init"], input="\n")
         adapter_dir = self.patch_home / ".ai-adapter"
         self.assertTrue(adapter_dir.exists())
@@ -223,7 +223,7 @@ class TestUninstallCommand(unittest.TestCase):
         self.assertFalse(adapter_dir.exists())
 
     def test_uninstall_keep_git(self):
-        """--keep-git で .git が保持されることを確認する。"""
+        """Verify --keep-git preserves .git directory."""
         self.runner.invoke(main, ["init"], input="\n")
         adapter_dir = self.patch_home / ".ai-adapter"
 
@@ -239,7 +239,7 @@ class TestUninstallCommand(unittest.TestCase):
         self.assertFalse((adapter_dir / "config.json").exists())
 
     def test_uninstall_cancel(self):
-        """確認プロンプトで No を選択するとremovされないことを確認する。"""
+        """Verify selecting No at confirmation prompt does not remove."""
         self.runner.invoke(main, ["init"], input="\n")
         adapter_dir = self.patch_home / ".ai-adapter"
         self.assertTrue(adapter_dir.exists())
@@ -250,7 +250,7 @@ class TestUninstallCommand(unittest.TestCase):
 
 
 class TestStartCommand(unittest.TestCase):
-    """start コマンドのテスト。"""
+    """Tests for the start command."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -273,7 +273,7 @@ class TestStartCommand(unittest.TestCase):
 
     @patch("ai_adapter.cli._git.clone")
     def test_start_new_repo(self, mock_clone):
-        """start コマンドで新規リポジトリがセットアップされることを確認する。"""
+        """Verify start command sets up a new repository."""
         # clone 失敗 → 新規 init パス
         mock_clone.side_effect = GitError("clone failed")
 
@@ -289,7 +289,7 @@ class TestStartCommand(unittest.TestCase):
 
     @patch("ai_adapter.cli._git.clone")
     def test_start_existing_abort(self, mock_clone):
-        """既存ディレクトリがある場合の確認プロンプト。"""
+        """Confirmation prompt when directory already exists."""
         adapter_dir = self.patch_home / ".ai-adapter"
         adapter_dir.mkdir(parents=True)
 
@@ -300,7 +300,7 @@ class TestStartCommand(unittest.TestCase):
 
 
 class TestBinAddPathCommand(unittest.TestCase):
-    """bin add-path コマンドのテスト。"""
+    """Tests for bin add-path command."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -310,13 +310,13 @@ class TestBinAddPathCommand(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_bin_add_path_no_github_bin(self):
-        """.github/bin がない場合にメッセージが表示されることを確認する。"""
+        """Verify message is shown when .github/bin is missing."""
         result = self.runner.invoke(main, ["bin", "add-path"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("not found", result.output)
 
     def test_bin_add_path_with_github_bin(self):
-        """.github/bin がある場合に PATH 行が表示されることを確認する。"""
+        """Verify PATH line is shown when .github/bin exists."""
         github_bin = Path.cwd() / ".github" / "bin"
         github_bin.mkdir(parents=True, exist_ok=True)
         (github_bin / "test.sh").write_text("#!/bin/bash")
@@ -329,7 +329,7 @@ class TestBinAddPathCommand(unittest.TestCase):
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_bin_add_path_to_zshrc(self):
-        """bin add-path で zshrc に追記されることを確認する。"""
+        """Verify bin add-path appends to zshrc."""
         import pathlib
         orig_home = pathlib.Path.home
         pathlib.Path.home = staticmethod(lambda: Path(self.temp_dir.name))
@@ -354,7 +354,7 @@ class TestBinAddPathCommand(unittest.TestCase):
 
 
 class TestAddAllRecCommand(unittest.TestCase):
-    """add-all-rec コマンドのテスト。"""
+    """Tests for add-all-rec command."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -380,7 +380,7 @@ class TestAddAllRecCommand(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_add_all_rec_agents(self):
-        """.github/agents からエージェントが登録されることを確認する。"""
+        """Verify agents are registered from .github/agents."""
         github_agents = Path.cwd() / ".github" / "agents"
         github_agents.mkdir(parents=True, exist_ok=True)
         (github_agents / "reviewer.md").write_text("# Reviewer")
@@ -399,7 +399,7 @@ class TestAddAllRecCommand(unittest.TestCase):
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_add_all_rec_bins(self):
-        """.github/bin からスクリプトが登録されることを確認する。"""
+        """Verify scripts are registered from .github/bin."""
         github_bin = Path.cwd() / ".github" / "bin"
         github_bin.mkdir(parents=True, exist_ok=True)
         (github_bin / "script1.sh").write_text("#!/bin/bash")
@@ -413,7 +413,7 @@ class TestAddAllRecCommand(unittest.TestCase):
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_add_all_rec_skills(self):
-        """.github/skills からスキルが登録されることを確認する。"""
+        """Verify skills are registered from .github/skills."""
         github_skills = Path.cwd() / ".github" / "skills"
         github_skills.mkdir(parents=True, exist_ok=True)
         skill1 = github_skills / "my-skill"
@@ -428,7 +428,7 @@ class TestAddAllRecCommand(unittest.TestCase):
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_add_all_rec_mcp(self):
-        """.mcp.json から MCP サーバーが登録されることを確認する。"""
+        """Verify MCP servers are registered from .mcp.json."""
         mcp_json = Path.cwd() / ".mcp.json"
         mcp_json.write_text(json.dumps({
             "mcpServers": {
@@ -447,7 +447,7 @@ class TestAddAllRecCommand(unittest.TestCase):
         mcp_json.unlink()
 
     def test_add_all_rec_no_github(self):
-        """.github がない場合にメッセージが表示されることを確認する。"""
+        """Verify message is shown when .github is missing."""
         result = self.runner.invoke(main, ["add-all-rec"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("not found", result.output)

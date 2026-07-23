@@ -1,4 +1,4 @@
-"""prompt.py のテスト。"""
+"""Tests for prompt.py."""
 
 import tempfile
 import unittest
@@ -11,7 +11,7 @@ from ai_adapter.config import init
 
 
 class TestPromptCommands(unittest.TestCase):
-    """prompt サブコマンドのテスト。"""
+    """Tests for prompt subcommands."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -28,7 +28,7 @@ class TestPromptCommands(unittest.TestCase):
         init()
 
         self.prompt_file = Path(self.temp_dir.name) / "review.md"
-        self.prompt_file.write_text("コードレビューの観点:\n- セキュリティ\n- パフォーマンス\n")
+        self.prompt_file.write_text("Code review checklist:\n- Security\n- Performance\n")
 
     def tearDown(self):
         import pathlib
@@ -70,11 +70,11 @@ class TestPromptCommands(unittest.TestCase):
         self.assertIn("review", result.output)
 
     def test_prompt_add_rec(self):
-        """add-rec でディレクトリ内の全ファイルが登録されることを確認する。"""
+        """Verify add-rec registers all files in a directory."""
         src_dir = Path(self.temp_dir.name) / "prompt_dir"
         src_dir.mkdir()
-        (src_dir / "code-review.md").write_text("コードレビューの観点:\n")
-        (src_dir / "summary.txt").write_text("サマリー:\n")
+        (src_dir / "code-review.md").write_text("Code review checklist:\n")
+        (src_dir / "summary.txt").write_text("Summary:\n")
 
         result = self.runner.invoke(main, ["prompt", "add-rec", str(src_dir)])
         self.assertEqual(result.exit_code, 0)
@@ -85,10 +85,10 @@ class TestPromptCommands(unittest.TestCase):
         self.assertIn("summary", result.output)
 
     def test_prompt_get_all(self):
-        """get-all で全プロンプトが .github/prompts/ にコピーされることを確認する。"""
+        """Verify get-all copies all prompts to .github/prompts/."""
         self.runner.invoke(main, ["prompt", "add", str(self.prompt_file)])
         prompt2 = Path(self.temp_dir.name) / "summary.md"
-        prompt2.write_text("サマリー:\n")
+        prompt2.write_text("Summary:\n")
         self.runner.invoke(main, ["prompt", "add", str(prompt2)])
 
         github_dir = Path.cwd() / ".github" / "prompts"
@@ -104,9 +104,9 @@ class TestPromptCommands(unittest.TestCase):
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_prompt_remove_all(self):
-        """remove-all --force で全プロンプトがremovされることを確認する。"""
+        """Verify remove-all --force removes all prompts."""
         prompt2 = Path(self.temp_dir.name) / "summary.md"
-        prompt2.write_text("サマリー:\n")
+        prompt2.write_text("Summary:\n")
         self.runner.invoke(main, ["prompt", "add", str(self.prompt_file)])
         self.runner.invoke(main, ["prompt", "add", str(prompt2)])
 

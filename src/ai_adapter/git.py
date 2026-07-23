@@ -18,17 +18,17 @@ def _run_git(
     args: list[str],
     cwd: Optional[Path] = None,
 ) -> subprocess.CompletedProcess:
-    """git コマンドを実行する。
+    """Execute a git command.
 
     Args:
-        args: git サブコマンドの引数リスト。
-        cwd: 作業ディレクトリ。None の場合はカレントディレクトリ。
+        args: List of git subcommand arguments.
+        cwd: Working directory. Defaults to current if None.
 
     Returns:
-        subprocess.CompletedProcess。
+        subprocess.CompletedProcess.
 
     Raises:
-        GitError: コマンドが失敗した場合。
+        GitError: If the command fails.
     """
     try:
         result = subprocess.run(
@@ -40,17 +40,17 @@ def _run_git(
         )
         if result.returncode != 0:
             raise GitError(
-                f"git {' '.join(args)} 失敗:\n{result.stderr.strip()}"
+                f"git {' '.join(args)} failed:\n{result.stderr.strip()}"
             )
         return result
     except FileNotFoundError:
-        raise GitError("git コマンドが見つかりません。Git がインストールされているか確認してください。")
+        raise GitError("git command not found. Make sure Git is installed.")
 
 
 def is_repo(path: Path) -> bool:
-    """指定されたディレクトリが Git リポジトリか確認する。
+    """Check if the given directory is a Git repository.
 
-    git rev-parse --git-dir で判断。
+    Uses git rev-parse --git-dir.
     """
     try:
         result = _run_git(["rev-parse", "--git-dir"], cwd=path)
@@ -60,15 +60,15 @@ def is_repo(path: Path) -> bool:
 
 
 def init_repo(path: Path) -> None:
-    """Git リポジトリを初期化する。
+    """Initialize a Git repository.
 
-    git init を実行する。
+    Runs git init.
     """
     _run_git(["init"], cwd=path)
 
 
 def has_remote(path: Path) -> bool:
-    """リモートリポジトリが設定されているか確認する。"""
+    """Check if a remote repository is configured."""
     try:
         result = _run_git(["remote", "-v"], cwd=path)
         return bool(result.stdout.strip())
@@ -77,34 +77,34 @@ def has_remote(path: Path) -> bool:
 
 
 def add_all(path: Path) -> bool:
-    """git add -A を実行する。
+    """Run git add -A.
 
     Returns:
-        ステージされた変更がある場合は True、ない場合は False。
+        True if there are staged changes, False otherwise.
     """
     _run_git(["add", "-A"], cwd=path)
     # 変更があるか確認
     # git diff --cached --quiet は変更ありのとき exit code 1 を返す（正常）
     try:
         _run_git(["diff", "--cached", "--quiet"], cwd=path)
-        return False  # 変更なし
+        return False  # no changes
     except GitError:
-        return True  # 変更あり
+        return True  # changes exist
 
 
 def commit(path: Path, message: str = "ai-adapter sync") -> None:
-    """git commit を実行する。"""
+    """Run git commit."""
     try:
         _run_git(["commit", "-m", message], cwd=path)
     except GitError as e:
         err_msg = str(e)
         if "Author identity unknown" in err_msg or "Please tell me who you are" in err_msg:
             raise GitError(
-                "Git のユーザー設定がされていません。\n"
-                "以下を実行して user.name と user.email を設定してください:\n"
+                "Git user configuration is not set.\n"
+                "Run the following to set user.name and user.email:\n"
                 "  git config --global user.email \"you@example.com\"\n"
                 "  git config --global user.name \"Your Name\"\n"
-                "または ~/.ai-adapter リポジトリのみに設定する場合:\n"
+                "Or set only for the ~/.ai-adapter repository:\n"
                 "  cd ~/.ai-adapter\n"
                 "  git config user.email \"you@example.com\"\n"
                 "  git config user.name \"Your Name\""
@@ -113,9 +113,9 @@ def commit(path: Path, message: str = "ai-adapter sync") -> None:
 
 
 def is_rebasing(path: Path) -> bool:
-    """リベース中かどうかを判定する。
+    """Check if a rebase is in progress.
 
-    .git/rebase-apply または .git/rebase-merge の存在で判断する。
+    Checks for .git/rebase-apply or .git/rebase-merge.
     """
     try:
         result = _run_git(["rev-parse", "--git-dir"], cwd=path)
@@ -126,9 +126,9 @@ def is_rebasing(path: Path) -> bool:
 
 
 def get_conflicted_files(path: Path) -> list[str]:
-    """コンフリクト中のファイル一覧を取得する。
+    """Get a list of conflicted files.
 
-    git diff --name-only --diff-filter=U で Unmerged パスを取得する。
+    Uses git diff --name-only --diff-filter=U to get Unmerged paths.
     """
     try:
         result = _run_git(["diff", "--name-only", "--diff-filter=U"], cwd=path)
@@ -138,16 +138,16 @@ def get_conflicted_files(path: Path) -> list[str]:
 
 
 def pull_rebase(path: Path, branch: str = "main") -> None:
-    """git pull --rebase origin <branch> を実行する。
+    """Run git pull --rebase origin <branch>.
 
-    コンフリクト時に abort は自動実行せず、ユーザーの判断に委ねる。
+    Does not auto-abort on conflict; leaves it to the user.
 
     Args:
-        path: リポジトリパス。
-        branch: ブランチ名（デフォルト: main）。
+        path: Repository path.
+        branch: Branch name (default: main).
 
     Raises:
-        GitError: pull 失敗時。コンフリクトの場合は解決手順を含むメッセージ。
+        GitError: If pull fails. Includes resolution steps for conflicts.
     """
     try:
         _run_git(["pull", "--rebase", "origin", branch], cwd=path)
@@ -157,51 +157,51 @@ def pull_rebase(path: Path, branch: str = "main") -> None:
             conflicted = get_conflicted_files(path)
             detail = ""
             if conflicted:
-                detail = "\n  コンフリクトファイル:\n" + "\n".join(
+                detail = "\n  Conflicted files:\n" + "\n".join(
                     f"    - {f}" for f in conflicted
                 )
             raise GitError(
-                f"pull --rebase でコンフリクトが発生しました。{detail}\n\n"
-                "  以下のコマンドで手動解決してください:\n\n"
-                "  1. コンフリクトを解決して続行:\n"
-                "     cd ~/.ai-adapter && git add <ファイル> && git rebase --continue\n\n"
-                "  2. リベースを中断:\n"
+                f"Conflict occurred during pull --rebase.{detail}\n\n"
+                "  Resolve manually with these commands:\n\n"
+                "  1. Resolve conflicts and continue:\n"
+                "     cd ~/.ai-adapter && git add <file> && git rebase --continue\n\n"
+                "  2. Abort the rebase:\n"
                 "     cd ~/.ai-adapter && git rebase --abort\n\n"
-                "  3. ローカルのコミットをスキップ:\n"
+                "  3. Skip the current commit:\n"
                 "     cd ~/.ai-adapter && git rebase --skip\n\n"
-                "  ai-adapter sync --continue   # リベース続行\n"
-                "  ai-adapter sync --abort      # リベース中断\n"
-                "  ai-adapter sync --skip       # コミットをスキップ"
+                "  ai-adapter sync --continue   # Continue rebase\n"
+                "  ai-adapter sync --abort      # Abort rebase\n"
+                "  ai-adapter sync --skip       # Skip commit"
             )
-        raise GitError(f"pull --rebase に失敗しました:\n{err_msg}")
+        raise GitError(f"pull --rebase failed:\n{err_msg}")
 
 
 def push(path: Path, branch: str = "main") -> None:
-    """git push origin <branch> を実行する。
+    """Run git push origin <branch>.
 
     Args:
-        path: リポジトリパス。
-        branch: ブランチ名（デフォルト: main）。
+        path: Repository path.
+        branch: Branch name (default: main).
     """
     _run_git(["push", "origin", branch], cwd=path)
 
 
 def get_remotes(path: Path) -> list[str]:
-    """リモートリポジトリ一覧を取得する。"""
+    """Get the list of remote repositories."""
     result = _run_git(["remote"], cwd=path)
     return [r.strip() for r in result.stdout.strip().split("\n") if r.strip()]
 
 
 def get_current_branch(path: Path) -> str:
-    """現在のブランチ名を取得する。"""
+    """Get the current branch name."""
     result = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=path)
     return result.stdout.strip()
 
 
 def remote_branch_exists(path: Path, branch: str = "main") -> bool:
-    """リモートに指定ブランチが存在するか確認する。
+    """Check if a remote branch exists.
 
-    git ls-remote --heads origin <branch> で判断。
+    Uses git ls-remote --heads origin <branch>.
     """
     try:
         result = _run_git(
@@ -213,9 +213,9 @@ def remote_branch_exists(path: Path, branch: str = "main") -> bool:
 
 
 def test_remote_connectivity(path: Path) -> bool:
-    """リモートリポジトリに接続できるか確認する。
+    """Check connectivity to the remote repository.
 
-    git ls-remote --heads origin で判断。
+    Uses git ls-remote --heads origin.
     """
     try:
         _run_git(["ls-remote", "--heads", "origin"], cwd=path)
@@ -225,15 +225,15 @@ def test_remote_connectivity(path: Path) -> bool:
 
 
 def clone(url: str, dest: Path) -> None:
-    """git clone を実行する。"""
+    """Run git clone."""
     _run_git(["clone", url, str(dest.name)], cwd=dest.parent)
 
 
 def add_remote(path: Path, name: str, url: str) -> None:
-    """git remote add を実行する。"""
+    """Run git remote add."""
     _run_git(["remote", "add", name, url], cwd=path)
 
 
 def set_remote_url(path: Path, name: str, url: str) -> None:
-    """git remote set-url を実行する。"""
+    """Run git remote set-url."""
     _run_git(["remote", "set-url", name, url], cwd=path)

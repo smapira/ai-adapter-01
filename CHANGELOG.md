@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.10.0] - 2026-07-23
+
+### Changed
+
+- **Complete i18n: All remaining Japanese text translated to English**:
+  All source files (git.py, sync.py, models.py, skill.py, mcp.py, prompt.py)
+  and all test files are fully English across docstrings, error messages,
+  CLI output, and test content.
+
 ## [0.9.0] - 2026-07-23
 
 ### Changed

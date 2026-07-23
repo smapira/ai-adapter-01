@@ -1,7 +1,7 @@
-"""データモデル定義モジュール。
+"""Data model definition module.
 
-Agent, Env, AgentBinding, Bin, Skill, MCPServer, Config の dataclass と
-JSON シリアライズのための to_dict / from_dict メソッドを提供する。
+Provides dataclasses for Agent, Env, AgentBinding, Bin, Skill, MCPServer, Config
+and their to_dict / from_dict methods for JSON serialization.
 """
 
 from __future__ import annotations
@@ -239,10 +239,10 @@ class Config:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Config:
-        """設定ファイルから Config オブジェクトを生成する。
+        """Create Config object from config data.
 
         Raises:
-            ValueError: データの型が不正な場合。
+            ValueError: If the data types are invalid.
         """
         if not isinstance(data, dict):
             raise ValueError("Invalid config format: must be a dict")

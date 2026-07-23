@@ -1,4 +1,4 @@
-"""opencode.py のテスト。"""
+"""Tests for opencode.py."""
 
 import json
 import tempfile
@@ -12,7 +12,7 @@ from ai_adapter.config import init
 
 
 class TestOpencodeCommands(unittest.TestCase):
-    """opencode サブコマンドのテスト。"""
+    """Tests for opencode subcommands."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -36,7 +36,7 @@ class TestOpencodeCommands(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_opencode_install(self):
-        """opencode install でテンプレート opencode.json が生成されることを確認する。"""
+        """Verify opencode install generates opencode.json template."""
         result = self.runner.invoke(main, ["opencode", "install"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("opencode.json", result.output)
@@ -53,7 +53,7 @@ class TestOpencodeCommands(unittest.TestCase):
         output_path.unlink()
 
     def test_opencode_uninstall(self):
-        """opencode uninstall で opencode.json がremovされることを確認する。"""
+        """Verify opencode uninstall removes opencode.json."""
         # 先にインストール
         output_path = Path.cwd() / "opencode.json"
         output_path.write_text("{}")
@@ -64,19 +64,19 @@ class TestOpencodeCommands(unittest.TestCase):
         self.assertFalse(output_path.exists())
 
     def test_opencode_uninstall_not_found(self):
-        """opencode.json がないStatusで uninstall してもエラーにならない。"""
+        """Verify uninstall does not error when no opencode.json."""
         result = self.runner.invoke(main, ["opencode", "uninstall"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("not found", result.output)
 
     def test_opencode_alias_no_github(self):
-        """.github がないStatusで alias するとエラーになることを確認する。"""
+        """Verify alias errors when .github does not exist."""
         result = self.runner.invoke(main, ["opencode", "alias"])
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn(".github", result.output)
 
     def test_opencode_install_template_structure(self):
-        """生成された opencode.json が正しいテンプレート構造を持つことを確認する。"""
+        """Verify generated opencode.json has correct template structure."""
         result = self.runner.invoke(main, ["opencode", "install"])
         self.assertEqual(result.exit_code, 0)
 
@@ -88,7 +88,7 @@ class TestOpencodeCommands(unittest.TestCase):
         # permission が全て "ask" であることを確認
         perm = data.get("permission", {})
         for key in ["execute", "read", "edit", "search", "agent", "browser", "web", "todo"]:
-            self.assertEqual(perm.get(key), "ask", f"permission.{key} が ask ではありません")
+            self.assertEqual(perm.get(key), "ask", f"permission.{key} is not ask")
 
         # instructions に .agent.md が含まれる
         self.assertIn(".github/agents/*.agent.md", data.get("instructions", []))

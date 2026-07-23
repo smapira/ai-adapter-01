@@ -1,4 +1,4 @@
-"""mcp.py のテスト。"""
+"""Tests for mcp.py."""
 
 import json
 import tempfile
@@ -12,7 +12,7 @@ from ai_adapter.config import init
 
 
 class TestMCPCommands(unittest.TestCase):
-    """mcp サブコマンドのテスト。"""
+    """Tests for mcp subcommands."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -36,13 +36,13 @@ class TestMCPCommands(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_mcp_list_empty(self):
-        """MCP 未登録時に空メッセージが表示されることを確認する。"""
+        """Verify empty message is shown when no MCP servers registered."""
         result = self.runner.invoke(main, ["mcp", "list"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("No MCP servers registered.", result.output)
 
     def test_mcp_add(self):
-        """mcp add で MCP サーバーが追加されることを確認する。"""
+        """Verify mcp add adds an MCP server."""
         result = self.runner.invoke(main, [
             "mcp", "add", "github",
             "--command", "npx",
@@ -55,7 +55,7 @@ class TestMCPCommands(unittest.TestCase):
         self.assertIn("github", result.output)
 
     def test_mcp_add_and_list(self):
-        """mcp add → mcp list の流れを確認する。"""
+        """Verify mcp add → mcp list flow."""
         self.runner.invoke(main, [
             "mcp", "add", "github",
             "--command", "npx",
@@ -67,7 +67,7 @@ class TestMCPCommands(unittest.TestCase):
         self.assertIn("github", result.output)
 
     def test_mcp_add_duplicate(self):
-        """重複した MCP サーバーの追加でエラーになることを確認する。"""
+        """Verify duplicate MCP server name raises error."""
         self.runner.invoke(main, [
             "mcp", "add", "github",
             "--command", "npx",
@@ -82,7 +82,7 @@ class TestMCPCommands(unittest.TestCase):
         self.assertIn("already exists", result.output)
 
     def test_mcp_remove(self):
-        """mcp remove で MCP サーバーがremovされることを確認する。"""
+        """Verify mcp remove removes an MCP server."""
         self.runner.invoke(main, [
             "mcp", "add", "github",
             "--command", "npx",
@@ -93,7 +93,7 @@ class TestMCPCommands(unittest.TestCase):
         self.assertIn("github", result.output)
 
     def test_mcp_load(self):
-        """mcp load --file で .mcp.json から一括読み込みできることを確認する。"""
+        """Verify mcp load --file loads from .mcp.json."""
         mcp_file = Path(self.temp_dir.name) / ".mcp.json"
         mcp_file.write_text(json.dumps({
             "mcpServers": {
@@ -116,7 +116,7 @@ class TestMCPCommands(unittest.TestCase):
         self.assertIn("2 added", result.output)
 
     def test_mcp_export(self):
-        """mcp export で .mcp.json が出力されることを確認する。"""
+        """Verify mcp export outputs .mcp.json."""
         self.runner.invoke(main, [
             "mcp", "add", "github",
             "--command", "npx",
@@ -139,7 +139,7 @@ class TestMCPCommands(unittest.TestCase):
         output_path.unlink()
 
     def test_mcp_export_with_path(self):
-        """mcp export --path で指定ディレクトリに出力されることを確認する。"""
+        """Verify mcp export --path outputs to specified directory."""
         self.runner.invoke(main, [
             "mcp", "add", "github",
             "--command", "npx",

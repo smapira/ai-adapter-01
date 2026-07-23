@@ -1,4 +1,4 @@
-"""command.py のテスト。"""
+"""Tests for command.py."""
 
 import tempfile
 import unittest
@@ -11,7 +11,7 @@ from ai_adapter.config import init
 
 
 class TestCommandCommands(unittest.TestCase):
-    """command サブコマンドのテスト。"""
+    """Tests for command subcommands."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -70,7 +70,7 @@ class TestCommandCommands(unittest.TestCase):
         self.assertIn("deploy", result.output)
 
     def test_command_add_rec(self):
-        """add-rec でディレクトリ内の全ファイルが登録されることを確認する。"""
+        """Verify add-rec registers all files in a directory."""
         src_dir = Path(self.temp_dir.name) / "cmd_dir"
         src_dir.mkdir()
         (src_dir / "build.sh").write_text("#!/bin/bash\necho build\n")
@@ -85,7 +85,7 @@ class TestCommandCommands(unittest.TestCase):
         self.assertIn("test", result.output)
 
     def test_command_get_all(self):
-        """get-all で全コマンドが .github/commands/ にコピーされることを確認する。"""
+        """Verify get-all copies all commands to .github/commands/."""
         self.runner.invoke(main, ["command", "add", str(self.cmd_file)])
         cmd2 = Path(self.temp_dir.name) / "build.sh"
         cmd2.write_text("#!/bin/bash\necho build\n")
@@ -104,7 +104,7 @@ class TestCommandCommands(unittest.TestCase):
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_command_remove_all(self):
-        """remove-all --force で全コマンドがremovされることを確認する。"""
+        """Verify remove-all --force removes all commands."""
         cmd2 = Path(self.temp_dir.name) / "build.sh"
         cmd2.write_text("#!/bin/bash\necho build\n")
         self.runner.invoke(main, ["command", "add", str(self.cmd_file)])

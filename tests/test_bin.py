@@ -1,4 +1,4 @@
-"""bin.py のテスト。"""
+"""Tests for bin.py."""
 
 import tempfile
 import unittest
@@ -12,7 +12,7 @@ from ai_adapter.models import Bin, Config
 
 
 class TestBinAddRecCommand(unittest.TestCase):
-    """bin add-rec コマンドのテスト。"""
+    """Tests for the bin add-rec command."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -36,7 +36,7 @@ class TestBinAddRecCommand(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_bin_add_rec(self):
-        """add-rec でディレクトリ内の全スクリプトが登録されることを確認する。"""
+        """Verify add-rec registers all scripts in a directory."""
         src_dir = Path(self.temp_dir.name) / "scripts_dir"
         src_dir.mkdir()
         (src_dir / "script1.sh").write_text("#!/bin/bash")
@@ -53,7 +53,7 @@ class TestBinAddRecCommand(unittest.TestCase):
 
 
 class TestBinCommands(unittest.TestCase):
-    """bin サブコマンドのテスト。"""
+    """Tests for bin subcommands."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -69,7 +69,7 @@ class TestBinCommands(unittest.TestCase):
 
         init()
 
-        # テスト用スクリプトファイル作成
+        # Test scriptファイル作成
         self.script_file = Path(self.temp_dir.name) / "deploy-test.sh"
         self.script_file.write_text("#!/bin/bash\necho 'deploy test'\n")
 
@@ -81,16 +81,16 @@ class TestBinCommands(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_bin_list_empty(self):
-        """bin list で空メッセージが表示されることを確認する。"""
+        """Verify empty message is shown when no scripts registered."""
         result = self.runner.invoke(main, ["bin", "list"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("No scripts registered.", result.output)
 
     def test_bin_add(self):
-        """bin add でスクリプトが追加されることを確認する。"""
+        """Verify bin add adds a script."""
         result = self.runner.invoke(main, [
             "bin", "add", "--env", "default", str(self.script_file),
-            "--description", "テスト用スクリプト",
+            "--description", "Test script",
         ])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("deploy-test.sh", result.output)
@@ -99,14 +99,14 @@ class TestBinCommands(unittest.TestCase):
         self.assertTrue((bins_dir / "deploy-test.sh").exists())
 
     def test_bin_add_and_list(self):
-        """bin add → bin list の流れを確認する。"""
+        """Verify bin add → bin list flow."""
         self.runner.invoke(main, ["bin", "add", "--env", "default", str(self.script_file)])
         result = self.runner.invoke(main, ["bin", "list"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("deploy-test.sh", result.output)
 
     def test_bin_add_and_list_filtered(self):
-        """bin add → bin list env でフィルタリングされることを確認する。"""
+        """Verify bin add → bin list filters by env."""
         self.runner.invoke(main, ["bin", "add", "--env", "default", str(self.script_file)])
         result = self.runner.invoke(main, ["bin", "list", "--env", "default"])
         self.assertEqual(result.exit_code, 0)
@@ -117,7 +117,7 @@ class TestBinCommands(unittest.TestCase):
         self.assertIn("has no scripts registered", result.output)
 
     def test_bin_get(self):
-        """bin get で .github/bin/ にコピーされることを確認する。"""
+        """Verify bin get copies to .github/bin/."""
         self.runner.invoke(main, ["bin", "add", "--env", "default", str(self.script_file)])
 
         github_bin = Path.cwd() / ".github" / "bin"
@@ -132,12 +132,12 @@ class TestBinCommands(unittest.TestCase):
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_bin_get_not_found(self):
-        """存在しないスクリプトの get でエラーになることを確認する。"""
+        """Verify get fails for non-existent script."""
         result = self.runner.invoke(main, ["bin", "get", "--env", "default", "nonexistent.sh"])
         self.assertNotEqual(result.exit_code, 0)
 
     def test_bin_get_with_project_dir(self):
-        """bin get --project-dir で指定ディレクトリにコピーされることを確認する。"""
+        """Verify bin get --project-dir copies to the specified directory."""
         self.runner.invoke(main, ["bin", "add", "--env", "default", str(self.script_file)])
 
         project_dir = Path(self.temp_dir.name) / "my-project"
@@ -151,7 +151,7 @@ class TestBinCommands(unittest.TestCase):
         self.assertTrue((project_dir / ".github" / "bin" / "deploy-test.sh").exists())
 
     def test_bin_get_all(self):
-        """bin get-all で全スクリプトが .github/bin/ にコピーされることを確認する。"""
+        """Verify bin get-all copies all scripts to .github/bin/."""
         script1 = Path(self.temp_dir.name) / "test1.sh"
         script1.write_text("#!/bin/bash")
         script2 = Path(self.temp_dir.name) / "test2.sh"
@@ -172,23 +172,23 @@ class TestBinCommands(unittest.TestCase):
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_bin_remove(self):
-        """bin remove で登録が解除されることを確認する。"""
+        """Verify bin remove unregisters a script."""
         self.runner.invoke(main, ["bin", "add", "--env", "default", str(self.script_file)])
         result = self.runner.invoke(main, ["bin", "remove", "--env", "default", "deploy-test.sh"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("deploy-test.sh", result.output)
 
-        # ファイルはremovされないことを確認
+        # ファイルはnot removedことを確認
         bins_dir = self.patch_home / ".ai-adapter" / "bin"
         self.assertTrue((bins_dir / "deploy-test.sh").exists())
 
     def test_bin_remove_not_found(self):
-        """存在しないスクリプトの remove でエラーになることを確認する。"""
+        """Verify remove fails for non-existent script."""
         result = self.runner.invoke(main, ["bin", "remove", "--env", "default", "nonexistent.sh"])
         self.assertNotEqual(result.exit_code, 0)
 
     def test_bin_remove_all(self):
-        """bin remove-all で全スクリプトの登録が解除されることを確認する。"""
+        """Verify bin remove-all unregisters all scripts."""
         script1 = Path(self.temp_dir.name) / "test1.sh"
         script1.write_text("#!/bin/bash")
         script2 = Path(self.temp_dir.name) / "test2.sh"

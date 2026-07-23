@@ -207,7 +207,7 @@ def mcp_load(json_path: str) -> None:
 
 
 @mcp_group.command(name="remove-all")
-@click.option("--force", is_flag=True, help="確認プロンプトを表示せずに削除する")
+@click.option("--force", is_flag=True, help="Delete without confirmation")
 def mcp_remove_all(force: bool) -> None:
     """Remove all MCP server configurations and delete .mcp.json."""
     config = _config.load_config()
@@ -217,7 +217,7 @@ def mcp_remove_all(force: bool) -> None:
 
     count = len(config.mcp_servers)
     if not force:
-        click.confirm(f"全ての MCP サーバー ({count})?", abort=True)
+        click.confirm(f"Remove all MCP servers ({count})?", abort=True)
 
     config.mcp_servers.clear()
     _config.save_config(config)
@@ -228,4 +228,4 @@ def mcp_remove_all(force: bool) -> None:
         mcp_json.unlink()
         click.echo(f".mcp.json deleted.")
 
-    click.echo(f"全ての MCP サーバー ({count}) removed.")
+    click.echo(f"All MCP servers ({count}) removed.")

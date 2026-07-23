@@ -1,4 +1,4 @@
-"""git.py のテスト。"""
+"""Tests for git.py."""
 
 import tempfile
 import unittest
@@ -19,7 +19,7 @@ from ai_adapter.git import (
 
 
 class TestGitFunctions(unittest.TestCase):
-    """git 操作ラッパーのテスト（モック使用）。"""
+    """Tests for git operation wrapper (using mocks)."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -30,7 +30,7 @@ class TestGitFunctions(unittest.TestCase):
 
     @patch("ai_adapter.git._run_git")
     def test_is_repo_true(self, mock_run_git):
-        """Git リポジトリの場合 True を返すことを確認する。"""
+        """Verify returns True for a Git repository."""
         mock_run_git.return_value.returncode = 0
         result = is_repo(self.test_path)
         self.assertTrue(result)
@@ -40,14 +40,14 @@ class TestGitFunctions(unittest.TestCase):
 
     @patch("ai_adapter.git._run_git")
     def test_is_repo_false(self, mock_run_git):
-        """Git リポジトリでない場合 False を返すことを確認する。"""
+        """Verify returns False for a non-Git directory."""
         mock_run_git.side_effect = GitError("not a git repository")
         result = is_repo(self.test_path)
         self.assertFalse(result)
 
     @patch("ai_adapter.git._run_git")
     def test_init_repo(self, mock_run_git):
-        """init_repo が git init を呼ぶことを確認する。"""
+        """Verify init_repo calls git init."""
         mock_run_git.return_value.returncode = 0
         init_repo(self.test_path)
         mock_run_git.assert_called_once_with(
@@ -56,7 +56,7 @@ class TestGitFunctions(unittest.TestCase):
 
     @patch("ai_adapter.git._run_git")
     def test_has_remote_true(self, mock_run_git):
-        """リモートがある場合 True を返すことを確認する。"""
+        """Verify returns True when remote exists."""
         mock_run_git.return_value.stdout = "origin\tgit@github.com:user/repo.git (fetch)\n"
         mock_run_git.return_value.returncode = 0
         result = has_remote(self.test_path)
@@ -64,7 +64,7 @@ class TestGitFunctions(unittest.TestCase):
 
     @patch("ai_adapter.git._run_git")
     def test_has_remote_false(self, mock_run_git):
-        """リモートがない場合 False を返すことを確認する。"""
+        """Verify returns False when no remote exists."""
         mock_run_git.return_value.stdout = ""
         mock_run_git.return_value.returncode = 0
         result = has_remote(self.test_path)
@@ -72,18 +72,18 @@ class TestGitFunctions(unittest.TestCase):
 
     @patch("ai_adapter.git._run_git")
     def test_add_all(self, mock_run_git):
-        """add_all が git add -A を呼ぶことを確認する。"""
+        """Verify add_all calls git add -A."""
         # 1回目: add -A 成功, 2回目: diff --cached --quiet (変更あり=exit code 1)
         mock_run_git.side_effect = [
             type("Result", (), {"returncode": 0})(),
-            GitError("git diff --cached --quiet 失敗"),
+            GitError("git diff --cached --quiet failed"),
         ]
         result = add_all(self.test_path)
         self.assertTrue(result)
 
     @patch("ai_adapter.git._run_git")
     def test_add_all_no_changes(self, mock_run_git):
-        """変更がない場合 add_all が False を返すことを確認する。"""
+        """Verify add_all returns False when no changes."""
         mock_run_git.side_effect = [
             type("Result", (), {"returncode": 0})(),
             type("Result", (), {"returncode": 0})(),
@@ -93,7 +93,7 @@ class TestGitFunctions(unittest.TestCase):
 
     @patch("ai_adapter.git._run_git")
     def test_commit(self, mock_run_git):
-        """commit が git commit を呼ぶことを確認する。"""
+        """Verify commit calls git commit."""
         mock_run_git.return_value.returncode = 0
         commit(self.test_path, "test commit")
         mock_run_git.assert_called_once_with(
@@ -102,7 +102,7 @@ class TestGitFunctions(unittest.TestCase):
 
     @patch("ai_adapter.git._run_git")
     def test_get_remotes(self, mock_run_git):
-        """get_remotes がリモート一覧を返すことを確認する。"""
+        """Verify get_remotes returns the remote list."""
         mock_run_git.return_value.stdout = "origin\nupstream\n"
         mock_run_git.return_value.returncode = 0
         remotes = get_remotes(self.test_path)
@@ -110,7 +110,7 @@ class TestGitFunctions(unittest.TestCase):
 
 
 class TestGitRebaseDetection(unittest.TestCase):
-    """リベース検出のテスト。"""
+    """Tests for rebase detection."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -121,7 +121,7 @@ class TestGitRebaseDetection(unittest.TestCase):
 
     @patch("ai_adapter.git._run_git")
     def test_is_rebasing_true(self, mock_run_git):
-        """rebase-apply がある場合に True を返すことを確認する。"""
+        """Verify returns True when rebase-apply exists."""
         from ai_adapter.git import is_rebasing
         git_dir = self.test_path / ".git"
         git_dir.mkdir()
@@ -132,7 +132,7 @@ class TestGitRebaseDetection(unittest.TestCase):
 
     @patch("ai_adapter.git._run_git")
     def test_is_rebasing_false(self, mock_run_git):
-        """通常のリポジトリで False を返すことを確認する。"""
+        """Verify returns False for a normal repository."""
         from ai_adapter.git import is_rebasing
         git_dir = self.test_path / ".git"
         git_dir.mkdir()
@@ -141,7 +141,7 @@ class TestGitRebaseDetection(unittest.TestCase):
 
     @patch("ai_adapter.git._run_git")
     def test_get_conflicted_files(self, mock_run_git):
-        """コンフリクトファイル一覧を取得することを確認する。"""
+        """Verify conflicted files list retrieval."""
         from ai_adapter.git import get_conflicted_files
         mock_run_git.return_value = type("R", (), {
             "stdout": "config.json\nagents/reviewer.md\n", "returncode": 0
@@ -151,7 +151,7 @@ class TestGitRebaseDetection(unittest.TestCase):
 
     @patch("ai_adapter.git._run_git")
     def test_get_conflicted_files_empty(self, mock_run_git):
-        """コンフリクトがない場合に空リストを返すことを確認する。"""
+        """Verify returns empty list when no conflicts."""
         from ai_adapter.git import get_conflicted_files
         # diff-filter=U で何も出力されない
         mock_run_git.side_effect = GitError("no output")

@@ -38,129 +38,129 @@ def sync_command(adapter_dir: Path | None = None) -> None:
 
     if not adapter_dir.exists():
         click.echo(f"'{adapter_dir}' not found. Run ai-adapter init first.")
-        raise click.ClickException("ai-adapter が初期化されていません。")
+        raise click.ClickException("ai-adapter is not initialized.")
 
     # リベース中断検出
     if is_rebasing(adapter_dir):
         conflicted = get_conflicted_files(adapter_dir)
-        click.echo("⚠ 前回の sync でリベースが中断されたままです。")
+        click.echo("⚠ A rebase was left unfinished from the previous sync.")
         if conflicted:
-            click.echo("  コンフリクトファイル:")
+            click.echo("  Conflicted files:")
             for f in conflicted:
                 click.echo(f"    - {f}")
-        click.echo("  解決方法: ai-adapter sync --continue / --abort / --skip")
+        click.echo("  Resolution: ai-adapter sync --continue / --abort / --skip")
         raise click.ClickException("Resolve the rebase first.")
 
     # Step 1: Git リポジトリ確認
-    click.echo("Step 1: Git リポジトリを確認中...")
+    click.echo("Step 1: Checking Git repository status...")
     if not is_repo(adapter_dir):
-        click.echo("  ~/.ai-adapter/ が Git リポジトリではありません。初期化します...")
+        click.echo("  ~/.ai-adapter/ is not a Git repository. Initializing...")
         init_repo(adapter_dir)
-        click.echo("  git init 完了。")
+        click.echo("  git init completed.")
 
     if not has_remote(adapter_dir):
         click.echo()
-        click.echo("  リモートリポジトリが設定されていません。")
+        click.echo("  No remote repository configured.")
 
         # config.json に保存された remote を確認
         config = _config.load_config()
         saved_remote = config.remote if config else None
 
         if saved_remote:
-            click.echo(f"  保存されたリモートURLが見つかりました: {saved_remote}")
+            click.echo(f"  Saved remote URL found: {saved_remote}")
             add_remote(adapter_dir, "origin", saved_remote)
-            click.echo("  リモートを設定しました。")
+            click.echo("  Remote set.")
         else:
             remote = click.prompt(
-                "  Git リモートリポジトリURL（スキップするには Enter）",
+                "  Git remote repository URL (press Enter to skip)",
                 default="",
                 show_default=False,
             ).strip()
 
             if not remote:
-                click.echo("  リモートが設定されていないため、Skipping sync.")
-                click.echo("  ai-adapter start <URL> で後から設定できます。")
+                click.echo("  No remote configured. Skipping sync.")
+                click.echo("  You can set it later with ai-adapter start <URL>.")
                 return
 
             add_remote(adapter_dir, "origin", remote)
-            click.echo(f"  リモートを設定しました: {remote}")
+            click.echo(f"  Remote configured: {remote}")
             if config:
                 config.remote = remote
                 _config.save_config(config)
 
     # Step 2: git add + commit
-    click.echo("Step 2: 変更をコミット中...")
+    click.echo("Step 2: Committing changes...")
     has_changes = add_all(adapter_dir)
     if has_changes:
         try:
             commit(adapter_dir)
-            click.echo("  変更をコミットしました。")
+            click.echo("  Changes committed.")
         except GitError as e:
-            logger.error("commit 失敗: %s", e)
-            click.echo(f"  コミットに失敗しました。")
-            click.echo("  Git のユーザー設定がされていない可能性があります。")
-            click.echo("  以下を実行してからもう一度試してください:")
+            logger.error("commit failed: %s", e)
+            click.echo(f"  Commit failed.")
+            click.echo("  Git user configuration may not be set.")
+            click.echo("  Run the following and try again:")
             click.echo("    git config --global user.email 'you@example.com'")
             click.echo("    git config --global user.name 'Your Name'")
-            click.echo("  または ~/.ai-adapter リポジトリのみに設定:")
+            click.echo("  Or set only for the ~/.ai-adapter repository:")
             click.echo("    cd ~/.ai-adapter")
             click.echo("    git config user.email 'you@example.com'")
             click.echo("    git config user.name 'Your Name'")
             return
     else:
-        click.echo("  変更はありません。")
+        click.echo("  No changes to commit.")
 
     # Step 3: git pull --rebase
-    click.echo("Step 3: リモートの変更を取り込み中...")
+    click.echo("Step 3: Pulling remote changes...")
     branch = get_current_branch(adapter_dir)
 
     # 接続確認
     if not test_remote_connectivity(adapter_dir):
-        click.echo("  ⚠ リモートリポジトリに接続できません。")
-        click.echo("  考えられる原因:")
-        click.echo("    - SSH キーが設定されていない（ssh-keygen + GitHub 登録が必要）")
-        click.echo("    - リモートURLが間違っている（git remote -v で確認）")
-        click.echo("    - GitHub のアクセストークンが切れている")
-        click.echo("  git fetch が通るか確認: cd ~/.ai-adapter && git fetch")
-        click.echo("  Step 4 の push はスキップします。")
+        click.echo("  ⚠ Cannot connect to the remote repository.")
+        click.echo("  Possible causes:")
+        click.echo("    - SSH key not configured (needs ssh-keygen + GitHub registration)")
+        click.echo("    - Remote URL is incorrect (check with git remote -v)")
+        click.echo("    - GitHub access token has expired")
+        click.echo("  Check if git fetch works: cd ~/.ai-adapter && git fetch")
+        click.echo("  Skipping Step 4 push.")
         return
 
     # ブランチ存在確認（空リポジトリ対策）
     if not remote_branch_exists(adapter_dir, branch):
-        click.echo(f"  リモートにブランチ '{branch}' が存在しません。初回プッシュが必要です。")
-        click.echo("  Step 4 でプッシュします。")
+        click.echo(f"  Remote branch '{branch}' does not exist. An initial push is required.")
+        click.echo("  Will push in Step 4.")
     else:
         try:
             pull_rebase(adapter_dir, branch)
-            click.echo("  pull --rebase 完了。")
+            click.echo("  pull --rebase completed.")
         except GitError as e:
-            logger.error("pull --rebase 失敗: %s", e)
+            logger.error("pull --rebase failed: %s", e)
             if "would be overwritten by rebase" in str(e).lower() or "conflict" in str(e).lower():
-                click.echo("  コンフリクトが発生しました。手動で解決してください。")
+                click.echo("  Conflict occurred. Resolve it manually.")
                 click.echo(f"    cd ~/.ai-adapter && git status")
-                click.echo(f"    git rebase --abort  # 中断する場合")
+                click.echo(f"    git rebase --abort  # to abort")
             else:
-                click.echo(f"  ブランチ名が不一致の可能性があります。")
-                click.echo(f"  現在のブランチ: {branch}")
-                click.echo(f"  cd ~/.ai-adapter && git branch -a で状態を確認してください。")
+                click.echo(f"  Branch name may not match.")
+                click.echo(f"  Current branch: {branch}")
+                click.echo(f"  Check status: cd ~/.ai-adapter && git branch -a")
             return
 
     # Step 4: git push
-    click.echo("Step 4: リモートにプッシュ中...")
+    click.echo("Step 4: Pushing to remote...")
     try:
         push(adapter_dir, branch)
-        click.echo("  push 完了。")
+        click.echo("  Push completed.")
     except GitError as e:
-        logger.error("push 失敗: %s", e)
+        logger.error("push failed: %s", e)
         if "Repository not found" in str(e) or "Could not read from remote" in str(e):
-            click.echo("  リモートリポジトリにアクセスできません。")
-            click.echo("    cd ~/.ai-adapter && git remote -v でURLを確認")
-            click.echo("    git remote set-url origin <正しいURL> で修正")
+            click.echo("  Cannot access remote repository.")
+            click.echo("    Check URL: cd ~/.ai-adapter && git remote -v")
+            click.echo("    Fix: git remote set-url origin <correct-url>")
         elif "408" in str(e) or "Timeout" in str(e):
-            click.echo("  タイムアウトしました。ネットワーク接続を確認してください。")
+            click.echo("  Timeout. Check your network connection.")
         else:
-            click.echo(f"  push に失敗しました。")
-            click.echo(f"    ブランチ: {branch}")
-            click.echo(f"    cd ~/.ai-adapter && git push origin {branch} を手動で実行してください。")
+            click.echo(f"  Push failed.")
+            click.echo(f"    Branch: {branch}")
+            click.echo(f"    Run manually: cd ~/.ai-adapter && git push origin {branch}")
 
     click.echo("Sync completed. (Some steps may have been skipped.)")

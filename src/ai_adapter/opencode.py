@@ -43,6 +43,7 @@ def opencode_alias() -> None:
                 shutil.rmtree(opencode_path)
 
     os.symlink(str(github_path), str(opencode_path))
+    _config.add_to_gitignore(opencode_path.resolve())
     click.echo(f"Symlink created: {opencode_path} → {github_path}")
 
 
@@ -71,6 +72,7 @@ def opencode_install() -> None:
     with open(output_path, "w") as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
 
+    _config.add_to_gitignore(output_path)
     click.echo(f"opencode.json generated: {output_path}")
 
 

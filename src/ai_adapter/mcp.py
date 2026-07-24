@@ -172,6 +172,7 @@ def mcp_get(path: str | None) -> None:
     with open(output_path, "w") as f:
         json.dump(mcp_config, f, indent=2, ensure_ascii=False)
 
+    _config.add_to_gitignore(output_path)
     click.echo(f"MCP configuration exported: {output_path}")
 
 

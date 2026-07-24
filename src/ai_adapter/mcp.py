@@ -51,28 +51,41 @@ def mcp_list(tool: str | None, env: str | None) -> None:
 
 
 @mcp_group.command(name="add")
-@click.argument("name")
+@click.argument("name", required=False)
 @click.option("--command", "-c", help="Command to execute")
 @click.option("--args", "-a", multiple=True, help="Command arguments (can be specified multiple times)")
 @click.option("--env-key", "-e", multiple=True, help="Required environment variable keys (can be specified multiple times)")
 @click.option("--tool", "-t", multiple=True, help="Compatible tools: vscode/claude/cursor (can be specified multiple times)")
 @click.option("--env", help="Target environment")
+@click.option("--file", "-f", "json_path", type=click.Path(exists=True, readable=True),
+              help="Path to .mcp.json file for bulk import")
 def mcp_add(
-    name: str,
+    name: str | None,
     command: str | None,
     args: tuple[str, ...],
     env_key: tuple[str, ...],
     tool: tuple[str, ...],
     env: str | None,
+    json_path: str | None,
 ) -> None:
     """Add an MCP server configuration.
 
-    NAME: MCP server name.
+    NAME: MCP server name (omit when using --file).
     """
     config = _config.load_config()
     if config is None:
         click.echo("Configuration file not found. Run ai-adapter init first.")
         return
+
+    # --file mode: bulk import from .mcp.json
+    if json_path:
+        _import_mcp_from_file(config, json_path)
+        return
+
+    # Interactive single-server mode
+    if not name:
+        click.echo("NAME is required when --file is not used.", err=True)
+        raise click.ClickException("Provide NAME or use --file.")
 
     # Duplicate check
     for existing in config.mcp_servers:
@@ -126,10 +139,10 @@ def mcp_remove(name: str) -> None:
     click.echo(f"MCP server '{name}' removed.")
 
 
-@mcp_group.command(name="export")
+@mcp_group.command(name="get")
 @click.option("--path", default=None,
               help="Output directory (default: current directory)")
-def mcp_export(path: str | None) -> None:
+def mcp_get(path: str | None) -> None:
     """Export MCP configuration to .mcp.json."""
     config = _config.load_config()
     if config is None:
@@ -162,17 +175,8 @@ def mcp_export(path: str | None) -> None:
     click.echo(f"MCP configuration exported: {output_path}")
 
 
-@mcp_group.command(name="load")
-@click.option("--file", "-f", "json_path", type=click.Path(exists=True, readable=True),
-              default=".mcp.json",
-              help="Path to .mcp.json file (default: .mcp.json)")
-def mcp_load(json_path: str) -> None:
-    """Load MCP server configurations from .mcp.json."""
-    config = _config.load_config()
-    if config is None:
-        click.echo("Configuration file not found. Run ai-adapter init first.")
-        return
-
+def _import_mcp_from_file(config, json_path: str) -> None:
+    """Import MCP server configurations from a .mcp.json file."""
     with open(json_path) as f:
         data = json.load(f)
 
@@ -203,7 +207,7 @@ def mcp_load(json_path: str) -> None:
         loaded += 1
 
     _config.save_config(config)
-    click.echo(f"MCP server configurations loaded: {loaded} added, {skipped} skipped (duplicate)")
+    click.echo(f"MCP configurations imported: {loaded} added, {skipped} skipped (duplicate)")
 
 
 @mcp_group.command(name="remove-all")

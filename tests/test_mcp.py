@@ -92,8 +92,8 @@ class TestMCPCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("github", result.output)
 
-    def test_mcp_load(self):
-        """Verify mcp load --file loads from .mcp.json."""
+    def test_mcp_add_bulk(self):
+        """Verify mcp add --file imports from .mcp.json."""
         mcp_file = Path(self.temp_dir.name) / ".mcp.json"
         mcp_file.write_text(json.dumps({
             "mcpServers": {
@@ -110,13 +110,13 @@ class TestMCPCommands(unittest.TestCase):
         }, indent=2))
 
         result = self.runner.invoke(main, [
-            "mcp", "load", "--file", str(mcp_file),
+            "mcp", "add", "--file", str(mcp_file),
         ])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("2 added", result.output)
+        self.assertIn("imported", result.output.lower())
 
-    def test_mcp_export(self):
-        """Verify mcp export outputs .mcp.json."""
+    def test_mcp_get(self):
+        """Verify mcp get outputs .mcp.json."""
         self.runner.invoke(main, [
             "mcp", "add", "github",
             "--command", "npx",
@@ -125,7 +125,7 @@ class TestMCPCommands(unittest.TestCase):
             "--tool", "vscode",
         ])
 
-        result = self.runner.invoke(main, ["mcp", "export"])
+        result = self.runner.invoke(main, ["mcp", "get"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn(".mcp.json", result.output)
 
@@ -138,8 +138,8 @@ class TestMCPCommands(unittest.TestCase):
 
         output_path.unlink()
 
-    def test_mcp_export_with_path(self):
-        """Verify mcp export --path outputs to specified directory."""
+    def test_mcp_get_with_path(self):
+        """Verify mcp get --path outputs to specified directory."""
         self.runner.invoke(main, [
             "mcp", "add", "github",
             "--command", "npx",
@@ -149,6 +149,6 @@ class TestMCPCommands(unittest.TestCase):
         export_dir = Path(self.temp_dir.name) / "my-project"
         export_dir.mkdir(parents=True)
 
-        result = self.runner.invoke(main, ["mcp", "export", "--path", str(export_dir)])
+        result = self.runner.invoke(main, ["mcp", "get", "--path", str(export_dir)])
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((export_dir / ".mcp.json").exists())

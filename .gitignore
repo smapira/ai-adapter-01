@@ -25,3 +25,15 @@ Thumbs.db
 .github/agents
 .github/bin
 .github/skills
+/.github/agents/test-agent.md
+/.github/agents/reviewer.agent.md
+/.github/agents/agent1.md
+/.github/agents/agent2.md
+/.github/bin/deploy-test.sh
+/.github/bin/test1.sh
+/.github/bin/test2.sh
+/.github/commands/deploy.sh
+/.github/commands/build.sh
+/.github/prompts/review.md
+/.github/prompts/summary.md
+/.github/skills/test-skill/

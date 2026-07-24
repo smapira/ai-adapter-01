@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.0] - 2026-07-25
+
+### Changed
+
+- **Renamed `mcp export` → `mcp get`**: Consistent with agent/bin/skill/command/prompt naming
+- **Merged `mcp load` into `mcp add --file`**: Bulk import from `.mcp.json` is now
+  `ai-adapter mcp add --file .mcp.json` instead of the removed `mcp load` command
+
 ## [0.10.0] - 2026-07-23
 
 ### Changed

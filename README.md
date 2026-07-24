@@ -78,7 +78,7 @@ cd your-project
 ai-adapter agent get reviewer      # → .github/agents/reviewer.md
 ai-adapter bin get --env myhome deploy   # → .github/bin/deploy.sh
 ai-adapter skill get database-schema  # → .github/skills/database-schema/
-ai-adapter mcp export   # → .mcp.json
+ai-adapter mcp get   # → .mcp.json
 
 # 8. Sync with GitHub (share settings)
 ai-adapter sync
@@ -234,27 +234,27 @@ Manages MCP server settings.
 | Command | Description |
 |---------|------|
 | `mcp add <name>` | Add an MCP server setting (with `--command`, `--args`, etc.) |
-| `mcp load --file <path>` | Batch-load MCP server settings from `.mcp.json` |
+| `mcp add --file <path>` | Batch-import MCP server settings from `.mcp.json` |
 | `mcp remove <name>` | Remove an MCP server setting |
 | `mcp list` | List MCP servers (filter with `--tool`, `--env`) |
-| `mcp export --path <dir>` | Output MCP settings to `.mcp.json` (when --path is omitted, uses current directory) |
+| `mcp get --path <dir>` | Export MCP settings to `.mcp.json` (default: current directory) |
 | `mcp remove-all` | Remove all MCP server settings (supports `--force`) |
 
 ```bash
 # Interactive addition
 ai-adapter mcp add github --command npx --args @modelcontextprotocol/server-github
 
-# Batch-load from .mcp.json
+# Batch-import from .mcp.json
 echo '{"mcpServers":{"github":{"command":"npx","args":["@modelcontextprotocol/server-github"]}}}' > .mcp.json
-ai-adapter mcp load
+ai-adapter mcp add --file .mcp.json
 
 # List
 ai-adapter mcp list
 
-# Output to current directory
-ai-adapter mcp export
-# Output to a specified directory
-ai-adapter mcp export --path /path/to/project
+# Export to current directory
+ai-adapter mcp get
+# Export to a specified directory
+ai-adapter mcp get --path /path/to/project
 ```
 
 ### `ai-adapter command`

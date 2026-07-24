@@ -145,8 +145,7 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("list", result.output)
         self.assertIn("add", result.output)
         self.assertIn("remove", result.output)
-        self.assertIn("export", result.output)
-        self.assertIn("load", result.output)
+        self.assertIn("get", result.output)
         self.assertIn("remove-all", result.output)
 
     def test_command_help(self):

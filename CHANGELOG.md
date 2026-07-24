@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.12.0] - 2026-07-25
+
+### Added
+
+- **`opencode validate` subcommand**: Validate agent file formats in `.github/agents/`
+  - `--fix`: Automatically convert array-format `tools` to object format
+  - `--quiet`: Minimal output for CI integration (exit code 0 = valid, 1 = invalid)
+  - `--project-dir`: Target project directory
+- **`agent_format.py` module**: Centralised YAML format utilities for agent files
+  - `parse_frontmatter()`: Parse YAML frontmatter (moved from `agent.py`)
+  - `convert_tools_to_object()`: Convert array-format `tools` to object format
+  - `convert_agent_file()`: Destructive in-place format conversion
+  - `validate_agent_file()`: Validate `tools` field format
+  - `batch_validate_and_fix()`: Directory-level validation and fix
+
+### Changed
+
+- **`agent get` / `agent get-all`**: Added `--fix` option for destructive format conversion.
+  Default behaviour changed to **validate + warn only** (no auto-conversion).
+- **`agent add` / `agent add-rec`**: Replaced `--no-convert` with `--fix` option.
+  Default behaviour changed to **validate + warn only** (no auto-conversion).
+- **`opencode alias`**: Now validates agent files before symlink creation and
+  prompts to fix any format issues.
+
 ## [0.11.0] - 2026-07-25
 
 ### Changed

@@ -10,8 +10,13 @@ import shutil
 from pathlib import Path
 
 import click
-import yaml
 
+from ai_adapter.agent_format import parse_frontmatter as _parse_frontmatter
+from ai_adapter.agent_format import (
+    _convert_tools_in_frontmatter,
+    convert_agent_file,
+    validate_agent_file,
+)
 from ai_adapter.config import (
     add_to_gitignore,
     get_agents_dir,
@@ -20,16 +25,6 @@ from ai_adapter.config import (
     save_config,
 )
 from ai_adapter.models import Agent
-
-
-def _parse_frontmatter(path: Path) -> dict:
-    """Parse YAML frontmatter from a file."""
-    content = path.read_text(encoding="utf-8")
-    match = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
-    if match:
-        data = yaml.safe_load(match.group(1))
-        return data if isinstance(data, dict) else {}
-    return {}
 
 
 def _get_agent_name_from_path(path: Path) -> str:
@@ -55,6 +50,52 @@ def _get_agent_name_from_path(path: Path) -> str:
     while p.suffix:
         p = p.with_suffix("")
     return p.name
+
+
+def _copy_with_tools_conversion(src: Path, dest: Path, fix: bool = False) -> None:
+    """Copy *src* to *dest*, optionally converting ``tools`` format.
+
+    For ``.agent.md`` files the frontmatter ``tools`` field is checked.
+    When *fix* is ``True`` and the field uses array format it is converted
+    to object format and written to *dest* (destructive write).
+    When *fix* is ``False`` (default) a warning is emitted but the file
+    is copied as-is.
+
+    For non-``.agent.md`` files the plain ``shutil.copy2`` is used
+    regardless of *fix*.
+    """
+    if str(src).endswith(".agent.md"):
+        content = src.read_text(encoding="utf-8")
+        match = re.match(r"^(---\s*\n.*?\n---)", content, re.DOTALL)
+        if match:
+            frontmatter_block = match.group(1)
+            inner = re.match(r"^---\s*\n(.*?)\n---", frontmatter_block, re.DOTALL)
+            if inner:
+                yaml_text = inner.group(1)
+                converted_yaml, was_modified = _convert_tools_in_frontmatter(
+                    yaml_text,
+                )
+                if was_modified:
+                    if fix:
+                        # Destructive write: convert and save
+                        new_frontmatter = f"---\n{converted_yaml}\n---"
+                        modified = new_frontmatter + content[match.end():]
+                        dest.write_text(modified, encoding="utf-8")
+                        shutil.copystat(src, dest)
+                        click.echo(
+                            f"  Warning: converted tools format in {dest.name}",
+                            err=True,
+                        )
+                        return
+                    else:
+                        # Validate-only: warn but copy as-is
+                        click.echo(
+                            f"  Warning: {dest.name} has array-format tools "
+                            f"(expected object). Use --fix to convert.",
+                            err=True,
+                        )
+    # Default: plain copy (also covers non-.agent.md files)
+    shutil.copy2(src, dest)
 
 
 @click.group(name="agent")
@@ -83,7 +124,13 @@ def agent_list() -> None:
 
 @agent_group.command(name="add")
 @click.argument("path", type=click.Path(exists=True, readable=True))
-def agent_add(path: str) -> None:
+@click.option(
+    "--fix",
+    is_flag=True,
+    default=False,
+    help="Convert array-format tools to object format (destructive).",
+)
+def agent_add(path: str, fix: bool) -> None:
     """Add an agent file to ~/.ai-adapter/agents/.
 
     PATH: Path to the agent file to add.
@@ -112,6 +159,22 @@ def agent_add(path: str) -> None:
         click.confirm(f"'{dest.name}' already exists. Overwrite?", abort=True)
 
     shutil.copy2(src, dest)
+    if str(dest).endswith(".agent.md"):
+        errors = validate_agent_file(dest)
+        if errors:
+            if fix:
+                convert_agent_file(dest)
+                click.echo(
+                    f"  Warning: converted tools format in {dest.name}",
+                    err=True,
+                )
+            else:
+                for err in errors:
+                    click.echo(f"  Warning: {err}", err=True)
+                click.echo(
+                    "  Use --fix to convert automatically.",
+                    err=True,
+                )
     click.echo(f"Agent '{name}' added: {dest}")
 
     config = load_config()
@@ -132,7 +195,13 @@ def agent_add(path: str) -> None:
 
 @agent_group.command(name="add-rec")
 @click.argument("dir_path", type=click.Path(exists=True, file_okay=False, readable=True))
-def agent_add_rec(dir_path: str) -> None:
+@click.option(
+    "--fix",
+    is_flag=True,
+    default=False,
+    help="Convert array-format tools to object format (destructive).",
+)
+def agent_add_rec(dir_path: str, fix: bool) -> None:
     """Recursively register all agent files in a directory."""
     src_dir = Path(dir_path).resolve()
     agents_dir = get_agents_dir()
@@ -144,6 +213,8 @@ def agent_add_rec(dir_path: str) -> None:
         return
 
     added = 0
+    converted = 0
+    warned = 0
     for f in sorted(src_dir.rglob("*")):
         if not f.is_file():
             continue
@@ -156,23 +227,48 @@ def agent_add_rec(dir_path: str) -> None:
         dest = agents_dir / f.name
         config.agents = [a for a in config.agents if a.name != name]
         shutil.copy2(f, dest)
+        if str(dest).endswith(".agent.md"):
+            errors = validate_agent_file(dest)
+            if errors:
+                if fix:
+                    convert_agent_file(dest)
+                    converted += 1
+                else:
+                    warned += 1
         config.agents.append(Agent(name=name))
         added += 1
 
     save_config(config)
     click.echo(f"Agents added: {added}")
+    if converted:
+        click.echo(
+            f"  Warning: converted tools format in {converted} file(s).",
+            err=True,
+        )
+    if warned:
+        click.echo(
+            f"  Warning: {warned} file(s) have array-format tools. "
+            f"Use --fix to convert.",
+            err=True,
+        )
 
 
 @agent_group.command(name="get")
 @click.argument("name")
 @click.option("--force", is_flag=True, help="Overwrite existing files without prompting")
 @click.option(
+    "--fix",
+    is_flag=True,
+    default=False,
+    help="Convert array-format tools to object format (destructive).",
+)
+@click.option(
     "--project-dir", "-d",
     type=click.Path(exists=True, file_okay=False, readable=True),
     default=None,
     help="Target project directory (default: current directory)",
 )
-def agent_get(name: str, force: bool, project_dir: str | None) -> None:
+def agent_get(name: str, force: bool, fix: bool, project_dir: str | None) -> None:
     """Copy agent file to .github/agents/.
 
     NAME: Agent name to retrieve (no extension needed).
@@ -232,7 +328,7 @@ def agent_get(name: str, force: bool, project_dir: str | None) -> None:
     if dest.exists() and not force:
         click.confirm(f"'{dest.name}' already exists. Overwrite?", abort=True)
 
-    shutil.copy2(src, dest)
+    _copy_with_tools_conversion(src, dest, fix=fix)
     add_to_gitignore(dest)
     click.echo(f"Agent '{name}' copied to {dest}.")
 
@@ -244,7 +340,13 @@ def agent_get(name: str, force: bool, project_dir: str | None) -> None:
     default=None,
     help="Target project directory (default: current directory)",
 )
-def agent_get_all(project_dir: str | None) -> None:
+@click.option(
+    "--fix",
+    is_flag=True,
+    default=False,
+    help="Convert array-format tools to object format (destructive).",
+)
+def agent_get_all(project_dir: str | None, fix: bool) -> None:
     """Copy all registered agents to .github/agents/."""
     config = load_config()
     if config is None or not config.agents:
@@ -286,7 +388,7 @@ def agent_get_all(project_dir: str | None) -> None:
             continue
 
         dest = github_dir / src.name
-        shutil.copy2(src, dest)
+        _copy_with_tools_conversion(src, dest, fix=fix)
         add_to_gitignore(dest)
         copied += 1
 

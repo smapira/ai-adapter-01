@@ -338,7 +338,8 @@ def cmd_add_all_rec() -> None:
         click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
-    from ai_adapter.agent import _get_agent_name_from_path, _parse_frontmatter
+    from ai_adapter.agent import _get_agent_name_from_path
+    from ai_adapter.agent_format import parse_frontmatter
     from ai_adapter.models import Agent, Bin, Skill, MCPServer
     from ai_adapter.skill import _parse_skill_metadata
     import json
@@ -356,7 +357,7 @@ def cmd_add_all_rec() -> None:
                 continue
             dest = agents_dir / f.name
             if str(f).endswith(".agent.md"):
-                fm = _parse_frontmatter(f)
+                fm = parse_frontmatter(f)
                 if not fm or not fm.get("name", "").strip():
                     continue
             name = _get_agent_name_from_path(f)

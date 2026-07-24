@@ -12,6 +12,7 @@ from pathlib import Path
 import click
 
 from ai_adapter import config as _config
+from ai_adapter.agent_format import batch_validate_and_fix, convert_agent_file
 
 
 @click.group(name="opencode")
@@ -24,6 +25,8 @@ def opencode_alias() -> None:
     """Create a .opencode → .github symlink in the current directory.
 
     Creates a .opencode symlink pointing to the absolute path of .github/.
+    Before creating the symlink, validates ``.github/agents/*.agent.md``
+    files and offers to fix any format issues.
     """
     github_path = Path.cwd().resolve() / ".github"
     opencode_path = Path.cwd().resolve() / ".opencode"
@@ -31,6 +34,32 @@ def opencode_alias() -> None:
     if not github_path.exists():
         click.echo(f"'.github' directory not found: {github_path}", err=True)
         raise click.ClickException(".github directory does not exist.")
+
+    # Validate agent files before symlink creation
+    agents_dir = github_path / "agents"
+    if agents_dir.exists():
+        errors = batch_validate_and_fix(agents_dir, fix=False)
+        if errors:
+            click.echo(
+                "Warning: the following agent files have array-format "
+                "tools (expected object format):",
+                err=True,
+            )
+            for err in errors:
+                click.echo(f"  {err}", err=True)
+            click.echo("")
+            if click.confirm("Fix them automatically?"):
+                fixed = 0
+                for f in sorted(agents_dir.iterdir()):
+                    if f.is_file() and str(f).endswith(".agent.md"):
+                        if convert_agent_file(f):
+                            fixed += 1
+                click.echo(f"Fixed {fixed} file(s).")
+            else:
+                raise click.ClickException(
+                    "Agent file format validation failed. "
+                    "Run 'opencode validate --fix' to fix."
+                )
 
     if opencode_path.exists() or opencode_path.is_symlink():
         click.echo(f"'.opencode' already exists.")
@@ -87,3 +116,56 @@ def opencode_uninstall() -> None:
 
     output_path.unlink()
     click.echo(f"opencode.json removed: {output_path}")
+
+
+@opencode_group.command(name="validate")
+@click.option(
+    "--fix",
+    is_flag=True,
+    help="Automatically fix agent file format issues.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    help="Minimal output; only exit code indicates result (0 = valid).",
+)
+@click.option(
+    "--project-dir", "-d",
+    type=click.Path(exists=True, file_okay=False, readable=True),
+    default=None,
+    help="Target project directory (default: current directory)",
+)
+def opencode_validate(fix: bool, quiet: bool, project_dir: str | None) -> None:
+    """Validate agent file formats in ``.github/agents/``.
+
+    Checks that all ``.agent.md`` files have ``tools`` in object format
+    (``tools:\n  execute: true\n  read: true``) rather than array format
+    (``tools: [execute, read]``).
+
+    Exit code: 0 if all valid, 1 if any issues found.
+    """
+    base_dir = Path(project_dir).resolve() if project_dir else Path.cwd()
+    agents_dir = base_dir / ".github" / "agents"
+
+    if not agents_dir.exists():
+        if not quiet:
+            click.echo("No .github/agents/ directory found.")
+        return
+
+    errors = batch_validate_and_fix(agents_dir, fix=fix)
+
+    if errors:
+        if not quiet:
+            for err in errors:
+                click.echo(err, err=True)
+            if fix:
+                click.echo(f"Fixed {len(errors)} file(s).")
+            else:
+                click.echo(
+                    "Run with --fix to automatically correct format.",
+                    err=True,
+                )
+        raise SystemExit(1)
+
+    if not quiet:
+        click.echo("All agent files are valid.")

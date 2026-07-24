@@ -1,6 +1,7 @@
 """Tests for opencode.py."""
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -94,3 +95,177 @@ class TestOpencodeCommands(unittest.TestCase):
         self.assertIn(".github/agents/*.agent.md", data.get("instructions", []))
 
         output_path.unlink()
+
+
+class TestOpencodeValidateCommand(unittest.TestCase):
+    """Tests for opencode validate subcommand."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.patch_home = Path(self.temp_dir.name)
+        self.runner = CliRunner()
+
+        import pathlib
+        self._original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.patch_home)
+
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
+
+        init()
+
+    def tearDown(self):
+        import pathlib
+        pathlib.Path.home = staticmethod(self._original_home)
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        self.temp_dir.cleanup()
+        import shutil
+        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+
+    def _create_github_agents(self) -> Path:
+        """Create .github/agents/ in temp dir and return the path."""
+        agents_dir = Path.cwd() / ".github" / "agents"
+        agents_dir.mkdir(parents=True, exist_ok=True)
+        return agents_dir
+
+    def test_opencode_validate_valid(self):
+        """All files valid → exit 0."""
+        agents_dir = self._create_github_agents()
+        (agents_dir / "good.agent.md").write_text(
+            "---\n"
+            "name: good\n"
+            "tools:\n"
+            "  execute: true\n"
+            "---\n"
+        )
+        result = self.runner.invoke(main, ["opencode", "validate"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("All agent files are valid", result.output)
+
+    def test_opencode_validate_invalid(self):
+        """Invalid files detected → exit 1."""
+        agents_dir = self._create_github_agents()
+        (agents_dir / "bad.agent.md").write_text(
+            "---\n"
+            "name: bad\n"
+            "tools: [execute]\n"
+            "---\n"
+        )
+        result = self.runner.invoke(main, ["opencode", "validate"])
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("array format", result.output)
+
+    def test_opencode_validate_fix(self):
+        """``--fix`` automatically repairs invalid files."""
+        agents_dir = self._create_github_agents()
+        bad_file = agents_dir / "bad.agent.md"
+        bad_file.write_text(
+            "---\n"
+            "name: bad\n"
+            "tools: [execute]\n"
+            "---\n"
+        )
+        result = self.runner.invoke(main, ["opencode", "validate", "--fix"])
+        self.assertEqual(result.exit_code, 0)  # fixed, so no errors
+
+        content = bad_file.read_text()
+        # But wait -- after fixing, validate returns no errors,
+        # so exit code should be 0.
+        self.assertIn("  execute: true", content)
+
+    def test_opencode_validate_quiet(self):
+        """``--quiet`` minimises output, still returns exit code."""
+        agents_dir = self._create_github_agents()
+        (agents_dir / "bad.agent.md").write_text(
+            "---\n"
+            "name: bad\n"
+            "tools: [execute]\n"
+            "---\n"
+        )
+        result = self.runner.invoke(main, ["opencode", "validate", "--quiet"])
+        self.assertEqual(result.exit_code, 1)
+        self.assertEqual(result.output.strip(), "")
+
+    def test_opencode_validate_no_agents_dir(self):
+        """No ``.github/agents/`` → exit 0 with message."""
+        result = self.runner.invoke(main, ["opencode", "validate"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("No .github/agents/ directory found", result.output)
+
+
+class TestOpencodeAliasValidation(unittest.TestCase):
+    """Tests for opencode alias validation logic."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        # Work inside temp dir so CWD is isolated
+        self.orig_cwd = Path.cwd()
+        self.work_dir = Path(self.temp_dir.name) / "project"
+        self.work_dir.mkdir(parents=True)
+        self.work_dir = self.work_dir.resolve()
+        os.chdir(self.work_dir)
+
+        self.patch_home = Path(self.temp_dir.name)
+        self.runner = CliRunner()
+
+        import pathlib
+        self._original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.patch_home)
+
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
+
+        init()
+
+    def tearDown(self):
+        import pathlib
+        pathlib.Path.home = staticmethod(self._original_home)
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        self.temp_dir.cleanup()
+        os.chdir(self.orig_cwd)
+
+    def _create_github_with_agents(self) -> Path:
+        """Create .github/agents/ with a valid agent file."""
+        agents_dir = self.work_dir / ".github" / "agents"
+        agents_dir.mkdir(parents=True, exist_ok=True)
+        return agents_dir
+
+    def test_opencode_alias_validates_and_fixes(self):
+        """Alias detects invalid agents and prompts to fix."""
+        agents_dir = self._create_github_with_agents()
+        bad_file = agents_dir / "bad.agent.md"
+        bad_file.write_text(
+            "---\n"
+            "name: bad\n"
+            "tools: [execute]\n"
+            "---\n"
+        )
+
+        # Input 'y' to confirm fixing
+        result = self.runner.invoke(
+            main, ["opencode", "alias"], input="y\n",
+        )
+        # After fixing, symlink should be created
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("Symlink created", result.output)
+
+        # File should be fixed
+        content = bad_file.read_text()
+        self.assertIn("  execute: true", content)
+        self.assertNotIn("[execute]", content)
+
+        # Cleanup symlink
+        (self.work_dir / ".opencode").unlink()
+
+    def test_opencode_alias_no_github_agents(self):
+        """No ``.github/agents/`` → alias proceeds without validation."""
+        # Create .github without agents/
+        (self.work_dir / ".github").mkdir(parents=True)
+
+        result = self.runner.invoke(main, ["opencode", "alias"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("Symlink created", result.output)
+
+        (self.work_dir / ".opencode").unlink()

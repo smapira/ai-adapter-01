@@ -303,3 +303,187 @@ class TestAgentCommands(unittest.TestCase):
 
         import shutil
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+
+
+class TestAgentToolsConversion(unittest.TestCase):
+    """Tests for tools format conversion in agent commands."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.patch_home = Path(self.temp_dir.name)
+        self.runner = CliRunner()
+
+        import pathlib
+        self._original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.patch_home)
+
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
+
+        init()
+
+    def tearDown(self):
+        import pathlib
+        pathlib.Path.home = staticmethod(self._original_home)
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        self.temp_dir.cleanup()
+        # Cleanup .github/agents/ if created in CWD
+        import shutil
+        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+
+    def test_agent_get_converts_tools_with_fix(self):
+        """``agent get --fix`` converts array-format tools to object format."""
+        src = Path(self.temp_dir.name) / "my.agent.md"
+        src.write_text(
+            "---\n"
+            "name: myagent\n"
+            "tools: [execute, read]\n"
+            "---\n"
+            "# My Agent\n"
+        )
+        # Default add = no conversion
+        self.runner.invoke(main, ["agent", "add", str(src)])
+
+        # Run agent get with --fix to convert
+        github_agents = Path.cwd() / ".github" / "agents"
+        github_agents.mkdir(parents=True, exist_ok=True)
+
+        result = self.runner.invoke(main, ["agent", "get", "myagent", "--fix"])
+        self.assertEqual(result.exit_code, 0)
+
+        dest = github_agents / "my.agent.md"
+        self.assertTrue(dest.exists())
+
+        content = dest.read_text()
+        self.assertIn("  execute: true", content)
+        self.assertIn("  read: true", content)
+        self.assertNotIn("[execute, read]", content)
+
+        # Warning should be on stderr
+        self.assertIn("Warning: converted tools format", result.output)
+
+    def test_agent_get_warns_on_array_format(self):
+        """``agent get`` warns on array-format tools but does NOT convert."""
+        src = Path(self.temp_dir.name) / "my.agent.md"
+        src.write_text(
+            "---\n"
+            "name: myagent\n"
+            "tools: [execute, read]\n"
+            "---\n"
+            "# My Agent\n"
+        )
+        self.runner.invoke(main, ["agent", "add", str(src)])
+
+        github_agents = Path.cwd() / ".github" / "agents"
+        github_agents.mkdir(parents=True, exist_ok=True)
+
+        # Without --fix: warn but do NOT convert
+        result = self.runner.invoke(main, ["agent", "get", "myagent"])
+        self.assertEqual(result.exit_code, 0)
+
+        dest = github_agents / "my.agent.md"
+        self.assertTrue(dest.exists())
+
+        content = dest.read_text()
+        self.assertIn("[execute, read]", content)  # kept as-is
+        self.assertIn("Warning:", result.output)
+        self.assertIn("--fix", result.output)
+
+    def test_agent_get_all_converts_tools_with_fix(self):
+        """``agent get-all --fix`` converts array-format tools for all agents."""
+        src1 = Path(self.temp_dir.name) / "alpha.agent.md"
+        src1.write_text(
+            "---\n"
+            "name: alpha\n"
+            "tools: [execute]\n"
+            "---\n"
+        )
+        src2 = Path(self.temp_dir.name) / "beta.agent.md"
+        src2.write_text(
+            "---\n"
+            "name: beta\n"
+            "tools: [read, agent]\n"
+            "---\n"
+        )
+        # Default add = no conversion
+        self.runner.invoke(main, ["agent", "add", str(src1)])
+        self.runner.invoke(main, ["agent", "add", str(src2)])
+
+        github_agents = Path.cwd() / ".github" / "agents"
+        github_agents.mkdir(parents=True, exist_ok=True)
+
+        result = self.runner.invoke(main, ["agent", "get-all", "--fix"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("2", result.output)
+
+        # Check both files were converted
+        content_alpha = (github_agents / "alpha.agent.md").read_text()
+        self.assertIn("  execute: true", content_alpha)
+
+        content_beta = (github_agents / "beta.agent.md").read_text()
+        self.assertIn("  read: true", content_beta)
+        self.assertIn("  agent: true", content_beta)
+
+    def test_agent_get_non_agent_md_unchanged(self):
+        """Non-``.agent.md`` files are not converted (plain copy2)."""
+        src = Path(self.temp_dir.name) / "plain.md"
+        src.write_text("# Plain markdown\n")
+        self.runner.invoke(main, ["agent", "add", str(src)])
+
+        github_agents = Path.cwd() / ".github" / "agents"
+        github_agents.mkdir(parents=True, exist_ok=True)
+
+        result = self.runner.invoke(main, ["agent", "get", "plain"])
+        self.assertEqual(result.exit_code, 0)
+
+        dest = github_agents / "plain.md"
+        self.assertTrue(dest.exists())
+        self.assertEqual(dest.read_text(), "# Plain markdown\n")
+
+    def test_agent_add_warns_on_array_format(self):
+        """``agent add`` warns on array-format tools but does NOT convert."""
+        src = Path(self.temp_dir.name) / "new.agent.md"
+        src.write_text(
+            "---\n"
+            "name: newagent\n"
+            "tools: [execute, read]\n"
+            "---\n"
+            "# New Agent\n"
+        )
+
+        result = self.runner.invoke(main, ["agent", "add", str(src)])
+        self.assertEqual(result.exit_code, 0)
+
+        agents_dir = self.patch_home / ".ai-adapter" / "agents"
+        dest = agents_dir / "new.agent.md"
+        self.assertTrue(dest.exists())
+
+        content = dest.read_text()
+        # Array format should be preserved (no conversion by default)
+        self.assertIn("[execute, read]", content)
+        self.assertIn("Warning:", result.output)
+        self.assertIn("--fix", result.output)
+
+    def test_agent_add_fix_flag(self):
+        """``agent add --fix`` converts array-format tools."""
+        src = Path(self.temp_dir.name) / "raw.agent.md"
+        src.write_text(
+            "---\n"
+            "name: rawagent\n"
+            "tools: [execute]\n"
+            "---\n"
+        )
+
+        result = self.runner.invoke(
+            main, ["agent", "add", str(src), "--fix"],
+        )
+        self.assertEqual(result.exit_code, 0)
+
+        agents_dir = self.patch_home / ".ai-adapter" / "agents"
+        dest = agents_dir / "raw.agent.md"
+        self.assertTrue(dest.exists())
+
+        content = dest.read_text()
+        self.assertIn("  execute: true", content)  # converted
+        self.assertNotIn("[execute]", content)

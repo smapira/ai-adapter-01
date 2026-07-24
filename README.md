@@ -34,6 +34,19 @@ pip install ai-adapter
 uv pip install ai-adapter
 ```
 
+### Upgrade
+
+```bash
+# Upgrade via pip
+pip install --upgrade ai-adapter
+
+# Upgrade via uv
+uv pip install --upgrade ai-adapter
+
+# Upgrade to the latest development version
+cd ai-adapter && git pull && uv sync && uv pip install -e .
+```
+
 ### Development Version
 
 ```bash

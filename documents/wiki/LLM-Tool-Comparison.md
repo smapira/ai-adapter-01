@@ -218,3 +218,29 @@ The `opencode` subcommand bridges `ai-adapter` with OpenCode:
 - **Cursor** uses `.cursor/rules/*.mdc` with YAML frontmatter and `globs` for file-scoped rules, plus `.cursor/mcp.json` for MCP. Legacy `.cursorrules` format is also supported.
 - **Continue** uses `.continuerc.json` with a `rules` array for project instructions and model configuration.
 - **ai-adapter** unifies these tools by managing `.github/` as the single source of truth and providing bridging commands (e.g., `opencode install`) for tool-specific formats.
+
+---
+
+## Reference / Official Documentation
+
+All URLs below were verified as reachable (HTTP 200).
+
+| Tool | Topic | URL |
+|------|-------|-----|
+| **GitHub Copilot** | Official docs | <https://docs.github.com/en/copilot/customizing-copilot> |
+| | Custom instructions (`.github/instructions/*.md`) | <https://docs.github.com/en/copilot/customizing-copilot/adding-custom-instructions-for-github-copilot> |
+| | Agents overview | <https://docs.github.com/en/copilot/how-tos/copilot-on-github/use-copilot-agents/overview> |
+| | Custom agents (SDK) | <https://docs.github.com/en/copilot/how-tos/copilot-sdk/features/custom-agents> |
+| | Skills (SDK) | <https://docs.github.com/en/copilot/how-tos/copilot-sdk/features/skills> |
+| | MCP (SDK) | <https://docs.github.com/en/copilot/how-tos/copilot-sdk/features/mcp> |
+| **Claude Code** | Official docs | <https://docs.anthropic.com/en/docs/claude-code/overview> |
+| **OpenCode** | GitHub repository | <https://github.com/opencode-ai/opencode> |
+| | Configuration | <https://github.com/opencode-ai/opencode?tab=readme-ov-file#configuration> |
+| **OpenAI Codex CLI** | GitHub repository | <https://github.com/openai/codex> |
+| | AGENTS.md spec | <https://github.com/openai/codex/blob/main/docs/agents_md.md> |
+| **Cursor** | Official docs | <https://docs.cursor.com/get-started/welcome> |
+| | Rules (`.cursor/rules/*.mdc`) | <https://docs.cursor.com/context/rules-for-ai> |
+| | MCP | <https://docs.cursor.com/advanced/mcp> |
+| **Continue** | Official docs | <https://docs.continue.dev/intro> |
+| | Configuration (`.continuerc.json`) | <https://docs.continue.dev/reference/config> |
+| | Tools / MCP | <https://docs.continue.dev/customize/tools> |

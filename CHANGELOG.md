@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.13.0] - 2026-07-25
+
+### Changed
+
+- **`add-all-rec`**: Improved user experience when `.github/` directory is missing
+  - Auto-creates `.github/` instead of continuing silently with "Total: 0"
+  - Each section (agents/bin/skills/.mcp.json) now always reports its status:
+    - `N registered` when files exist
+    - `skip (directory not found)` when the directory is absent
+  - Eliminates confusing "All imports completed: Total: 0" with no explanation
+
 ## [0.12.0] - 2026-07-25
 
 ### Added

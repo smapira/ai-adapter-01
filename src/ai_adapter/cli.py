@@ -331,7 +331,8 @@ def cmd_add_all_rec() -> None:
     """Import all files under .github/ into ~/.ai-adapter/."""
     github_dir = Path.cwd() / ".github"
     if not github_dir.exists():
-        click.echo(f"'.github' directory not found.")
+        github_dir.mkdir(parents=True, exist_ok=True)
+        click.echo(f"'{github_dir}/' created.")
 
     config = _config.load_config()
     if config is None:
@@ -365,9 +366,10 @@ def cmd_add_all_rec() -> None:
             shutil.copy2(f, dest)
             config.agents.append(Agent(name=name))
             added += 1
-        if added:
-            click.echo(f"  agents/: {added} registered")
-            total_added += added
+        click.echo(f"  agents/: {added} registered")
+        total_added += added
+    else:
+        click.echo(f"  agents/: skip (directory not found)")
 
     # 2) bin/
     bins_src = github_dir / "bin"
@@ -384,9 +386,10 @@ def cmd_add_all_rec() -> None:
             shutil.copy2(f, dest)
             config.bins.append(Bin(name=f.name, env=resolved_env))
             added += 1
-        if added:
-            click.echo(f"  bin/: {added} registered")
-            total_added += added
+        click.echo(f"  bin/: {added} registered")
+        total_added += added
+    else:
+        click.echo(f"  bin/: skip (directory not found)")
 
     # 3) skills/
     skills_src = github_dir / "skills"
@@ -417,9 +420,10 @@ def cmd_add_all_rec() -> None:
                 tags=metadata.get("tags", []),
             ))
             added += 1
-        if added:
-            click.echo(f"  skills/: {added} registered")
-            total_added += added
+        click.echo(f"  skills/: {added} registered")
+        total_added += added
+    else:
+        click.echo(f"  skills/: skip (directory not found)")
 
     # 4) .mcp.json
     mcp_json = Path.cwd() / ".mcp.json"
@@ -441,11 +445,12 @@ def cmd_add_all_rec() -> None:
                         env=None,
                     ))
                     added += 1
-            if added:
-                click.echo(f"  .mcp.json: {added} registered")
-                total_added += added
+            click.echo(f"  .mcp.json: {added} registered")
+            total_added += added
         except (json.JSONDecodeError, Exception) as e:
             click.echo(f"  .mcp.json  failed to load: {e}")
+    else:
+        click.echo(f"  .mcp.json: skip (file not found)")
 
     _config.save_config(config)
     click.echo(f"All imports completed: Total: {total_added}")

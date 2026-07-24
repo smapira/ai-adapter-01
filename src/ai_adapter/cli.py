@@ -88,11 +88,8 @@ def cmd_init(remote: str | None) -> None:
 
 
 @main.command(name="status")
-@click.option("--diff", is_flag=True, help="Show file-level sync diff with .github/ directories")
-@click.option("--project-dir", "-d", type=click.Path(exists=True, file_okay=False, readable=True), default=None,
-              help="Project directory for diff comparison (default: current directory)")
-def cmd_status(diff: bool, project_dir: str | None) -> None:
-    """Show current status."""
+def cmd_status() -> None:
+    """Show current status with sync diff."""
     adapter_dir = _config.AI_ADAPTER_DIR
     if not adapter_dir.exists():
         click.echo("ai-adapter is not initialized.")
@@ -137,9 +134,8 @@ def cmd_status(diff: bool, project_dir: str | None) -> None:
         if conflicted:
             click.echo(f"  Conflicted files: {', '.join(conflicted)}")
 
-    # Diff section
-    if diff:
-        _show_diff(project_dir)
+    # Sync diff section
+    _show_diff(None)
 
 
 @main.command(name="start")

@@ -382,7 +382,8 @@ Internally, the following steps are executed:
 
 ## Data Storage
 
-All data is stored under `~/.ai-adapter/`.
+All data is stored under `~/.ai-adapter/`.  
+Project-level files are deployed to `.github/` (may change in future versions).
 
 ```
 ~/.ai-adapter/

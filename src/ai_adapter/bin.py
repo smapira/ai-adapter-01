@@ -110,7 +110,7 @@ def bin_add(path: str, env: str | None, description: str, agent: str | None) -> 
     shutil.copy2(src, dest)
     click.echo(f"Script '{src.name}' added (env: {resolved_env}): {dest}")
 
-    # 重複チェック
+    # Duplicate check
     for existing in config.bins:
         if existing.name == src.name and existing.env == resolved_env:
             save_config(config)
@@ -174,7 +174,7 @@ def bin_get(name: str, env: str | None, agent: str | None, project_dir: str | No
 
     resolved_env = resolve_env(config, env, agent)
 
-    # config から検索
+    # Search from config
     bin_entry = None
     for b in config.bins:
         if b.name == name and b.env == resolved_env:
@@ -256,7 +256,7 @@ def bin_remove(name: str, env: str | None, agent: str | None) -> None:
 
     resolved_env = resolve_env(config, env, agent)
 
-    # config から削除
+    # Remove from config
     found = None
     for b in config.bins:
         if b.name == name and b.env == resolved_env:
@@ -270,7 +270,7 @@ def bin_remove(name: str, env: str | None, agent: str | None) -> None:
     config.bins.remove(found)
     save_config(config)
 
-    # .github/bin/ からも削除
+    # Also delete from .github/bin/
     github_dir = get_github_bins_dir()
     target = github_dir / name
     if target.exists():

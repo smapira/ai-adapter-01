@@ -79,7 +79,7 @@ class TestSyncCommand(unittest.TestCase):
     @patch("ai_adapter.sync.has_remote")
     def test_sync_not_initialized(self, mock_has_remote, mock_is_repo):
         """Verify sync command shows init required message."""
-        # init の一時ディレクトリをremovedして未初期化Statusにする
+        # Remove temp init directory to create uninitialized status
         import shutil
         shutil.rmtree(self.patch_home / ".ai-adapter")
 
@@ -101,7 +101,7 @@ class TestSyncCommand(unittest.TestCase):
         mock_get_remotes.return_value = []
         mock_load_config.return_value = Config()
 
-        # Enter でSkip
+        # Skip with Enter
         result = self.runner.invoke(main, ["sync"], input="\n")
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Skipping sync", result.output)

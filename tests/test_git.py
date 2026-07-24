@@ -73,7 +73,7 @@ class TestGitFunctions(unittest.TestCase):
     @patch("ai_adapter.git._run_git")
     def test_add_all(self, mock_run_git):
         """Verify add_all calls git add -A."""
-        # 1回目: add -A 成功, 2回目: diff --cached --quiet (変更あり=exit code 1)
+        # 1st: add -A success, 2nd: diff --cached --quiet (changes exist=exit code 1)
         mock_run_git.side_effect = [
             type("Result", (), {"returncode": 0})(),
             GitError("git diff --cached --quiet failed"),
@@ -126,7 +126,7 @@ class TestGitRebaseDetection(unittest.TestCase):
         git_dir = self.test_path / ".git"
         git_dir.mkdir()
         (git_dir / "rebase-apply").mkdir()
-        # rev-parse が絶対パスの .git を返す
+        # rev-parse returns absolute path of .git
         mock_run_git.return_value = type("R", (), {"stdout": str(git_dir), "returncode": 0})()
         self.assertTrue(is_rebasing(self.test_path))
 
@@ -153,7 +153,7 @@ class TestGitRebaseDetection(unittest.TestCase):
     def test_get_conflicted_files_empty(self, mock_run_git):
         """Verify returns empty list when no conflicts."""
         from ai_adapter.git import get_conflicted_files
-        # diff-filter=U で何も出力されない
+        # diff-filter=U outputs nothing
         mock_run_git.side_effect = GitError("no output")
         files = get_conflicted_files(self.test_path)
         self.assertEqual(files, [])

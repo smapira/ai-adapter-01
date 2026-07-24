@@ -64,7 +64,7 @@ class TestCLIIntegration(unittest.TestCase):
 
     def test_init_and_status(self):
         """Verify init → status flow."""
-        # init (空 Enter でリモート入力をSkip)
+        # init (skip remote input with empty Enter)
         result = self.runner.invoke(main, ["init"], input="\n")
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Initialized", result.output)
@@ -227,7 +227,7 @@ class TestUninstallCommand(unittest.TestCase):
         self.runner.invoke(main, ["init"], input="\n")
         adapter_dir = self.patch_home / ".ai-adapter"
 
-        # Git リポジトリを模擬
+        # Simulate Git repository
         git_dir = adapter_dir / ".git"
         git_dir.mkdir(parents=True, exist_ok=True)
         (git_dir / "HEAD").write_text("ref: refs/heads/main\n")
@@ -274,7 +274,7 @@ class TestStartCommand(unittest.TestCase):
     @patch("ai_adapter.cli._git.clone")
     def test_start_new_repo(self, mock_clone):
         """Verify start command sets up a new repository."""
-        # clone 失敗 → 新規 init パス
+        # Clone failed → new init path
         mock_clone.side_effect = GitError("clone failed")
 
         result = self.runner.invoke(main, [
@@ -390,7 +390,7 @@ class TestAddAllRecCommand(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("agents", result.output)
 
-        # list で確認
+        # Verify via list
         result = self.runner.invoke(main, ["agent", "list"])
         self.assertIn("reviewer", result.output)
         self.assertIn("implementer", result.output)

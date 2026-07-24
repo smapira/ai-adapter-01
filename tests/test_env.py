@@ -47,7 +47,7 @@ class TestEnvCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("myenv", result.output)
 
-        # list で表示されるか
+        # Verify it is displayed via list
         result = self.runner.invoke(main, ["env", "list"])
         self.assertIn("myenv", result.output)
 
@@ -137,7 +137,7 @@ class TestEnvCommands(unittest.TestCase):
         self.assertIn("All environments", result.output)
         self.assertIn("default", result.output)
 
-        # default のみ残る
+        # Only default remains
         result = self.runner.invoke(main, ["env", "list"])
         self.assertIn("default", result.output)
         self.assertNotIn("myenv", result.output)

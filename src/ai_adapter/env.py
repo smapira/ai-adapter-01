@@ -50,7 +50,7 @@ def env_add(name: str, description: str) -> None:
         click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
-    # 重複チェック
+    # Duplicate check
     for env in config.envs:
         if env.name == name:
             click.echo(f"Environment '{name}' already exists.", err=True)
@@ -74,12 +74,12 @@ def env_remove(name: str, force: bool) -> None:
         click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
-    # デフォルト環境は削除不可
+    # Default environment cannot be removed
     if name == config.default_env:
         click.echo(f"Default environment '{name}' cannot be removed.", err=True)
         raise click.ClickException("Default environment cannot be removed. Use set-default to change it first.")
 
-    # 存在チェック
+    # Existence check
     target = None
     for env in config.envs:
         if env.name == name:
@@ -90,7 +90,7 @@ def env_remove(name: str, force: bool) -> None:
         click.echo(f"Environment '{name}' is not registered.", err=True)
         raise click.ClickException(f"Environment '{name}' not found.")
 
-    # bin での参照チェック
+    # Check references in bins
     ref_bins = [b for b in config.bins if b.env == name]
     if ref_bins and not force:
         click.echo(
@@ -102,7 +102,7 @@ def env_remove(name: str, force: bool) -> None:
 
     config.envs.remove(target)
 
-    # エージェント紐付けも削除
+    # Also remove agent associations
     config.agent_bindings = [
         b for b in config.agent_bindings if b.env != name
     ]
@@ -134,7 +134,7 @@ def env_set_default(name: str) -> None:
         click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
-    # 存在チェック
+    # Existence check
     found = any(env.name == name for env in config.envs)
     if not found:
         click.echo(f"Environment '{name}' is not registered.", err=True)
@@ -159,13 +159,13 @@ def env_link_agent(agent: str, env: str) -> None:
         click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
-    # 環境存在チェック
+    # Environment existence check
     env_found = any(e.name == env for e in config.envs)
     if not env_found:
         click.echo(f"Environment '{env}' is not registered.", err=True)
         raise click.ClickException(f"Environment '{env}' not found.")
 
-    # 既存の同名エージェント紐付けがあれば上書き
+    # Overwrite if an association with the same agent name already exists
     for binding in config.agent_bindings:
         if binding.agent == agent:
             old_env = binding.env
@@ -226,7 +226,7 @@ def env_remove_all(force: bool) -> None:
     if not force:
         click.confirm(f"Remove all environments ({count})? (Default will be kept)", abort=True)
 
-    # bin での参照チェック
+    # Check references in bins
     ref_bins = [b for b in config.bins if b.env in [e.name for e in non_default]]
     if ref_bins and not force:
         click.echo(
@@ -239,7 +239,7 @@ def env_remove_all(force: bool) -> None:
     removed_names = [e.name for e in non_default]
     config.envs = [e for e in config.envs if e.name == config.default_env]
 
-    # エージェント紐付けも削除
+    # Also remove agent associations
     config.agent_bindings = [
         b for b in config.agent_bindings if b.env not in removed_names
     ]

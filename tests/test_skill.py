@@ -27,7 +27,7 @@ class TestSkillCommands(unittest.TestCase):
 
         init()
 
-        # テスト用スキルディレクトリ作成
+        # Create test skill directory
         self.skill_dir = Path(self.temp_dir.name) / "test-skill"
         self.skill_dir.mkdir(parents=True)
         skill_md = self.skill_dir / "SKILL.md"
@@ -114,7 +114,7 @@ class TestSkillCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("test-skill", result.output)
 
-        # list で表示されないことを確認
+        # Verify it is not displayed in list
         result = self.runner.invoke(main, ["skill", "list"])
         self.assertIn("No skills registered.", result.output)
 
@@ -134,7 +134,7 @@ class TestSkillCommands(unittest.TestCase):
 
     def test_skill_link_agent(self):
         """Verify skill link-agent binds skill to agent."""
-        # 先にエージェントを追加
+        # First add the agent
         agent_file = Path(self.temp_dir.name) / "test-agent.md"
         agent_file.write_text("# Test Agent")
         self.runner.invoke(main, ["agent", "add", str(agent_file)])
@@ -168,7 +168,7 @@ class TestSkillCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("All skills", result.output)
 
-        # remove-all は config のみ解除（ディレクトリは保持されるが list は config 参照）
+        # remove-all only clears config (directory is preserved, but list reads from config)
         result = self.runner.invoke(main, ["skill", "list"])
         self.assertIn("No skills registered.", result.output)
 

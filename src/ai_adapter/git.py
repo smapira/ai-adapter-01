@@ -83,8 +83,8 @@ def add_all(path: Path) -> bool:
         True if there are staged changes, False otherwise.
     """
     _run_git(["add", "-A"], cwd=path)
-    # 変更があるか確認
-    # git diff --cached --quiet は変更ありのとき exit code 1 を返す（正常）
+    # Check if there are changes
+    # git diff --cached --quiet returns exit code 1 when there are changes (normal)
     try:
         _run_git(["diff", "--cached", "--quiet"], cwd=path)
         return False  # no changes

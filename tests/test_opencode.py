@@ -54,7 +54,7 @@ class TestOpencodeCommands(unittest.TestCase):
 
     def test_opencode_uninstall(self):
         """Verify opencode uninstall removes opencode.json."""
-        # 先にインストール
+        # Install first
         output_path = Path.cwd() / "opencode.json"
         output_path.write_text("{}")
 
@@ -85,12 +85,12 @@ class TestOpencodeCommands(unittest.TestCase):
         with open(output_path) as f:
             data = json.load(f)
 
-        # permission が全て "ask" であることを確認
+        # Verify all permissions are "ask"
         perm = data.get("permission", {})
         for key in ["execute", "read", "edit", "search", "agent", "browser", "web", "todo"]:
             self.assertEqual(perm.get(key), "ask", f"permission.{key} is not ask")
 
-        # instructions に .agent.md が含まれる
+        # instructions includes .agent.md
         self.assertIn(".github/agents/*.agent.md", data.get("instructions", []))
 
         output_path.unlink()

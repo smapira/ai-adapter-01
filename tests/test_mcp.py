@@ -129,7 +129,7 @@ class TestMCPCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn(".mcp.json", result.output)
 
-        # カレントディレクトリに .mcp.json が出力される
+        # .mcp.json is output to the current directory
         output_path = Path.cwd() / ".mcp.json"
         self.assertTrue(output_path.exists())
         with open(output_path) as f:

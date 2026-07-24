@@ -46,7 +46,7 @@ class TestBinAddRecCommand(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("2", result.output)
 
-        # list で確認
+        # Verify via list
         result = self.runner.invoke(main, ["bin", "list"])
         self.assertIn("script1.sh", result.output)
         self.assertIn("script2.sh", result.output)
@@ -69,7 +69,7 @@ class TestBinCommands(unittest.TestCase):
 
         init()
 
-        # Test scriptファイル作成
+        # Create test script file
         self.script_file = Path(self.temp_dir.name) / "deploy-test.sh"
         self.script_file.write_text("#!/bin/bash\necho 'deploy test'\n")
 
@@ -178,7 +178,7 @@ class TestBinCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("deploy-test.sh", result.output)
 
-        # ファイルはnot removedことを確認
+        # Verify file is not removed
         bins_dir = self.patch_home / ".ai-adapter" / "bin"
         self.assertTrue((bins_dir / "deploy-test.sh").exists())
 
@@ -200,6 +200,6 @@ class TestBinCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("All scripts", result.output)
 
-        # list で空になる
+        # List is now empty
         result = self.runner.invoke(main, ["bin", "list"])
         self.assertIn("No scripts registered.", result.output)

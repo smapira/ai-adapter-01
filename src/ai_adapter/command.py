@@ -76,12 +76,12 @@ def command_add(path: str) -> None:
 
 def _find_command_by_name(commands_dir: Path, name: str) -> Path | None:
     """Find a command file by name."""
-    # 1. 完全一致
+    # 1. Exact match
     exact = commands_dir / name
     if exact.exists() and exact.is_file():
         return exact
 
-    # 2. 拡張子付きで検索
+    # 2. Search with extension
     for f in sorted(commands_dir.iterdir()):
         if f.is_file() and f.stem == name:
             return f
@@ -138,7 +138,7 @@ def command_remove(name: str) -> None:
             click.echo(f"File {f.name} deleted.")
             break
 
-    # .github/commands/ からも削除
+    # Also delete from .github/commands/
     github_dir = get_github_commands_dir()
     if github_dir.exists():
         for f in github_dir.iterdir():

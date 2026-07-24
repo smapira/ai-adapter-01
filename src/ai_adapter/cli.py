@@ -51,7 +51,7 @@ def cmd_init(remote: str | None) -> None:
     else:
         click.echo(f"Already initialized: {_config.AI_ADAPTER_DIR}")
 
-    # リモート設定
+    # Remote configuration
     adapter_dir = _config.AI_ADAPTER_DIR
 
     if not _git.is_repo(adapter_dir):
@@ -115,7 +115,7 @@ def cmd_status() -> None:
     if config.remote:
         click.echo(f"  Remote: {config.remote}")
 
-    # ディレクトリ存在確認
+    # Directory existence check
     agents_dir = adapter_dir / "agents"
     bins_dir = adapter_dir / "bin"
     skills_dir = adapter_dir / "skills"
@@ -125,7 +125,7 @@ def cmd_status() -> None:
     click.echo(f"  skills/ directory: {'✓' if skills_dir.exists() else '✗'}")
     click.echo(f"  mcp/ directory: {'✓' if mcp_dir.exists() else '✗'}")
 
-    # リベースStatus
+    # Rebase status
     rebasing = is_rebasing(adapter_dir)
     click.echo(f"  Rebase state: {'⚠ In progress' if rebasing else '✓'}")
     if rebasing:
@@ -147,7 +147,7 @@ def cmd_start(url: str) -> None:
         click.echo(f"'{adapter_dir}' already exists.")
         click.confirm("Overwrite existing settings? (Settings will be merged)", abort=True)
 
-    # Step 1: git clone を試みる
+    # Step 1: Attempt git clone
     click.echo(f"Cloning from remote repository: {url}")
     try:
         _git.clone(url, adapter_dir)
@@ -159,7 +159,7 @@ def cmd_start(url: str) -> None:
         _git.add_remote(adapter_dir, "origin", url)
         click.echo(f"Remote set: {url}")
 
-    # Step 2: ディレクトリ構造を初期化
+    # Step 2: Initialize directory structure
     dirs = [
         adapter_dir / "agents",
         adapter_dir / "bin",
@@ -169,7 +169,7 @@ def cmd_start(url: str) -> None:
     for d in dirs:
         d.mkdir(parents=True, exist_ok=True)
 
-    # Step 3: config.json がなければデフォルト生成
+    # Step 3: Generate default config.json if missing
     from ai_adapter.models import Config, Env
     config_path = _config.get_config_path()
     if not config_path.exists():
@@ -183,7 +183,7 @@ def cmd_start(url: str) -> None:
         _config.save_config(config)
         click.echo("Default configuration file generated.")
     else:
-        # remote フィールドを更新
+        # Update remote field
         cfg = _config.load_config()
         if cfg:
             cfg.remote = url
@@ -206,7 +206,7 @@ def cmd_uninstall(force: bool, keep_git: bool) -> None:
         click.echo("Nothing to delete.")
         return
 
-    # Git リポジトリ確認
+    # Git repository check
     git_dir = adapter_dir / ".git"
     is_git_repo = git_dir.exists()
 
@@ -216,13 +216,13 @@ def cmd_uninstall(force: bool, keep_git: bool) -> None:
         click.echo("  cd ~/.ai-adapter && git status")
         click.echo("  git push")
 
-    # 確認プロンプト
+    # Confirmation prompt
     if not force:
         size_info = _get_dir_size(adapter_dir)
         click.echo(f"Delete target: {adapter_dir} ({size_info})")
         click.confirm("Are you sure you want to delete?", abort=True)
 
-    # ~/.ai-adapter/ を削除
+    # Delete ~/.ai-adapter/
     if keep_git and is_git_repo:
         _remove_contents_except_git(adapter_dir)
         click.echo(f"Data removed (Git repo kept): {adapter_dir}")
@@ -258,7 +258,7 @@ def _remove_contents_except_git(path: Path) -> None:
             item.unlink()
 
 
-# サブコマンドグループを登録
+# Register subcommand groups
 main.add_command(agent_group)
 main.add_command(env_group)
 main.add_command(bin_group)
@@ -405,12 +405,12 @@ def cmd_sync(do_continue: bool, do_abort: bool, do_skip: bool) -> None:
         click.echo(f"'{adapter_dir}' not found. Run ai-adapter init first.")
         raise click.ClickException("ai-adapter is not initialized.")
 
-    # リベース操作モード
+    # Rebase operation mode
     if do_continue or do_abort or do_skip:
         _handle_rebase_operation(adapter_dir, do_continue, do_abort, do_skip)
         return
 
-    # 通常の sync
+    # Normal sync
     from ai_adapter.sync import sync_command
     try:
         sync_command(adapter_dir)

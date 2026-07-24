@@ -67,7 +67,7 @@ class TestConfigInit(unittest.TestCase):
         self.patch_home = Path(self.temp_dir.name)
         self._original_home = Path.home
 
-        # Home を一時ディレクトリに差し替え
+        # Replace Home with a temporary directory
         import builtins
         import pathlib
 
@@ -75,14 +75,14 @@ class TestConfigInit(unittest.TestCase):
             return self.patch_home
 
         pathlib.Path.home = staticmethod(mock_home)
-        # config モジュール内の AI_ADAPTER_DIR も更新
+        # Also update AI_ADAPTER_DIR in the config module
         import ai_adapter.config as cfg
         cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
 
     def tearDown(self):
         import pathlib
         pathlib.Path.home = staticmethod(self._original_home)
-        # config モジュールの AI_ADAPTER_DIR を戻す
+        # Restore AI_ADAPTER_DIR in the config module
         import ai_adapter.config as cfg
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         self.temp_dir.cleanup()

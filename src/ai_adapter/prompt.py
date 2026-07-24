@@ -76,12 +76,12 @@ def prompt_add(path: str) -> None:
 
 def _find_prompt_by_name(prompts_dir: Path, name: str) -> Path | None:
     """Find a prompt file by name."""
-    # 1. 完全一致
+    # 1. Exact match
     exact = prompts_dir / name
     if exact.exists() and exact.is_file():
         return exact
 
-    # 2. 拡張子付きで検索
+    # 2. Search with extension
     for f in sorted(prompts_dir.iterdir()):
         if f.is_file() and f.stem == name:
             return f
@@ -138,7 +138,7 @@ def prompt_remove(name: str) -> None:
             click.echo(f"File {f.name} removed.")
             break
 
-    # .github/prompts/ からも削除
+    # Also delete from .github/prompts/
     github_dir = get_github_prompts_dir()
     if github_dir.exists():
         for f in github_dir.iterdir():

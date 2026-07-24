@@ -247,17 +247,17 @@ class Config:
         if not isinstance(data, dict):
             raise ValueError("Invalid config format: must be a dict")
 
-        # version のバリデーション
+        # Version validation
         version = data.get("version", 1)
         if not isinstance(version, int):
             raise ValueError(f"version must be an integer: {version}")
 
-        # default_env のバリデーション
+        # default_env validation
         default_env = data.get("default_env", "default")
         if not isinstance(default_env, str):
             raise ValueError(f"default_env must be a string: {default_env}")
 
-        # 各リストフィールドのバリデーション
+        # Validate each list field
         agents_data = data.get("agents", [])
         if not isinstance(agents_data, list):
             raise ValueError(f"agents must be a list")

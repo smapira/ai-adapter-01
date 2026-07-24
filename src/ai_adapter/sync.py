@@ -40,7 +40,7 @@ def sync_command(adapter_dir: Path | None = None) -> None:
         click.echo(f"'{adapter_dir}' not found. Run ai-adapter init first.")
         raise click.ClickException("ai-adapter is not initialized.")
 
-    # リベース中断検出
+    # Rebase interruption detection
     if is_rebasing(adapter_dir):
         conflicted = get_conflicted_files(adapter_dir)
         click.echo("⚠ A rebase was left unfinished from the previous sync.")
@@ -51,7 +51,7 @@ def sync_command(adapter_dir: Path | None = None) -> None:
         click.echo("  Resolution: ai-adapter sync --continue / --abort / --skip")
         raise click.ClickException("Resolve the rebase first.")
 
-    # Step 1: Git リポジトリ確認
+    # Step 1: Check Git repository
     click.echo("Step 1: Checking Git repository status...")
     if not is_repo(adapter_dir):
         click.echo("  ~/.ai-adapter/ is not a Git repository. Initializing...")
@@ -62,7 +62,7 @@ def sync_command(adapter_dir: Path | None = None) -> None:
         click.echo()
         click.echo("  No remote repository configured.")
 
-        # config.json に保存された remote を確認
+        # Check remote saved in config.json
         config = _config.load_config()
         saved_remote = config.remote if config else None
 
@@ -114,7 +114,7 @@ def sync_command(adapter_dir: Path | None = None) -> None:
     click.echo("Step 3: Pulling remote changes...")
     branch = get_current_branch(adapter_dir)
 
-    # 接続確認
+    # Connectivity check
     if not test_remote_connectivity(adapter_dir):
         click.echo("  ⚠ Cannot connect to the remote repository.")
         click.echo("  Possible causes:")
@@ -125,7 +125,7 @@ def sync_command(adapter_dir: Path | None = None) -> None:
         click.echo("  Skipping Step 4 push.")
         return
 
-    # ブランチ存在確認（空リポジトリ対策）
+    # Check branch existence (handle empty repo)
     if not remote_branch_exists(adapter_dir, branch):
         click.echo(f"  Remote branch '{branch}' does not exist. An initial push is required.")
         click.echo("  Will push in Step 4.")

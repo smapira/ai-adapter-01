@@ -47,7 +47,7 @@ class TestAgentAddRecCommand(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("2", result.output)
 
-        # list で確認
+        # Verify via list
         result = self.runner.invoke(main, ["agent", "list"])
         self.assertIn("agent1", result.output)
         self.assertIn("agent2", result.output)
@@ -61,7 +61,7 @@ class TestAgentCommands(unittest.TestCase):
         self.patch_home = Path(self.temp_dir.name)
         self.runner = CliRunner()
 
-        # Home 差し替え
+        # Replace Home
         import pathlib
         self._original_home = pathlib.Path.home
         pathlib.Path.home = staticmethod(lambda: self.patch_home)
@@ -72,7 +72,7 @@ class TestAgentCommands(unittest.TestCase):
         # init
         init()
 
-        # テスト用エージェントファイル作成
+        # Create test agent file
         self.agent_file = Path(self.temp_dir.name) / "test-agent.md"
         self.agent_file.write_text("# Test Agent\nThis is a test agent.")
 
@@ -95,7 +95,7 @@ class TestAgentCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("test-agent", result.output)
 
-        # ファイルがコピーされたか確認
+        # Verify file was copied
         agents_dir = self.patch_home / ".ai-adapter" / "agents"
         self.assertTrue((agents_dir / "test-agent.md").exists())
 
@@ -110,7 +110,7 @@ class TestAgentCommands(unittest.TestCase):
         """Verify agent get copies to .github/agents/."""
         self.runner.invoke(main, ["agent", "add", str(self.agent_file)])
 
-        # カレントディレクトリに .github/agents/ を作成（一時ディレクトリ内）
+        # Create .github/agents/ in the current directory (inside temp dir)
         github_agents = Path.cwd() / ".github" / "agents"
         github_agents.mkdir(parents=True, exist_ok=True)
 
@@ -119,7 +119,7 @@ class TestAgentCommands(unittest.TestCase):
         self.assertIn("test-agent.md", result.output)
         self.assertTrue((github_agents / "test-agent.md").exists())
 
-        # クリーンアップ
+        # Cleanup
         import shutil
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
@@ -136,11 +136,11 @@ class TestAgentCommands(unittest.TestCase):
         github_dir = Path.cwd() / ".github" / "agents"
         github_dir.mkdir(parents=True, exist_ok=True)
 
-        # 一回目の get
+        # First get
         result = self.runner.invoke(main, ["agent", "get", "test-agent"])
         self.assertEqual(result.exit_code, 0)
 
-        # 二回目は --force で上書き
+        # Second get with --force to overwrite
         result = self.runner.invoke(main, ["agent", "get", "test-agent", "--force"])
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((github_dir / "test-agent.md").exists())
@@ -152,7 +152,7 @@ class TestAgentCommands(unittest.TestCase):
         """Verify agent get --project-dir copies to the specified directory."""
         self.runner.invoke(main, ["agent", "add", str(self.agent_file)])
 
-        # 任意のプロジェクトディレクトリを作成
+        # Create a custom project directory
         project_dir = Path(self.temp_dir.name) / "my-project"
         project_dir.mkdir(parents=True)
 
@@ -192,13 +192,13 @@ class TestAgentCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("test-agent", result.output)
 
-        # list で表示されないことを確認
+        # Verify it is not displayed in list
         result = self.runner.invoke(main, ["agent", "list"])
         self.assertIn("No agents registered.", result.output)
 
     def test_agent_remove_all(self):
         """Verify agent remove-all removes all agents."""
-        # 2つのエージェントを追加
+        # Add two agents
         agent1 = Path(self.temp_dir.name) / "agent1.md"
         agent1.write_text("# Agent 1")
         agent2 = Path(self.temp_dir.name) / "agent2.md"
@@ -210,7 +210,7 @@ class TestAgentCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("All agents", result.output)
 
-        # list で空になる
+        # List is now empty
         result = self.runner.invoke(main, ["agent", "list"])
         self.assertIn("No agents registered.", result.output)
 
@@ -229,10 +229,10 @@ class TestAgentCommands(unittest.TestCase):
 
         result = self.runner.invoke(main, ["agent", "add", str(agent_md_file)])
         self.assertEqual(result.exit_code, 0)
-        # 登録名は "Implementer"（frontmatter の name）になる
+        # Registered name becomes "Implementer" (from frontmatter name)
         self.assertIn("'Implementer'", result.output)
 
-        # list で "Implementer" と表示され、"reviewer" は表示されない
+        # "Implementer" is shown in list, "reviewer" is not
         result = self.runner.invoke(main, ["agent", "list"])
         self.assertIn("Implementer", result.output)
         self.assertNotIn("reviewer", result.output)
@@ -274,7 +274,7 @@ class TestAgentCommands(unittest.TestCase):
         github_agents = Path.cwd() / ".github" / "agents"
         github_agents.mkdir(parents=True, exist_ok=True)
 
-        # "Implementer" で取得できる
+        # Can be retrieved with "Implementer"
         result = self.runner.invoke(main, ["agent", "get", "Implementer"])
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((github_agents / "reviewer.agent.md").exists())
@@ -296,7 +296,7 @@ class TestAgentCommands(unittest.TestCase):
         github_agents = Path.cwd() / ".github" / "agents"
         github_agents.mkdir(parents=True, exist_ok=True)
 
-        # "reviewer.agent" でも取得できる（後方互換性）
+        # Can also be retrieved with "reviewer.agent" (backward compatibility)
         result = self.runner.invoke(main, ["agent", "get", "reviewer.agent"])
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((github_agents / "reviewer.agent.md").exists())

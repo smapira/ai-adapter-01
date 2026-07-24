@@ -94,7 +94,7 @@ def skill_add(path: str) -> None:
         click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
-    # 重複チェック
+    # Duplicate check
     for existing in config.skills:
         if existing.name == name:
             existing.description = metadata.get("description", "")
@@ -175,7 +175,7 @@ def skill_get(name: str, force: bool, project_dir: str | None) -> None:
         click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
-    # 検索
+    # Search
     skill_entry = None
     for s in config.skills:
         if s.name == name:
@@ -241,7 +241,7 @@ def skill_remove(name: str, purge: bool) -> None:
             shutil.rmtree(target)
             click.echo(f"Skill directory {target} removed.")
 
-    # .github/skills/ からも削除
+    # Also delete from .github/skills/
     github_dir = get_github_skills_dir()
     target_gh = github_dir / name
     if target_gh.exists():
@@ -298,7 +298,7 @@ def skill_link_agent(skill: str, agent: str) -> None:
         click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
-    # スキル存在チェック
+    # Skill existence check
     skill_entry = None
     for s in config.skills:
         if s.name == skill:
@@ -309,7 +309,7 @@ def skill_link_agent(skill: str, agent: str) -> None:
         click.echo(f"Skill '{skill}' is not registered.", err=True)
         raise click.ClickException(f"Skill '{skill}' not found.")
 
-    # エージェント存在チェック
+    # Agent existence check
     agent_found = any(a.name == agent for a in config.agents)
     if not agent_found:
         click.echo(f"Agent '{agent}' is not registered.", err=True)

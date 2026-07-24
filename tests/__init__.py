@@ -1,1 +1,1 @@
-"""ai-adapter テストパッケージ。"""
+"""ai-adapter test package."""

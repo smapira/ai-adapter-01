@@ -74,7 +74,7 @@ def mcp_add(
         click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
-    # 重複チェック
+    # Duplicate check
     for existing in config.mcp_servers:
         if existing.name == name:
             click.echo(f"MCP server '{name}' already exists.", err=True)
@@ -184,7 +184,7 @@ def mcp_load(json_path: str) -> None:
     loaded = 0
     skipped = 0
     for name, server_data in servers_data.items():
-        # 重複チェック
+        # Duplicate check
         exists = any(s.name == name for s in config.mcp_servers)
         if exists:
             skipped += 1
@@ -222,7 +222,7 @@ def mcp_remove_all(force: bool) -> None:
     config.mcp_servers.clear()
     _config.save_config(config)
 
-    # .mcp.json を削除
+    # Delete .mcp.json
     mcp_json = Path.cwd() / ".mcp.json"
     if mcp_json.exists():
         mcp_json.unlink()

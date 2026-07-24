@@ -38,18 +38,18 @@ def _get_agent_name_from_path(path: Path) -> str:
     Otherwise strips all extensions from the filename.
     """
     if path.suffixes == [".agent", ".md"] or str(path).endswith(".agent.md"):
-        # .agent.md: frontmatter の name を優先
+        # .agent.md: prefer the name from YAML frontmatter
         frontmatter = _parse_frontmatter(path)
         name_from_fm = frontmatter.get("name", "").strip()
         if name_from_fm:
             return name_from_fm
-        # frontmatter がなければ全拡張子除去
+        # If no frontmatter, strip all extensions
         p = path
         while p.suffix:
             p = p.with_suffix("")
         return p.name
 
-    # それ以外: 全拡張子を除去
+    # Otherwise: strip all extensions
     p = path
     while p.suffix:
         p = p.with_suffix("")
@@ -91,7 +91,7 @@ def agent_add(path: str) -> None:
     agents_dir = get_agents_dir()
     agents_dir.mkdir(parents=True, exist_ok=True)
 
-    # .agent.md のフォーマットバリデーション
+    # .agent.md format validation
     if str(src).endswith(".agent.md"):
         frontmatter = _parse_frontmatter(src)
         if not frontmatter:
@@ -118,10 +118,10 @@ def agent_add(path: str) -> None:
         click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
-    # 重複チェック
+    # Duplicate check
     for existing in config.agents:
         if existing.name == name:
-            # 上書きの場合は description を更新しない（ファイルベースなので）
+            # On overwrite, do not update description (file-based anyway)
             save_config(config)
             return
 
@@ -181,11 +181,11 @@ def agent_get(name: str, force: bool, project_dir: str | None) -> None:
 
     src = None
 
-    # Step 1: config に登録名があれば、そのエージェントのファイルを探す
+    # Step 1: If the name is in config, look for the agent file
     if config:
         for agent_cfg in config.agents:
             if agent_cfg.name == name:
-                # 登録名が一致: agents_dir 内の全ファイルから frontmatter name が一致するものを探す
+                # Name matches config: search all files in agents_dir for matching frontmatter name
                 for f in agents_dir.iterdir():
                     if not f.is_file():
                         continue
@@ -197,7 +197,7 @@ def agent_get(name: str, force: bool, project_dir: str | None) -> None:
                     except Exception:
                         continue
                 if src is None:
-                    # frontmatter が見つからなければファイル名で一致確認
+                    # If no frontmatter found, check by filename
                     if (agents_dir / f"{name}.agent.md").exists():
                         src = agents_dir / f"{name}.agent.md"
                     elif (agents_dir / f"{name}.md").exists():
@@ -206,7 +206,7 @@ def agent_get(name: str, force: bool, project_dir: str | None) -> None:
                         src = agents_dir / name
                 break
 
-    # Step 2: config にない場合はファイル名ベースで探索（後方互換性）
+    # Step 2: If not in config, search by filename (backward compatibility)
     if src is None:
         candidates = [
             agents_dir / f"{name}.agent.md",
@@ -258,7 +258,7 @@ def agent_get_all(project_dir: str | None) -> None:
     for agent_cfg in config.agents:
         name = agent_cfg.name
         src = None
-        # ファイル探索
+        # Search for file
         for f in agents_dir.iterdir():
             if not f.is_file():
                 continue
@@ -307,7 +307,7 @@ def agent_remove(name: str, keep_file: bool) -> None:
         click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
-    # config から削除
+    # Remove from config
     found = False
     for agent in list(config.agents):
         if agent.name == name:
@@ -321,11 +321,11 @@ def agent_remove(name: str, keep_file: bool) -> None:
 
     save_config(config)
 
-    # ファイル削除
+    # Delete file
     if not keep_file:
         agents_dir = get_agents_dir()
         for f in agents_dir.iterdir():
-            # .agent.md / .md / そのまま のパターンで一致確認
+            # Check for .agent.md / .md / exact name patterns
             candidates = [
                 f.name == f"{name}.agent.md",
                 f.name == f"{name}.md",
@@ -337,7 +337,7 @@ def agent_remove(name: str, keep_file: bool) -> None:
                 click.echo(f"File {f.name} deleted.")
                 break
 
-    # .github/agents/ からも削除
+    # Also delete from .github/agents/
     github_dir = get_github_agents_dir()
     if github_dir.exists():
         for f in github_dir.iterdir():
@@ -374,7 +374,7 @@ def agent_remove_all(keep_file: bool, force: bool) -> None:
 
     agents_dir = get_agents_dir()
 
-    # ファイル削除
+    # Delete files
     if not keep_file and agents_dir.exists():
         for f in agents_dir.iterdir():
             if f.is_file():

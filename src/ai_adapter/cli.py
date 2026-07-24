@@ -274,7 +274,7 @@ def _show_diff(project_dir: str | None) -> None:
 
             label = {
                 "up-to-date": "Up to date",
-                "added": "Added (use get/get-all)",
+                "added": "Stored (use get/get-all/get-all-rec)",
                 "modified": "Modified (use get/get-all)",
                 "orphaned": "Orphaned (not in store)",
                 "missing_source": "Source missing",
@@ -287,7 +287,7 @@ def _show_diff(project_dir: str | None) -> None:
             click.echo("    (empty)")
 
     click.echo()
-    click.echo("  Legend: ✓=up-to-date  ➕=added  ✏️=modified  🗑️=orphaned")
+    click.echo("  Legend: ✓=up-to-date  ➕=stored  ✏️=modified  🗑️=orphaned")
 
 
 def _get_dir_size(path: Path) -> str:

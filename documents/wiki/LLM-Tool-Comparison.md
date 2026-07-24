@@ -6,119 +6,109 @@ This page compares how different AI coding tools handle the configuration catego
 
 ## Overview
 
-| Feature | GitHub Copilot (Codex) | Claude Code | OpenCode | OpenAI Codex CLI |
-|---------|----------------------|-------------|----------|-----------------|
-| **Vendor** | Microsoft (GitHub) | Anthropic | Community | OpenAI |
-| **Config directory** | `.github/` | Project root | `.opencode/` or `.github/` via symlink | `.codex/` or project root |
-| **Config format** | Markdown + YAML frontmatter | Markdown (`CLAUDE.md`) | JSON (`opencode.json`) | Markdown (`AGENTS.md`) + YAML |
-| **Tool type** | VS Code extension | CLI tool (Anthropic) | Terminal AI agent | Terminal AI agent |
-| **Instruction files** | `.github/instructions/*.md`, `.github/agents/*.agent.md` | `CLAUDE.md` | `opencode.json` → `instructions` | `AGENTS.md` (hierarchical) |
-| **ai-adapter support** | ✅ Full | ✅ Via `.github/` Fallback | ✅ Full (opencode subcommand) | ❌ Planned |
+| Feature | GitHub Copilot (Codex) | Claude Code | OpenCode | OpenAI Codex CLI | Cursor | Continue |
+|---------|----------------------|-------------|----------|-----------------|--------|----------|
+| **Vendor** | Microsoft (GitHub) | Anthropic | Community | OpenAI | Anysphere | Continue.dev |
+| **Config directory** | `.github/` | Project root | `.opencode/` or `.github/` via symlink | `.codex/` or project root | `.cursor/` | `.continue/` |
+| **Config format** | Markdown + YAML frontmatter | Markdown (`CLAUDE.md`) | JSON (`opencode.json`) | Markdown (`AGENTS.md`) + YAML | Markdown (`*.mdc`) with YAML frontmatter | JSON (`.continuerc.json`) |
+| **Tool type** | VS Code extension | CLI tool (Anthropic) | Terminal AI agent | Terminal AI agent | AI-first IDE | VS Code + JetBrains extension |
+| **Instruction files** | `.github/instructions/*.md`, `.github/agents/*.agent.md` | `CLAUDE.md` | `opencode.json` → `instructions` | `AGENTS.md` (hierarchical) | `.cursor/rules/*.mdc` | `.continuerc.json` → `rules` array |
+| **ai-adapter support** | ✅ Full | ✅ Via `.github/` Fallback | ✅ Full (opencode subcommand) | ❌ Planned | ❌ Planned | ❌ Planned |
 
 ---
 
-## Skill
+## Skill / Rules
 
-| Aspect | GitHub Copilot | Claude Code | OpenCode | OpenAI Codex CLI |
-|--------|---------------|-------------|----------|-----------------|
-| **Directory** | `.github/skills/` | N/A (uses `CLAUDE.md`) | `.opencode/rules/` | `~/.codex/skills/` or project-local |
-| **File format** | `SKILL.md` with YAML frontmatter | Single `CLAUDE.md` | Markdown files in `rules/` | `SKILL.md` with YAML frontmatter |
-| **Agents metadata** | ✅ `name`, `description`, `tags`, `agent` | No structured metadata | File-name based | ✅ `agents/openai.yaml` (display_name, short_description, etc.) |
-| **Agent binding** | ✅ `agent` field links skill to an agent | N/A | N/A | ✅ Via `agents/openai.yaml` |
-| **Bundled resources** | ❌ | ❌ | ❌ | ✅ `scripts/`, `references/`, `assets/` directories |
-| **MCP dependencies** | ❌ | ❌ | ❌ | ✅ Declared in `agents/openai.yaml` |
-| **ai-adapter commands** | `skill add/list/get/remove/search/link-agent/get-all` | — | — | — |
+| Aspect | GitHub Copilot | Claude Code | OpenCode | OpenAI Codex CLI | Cursor | Continue |
+|--------|---------------|-------------|----------|-----------------|--------|----------|
+| **Directory** | `.github/skills/` | N/A (uses `CLAUDE.md`) | `.opencode/rules/` | `~/.codex/skills/` or project-local | `.cursor/rules/` | N/A |
+| **File format** | `SKILL.md` with YAML frontmatter | Single `CLAUDE.md` | Markdown files in `rules/` | `SKILL.md` with YAML frontmatter | `*.mdc` with YAML frontmatter | `.continuerc.json` → `rules` array |
+| **Metadata** | ✅ `name`, `description`, `tags`, `agent` | No structured metadata | File-name based | ✅ `agents/openai.yaml` | ✅ `description`, `globs` in frontmatter | Plain text rules |
+| **File globbing** | ❌ | ❌ | ❌ | ❌ | ✅ `globs` field controls which files the rule applies to | ❌ |
+| **Agent binding** | ✅ `agent` field links skill to an agent | N/A | N/A | ✅ Via `agents/openai.yaml` | ❌ (rules auto-matched by globs) | ❌ |
+| **Bundled resources** | ❌ | ❌ | ❌ | ✅ `scripts/`, `references/`, `assets/` | ❌ | ❌ |
+| **MCP dependencies** | ❌ | ❌ | ❌ | ✅ Declared in `agents/openai.yaml` | ❌ | ❌ |
+| **ai-adapter commands** | `skill add/list/get/remove/search/link-agent/get-all` | — | — | — | — | — |
 
-### Skill Example: SKILL.md
+### Rules File Example
 
-**GitHub Copilot / ai-adapter:**
+**Cursor (.cursor/rules/*.mdc):**
 ```markdown
 ---
-name: database-schema
-description: Database schema design knowledge
-tags: [database, prisma, schema]
-agent: reviewer
+description: Frontend development rules
+globs: src/**/*.{ts,tsx}
 ---
-# Database Schema
-Expert knowledge for designing and reviewing database schemas.
+Follow React + TypeScript best practices.
+- Use functional components with Hooks
+- Style with Tailwind CSS
+- Add JSDoc comments to all exported functions
 ```
 
-**OpenAI Codex CLI (with agents/openai.yaml):**
-```markdown
----
-name: database-schema
-description: Database schema design knowledge
-argument-hint: "[topic]"
----
-# Database Schema
-Design and review database schemas using best practices.
-```
-
-```yaml
-# agents/openai.yaml
-interface:
-  display_name: "Database Schema"
-  short_description: "Design and review database schemas"
-  default_prompt: "Help me design a database schema for..."
-dependencies:
-  tools:
-    - type: mcp
-      value: "github"
-      description: "GitHub MCP server"
-      transport: streamable_http
-      url: "https://api.githubcopilot.com/mcp/"
+**Continue (.continuerc.json):**
+```json
+{
+  "rules": [
+    "Project is written in TypeScript",
+    "Testing uses Vitest",
+    "API is built with Express + Prisma"
+  ],
+  "tabAutocompleteModel": {
+    "title": "Tab Autocomplete",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4"
+  }
+}
 ```
 
 ---
 
 ## Agent / Instructions
 
-| Aspect | GitHub Copilot | Claude Code | OpenCode | OpenAI Codex CLI |
-|--------|---------------|-------------|----------|-----------------|
-| **Primary mechanism** | `.github/agents/*.agent.md` | `CLAUDE.md` (single file) | `opencode.json` → `instructions` array | `AGENTS.md` (hierarchical, multiple files) |
-| **File format** | `.agent.md` with YAML frontmatter | Plain Markdown | N/A | Plain Markdown (no frontmatter) |
-| **File extensions** | `*.agent.md`, `*.md` | `CLAUDE.md` | Any referenced files | `AGENTS.md` (exact name) |
-| **Fallback files** | `.github/copilot-instructions.md` | `.github/copilot-instructions.md` | `CLAUDE.md`, `.github/copilot-instructions.md` | Configurable fallbacks (e.g. `EXAMPLE.md`) |
-| **Scoping** | Agent-level (via `@agent` mention) | Global (root only) | Global | ✅ **Directory-scoped**: each `AGENTS.md` applies to its sub-tree |
-| **Name resolution** | Frontmatter `name` > filename | N/A | N/A | File-path based |
-| **Override support** | N/A | N/A | N/A | ✅ `AGENTS.override.md` for local overrides |
-| **ai-adapter commands** | `agent add/list/get/remove/get-all/remove-all/add-all-rec` | — | — | — |
+| Aspect | GitHub Copilot | Claude Code | OpenCode | OpenAI Codex CLI | Cursor | Continue |
+|--------|---------------|-------------|----------|-----------------|--------|----------|
+| **Primary mechanism** | `.github/agents/*.agent.md` | `CLAUDE.md` (single file) | `opencode.json` → `instructions` array | `AGENTS.md` (hierarchical, multiple files) | `.cursor/rules/*.mdc` | `.continuerc.json` → `rules` array |
+| **File format** | `.agent.md` with YAML frontmatter | Plain Markdown | N/A | Plain Markdown (no frontmatter) | Markdown with YAML frontmatter | JSON string array |
+| **File extensions** | `*.agent.md`, `*.md` | `CLAUDE.md` | Any referenced files | `AGENTS.md` (exact name) | `*.mdc` | `.continuerc.json` |
+| **Fallback files** | `.github/copilot-instructions.md` | `.github/copilot-instructions.md` | `CLAUDE.md`, `.github/copilot-instructions.md` | Configurable fallbacks (e.g. `EXAMPLE.md`) | `.cursorrules` (legacy) | ❌ |
+| **Scoping** | Agent-level (via `@agent` mention) | Global (root only) | Global | ✅ **Directory-scoped**: each `AGENTS.md` applies to its sub-tree | ✅ **Glob-based**: per-rule file pattern matching | Global |
+| **Name resolution** | Frontmatter `name` > filename | N/A | N/A | File-path based | Filename (displayed in UI) | N/A |
+| **Override support** | N/A | N/A | N/A | ✅ `AGENTS.override.md` | ✅ Deeper rules override shallower ones | N/A |
+| **ai-adapter commands** | `agent add/list/get/remove/get-all/remove-all/add-all-rec` | — | — | — | — | — |
 
-### Agent/Instructions Example
+### Instructions Example
 
-**GitHub Copilot (.agent.md):**
+**Cursor (.cursor/rules/*.mdc with globs):**
 ```markdown
 ---
-name: reviewer
-description: Code review specialist agent
+description: Backend API conventions
+globs: server/**/*.ts
 ---
-You are a code reviewer.
-Review code from the perspectives of security, performance, and readability.
+- Use Express async route handlers with error wrapping
+- Validate request bodies with Zod schemas
+- Return consistent JSON envelope: { ok, data, error }
 ```
 
-**OpenAI Codex CLI (AGENTS.md, placed at any directory level):**
-```markdown
-# AGENTS.md
-## Coding conventions
-- Use TypeScript with strict mode
-- Functions must have JSDoc comments
-- Follow the existing error handling patterns in this directory
-
-## Testing
-- Run `npm test` before submitting changes
-- Maintain 80%+ test coverage
+**Continue (.continuerc.json):**
+```json
+{
+  "rules": [
+    "Use TypeScript with strict mode enabled",
+    "All functions must have JSDoc comments",
+    "Async operations must use async/await, not raw promises"
+  ]
+}
 ```
 
 ---
 
 ## Command
 
-| Aspect | GitHub Copilot | Claude Code | OpenCode | OpenAI Codex CLI |
-|--------|---------------|-------------|----------|-----------------|
-| **Directory** | `.github/commands/` | N/A | N/A | N/A |
-| **File format** | Any executable/script files | N/A | N/A | N/A |
-| **Purpose** | Custom slash commands for Copilot | — | — | — |
-| **ai-adapter commands** | `command add/list/get/remove/add-rec/get-all/remove-all` | — | — | — |
+| Aspect | GitHub Copilot | Claude Code | OpenCode | OpenAI Codex CLI | Cursor | Continue |
+|--------|---------------|-------------|----------|-----------------|--------|----------|
+| **Directory** | `.github/commands/` | N/A | N/A | N/A | N/A | N/A |
+| **File format** | Any executable/script files | N/A | N/A | N/A | N/A | N/A |
+| **Purpose** | Custom slash commands for Copilot | — | — | — | — | — |
+| **ai-adapter commands** | `command add/list/get/remove/add-rec/get-all/remove-all` | — | — | — | — | — |
 
 > **Note:** Custom commands are a GitHub Copilot-specific concept. None of the other tools have an equivalent feature.
 
@@ -126,15 +116,15 @@ Review code from the perspectives of security, performance, and readability.
 
 ## MCP (Model Context Protocol)
 
-| Aspect | GitHub Copilot | Claude Code | OpenCode | OpenAI Codex CLI |
-|--------|---------------|-------------|----------|-----------------|
-| **Config file** | `.mcp.json` | `.mcp.json` | `.mcp.json` | `.mcp.json` |
-| **File format** | JSON | JSON | JSON | JSON |
-| **Structure** | `{ "mcpServers": { "<name>": { ... } } }` | Same | Same | Same (standard MCP format) |
-| **Multi-tool support** | ✅ Per-server `tools` field | ✅ Native | ✅ Via `opencode.json` | ✅ Via `agents/openai.yaml` deps |
-| **Environment binding** | ✅ `env` field per server | N/A | N/A | N/A |
-| **Enable/disable** | ✅ `enabled` flag per server | N/A | N/A | N/A |
-| **ai-adapter commands** | `mcp add/list/remove/export load/remove-all` | — | — | — |
+| Aspect | GitHub Copilot | Claude Code | OpenCode | OpenAI Codex CLI | Cursor | Continue |
+|--------|---------------|-------------|----------|-----------------|--------|----------|
+| **Config file** | `.mcp.json` | `.mcp.json` | `.mcp.json` | `.mcp.json` | `.cursor/mcp.json` | `~/.continue/config.json` |
+| **File format** | JSON | JSON | JSON | JSON | JSON | JSON |
+| **Structure** | `{ "mcpServers": { "<name>": { ... } } }` | Same | Same | Same (standard MCP format) | Same | Integrated in config.json |
+| **Multi-tool support** | ✅ Per-server `tools` field | ✅ Native | ✅ Via `opencode.json` | ✅ Via `agents/openai.yaml` deps | ✅ Native | ✅ Via Continue config |
+| **Environment binding** | ✅ `env` field per server | N/A | N/A | N/A | N/A | N/A |
+| **Enable/disable** | ✅ `enabled` flag per server | N/A | N/A | N/A | N/A | ✅ Per-server via config |
+| **ai-adapter commands** | `mcp add/list/remove/export load/remove-all` | — | — | — | — | — |
 
 ### MCP Example
 
@@ -154,12 +144,12 @@ Review code from the perspectives of security, performance, and readability.
 
 ## Prompt
 
-| Aspect | GitHub Copilot | Claude Code | OpenCode | OpenAI Codex CLI |
-|--------|---------------|-------------|----------|-----------------|
-| **Directory** | `.github/prompts/` | N/A | N/A | N/A |
-| **File format** | Any text/markdown files | N/A | N/A | N/A |
-| **Purpose** | Reusable prompt templates | — | — | — |
-| **ai-adapter commands** | `prompt add/list/get/remove/add-rec/get-all/remove-all` | — | — | — |
+| Aspect | GitHub Copilot | Claude Code | OpenCode | OpenAI Codex CLI | Cursor | Continue |
+|--------|---------------|-------------|----------|-----------------|--------|----------|
+| **Directory** | `.github/prompts/` | N/A | N/A | N/A | N/A | N/A |
+| **File format** | Any text/markdown files | N/A | N/A | N/A | N/A | N/A |
+| **Purpose** | Reusable prompt templates | — | — | — | — | — |
+| **ai-adapter commands** | `prompt add/list/get/remove/add-rec/get-all/remove-all` | — | — | — | — | — |
 
 > **Note:** Prompts are an ai-adapter managed concept for storing reusable prompt templates. They are not a native feature of any LLM tool.
 
@@ -201,18 +191,21 @@ The `opencode` subcommand bridges `ai-adapter` with OpenCode:
 
 ## File Type Support Matrix
 
-| Feature | GitHub Copilot | Claude Code | OpenCode | OpenAI Codex CLI |
-|---------|---------------|-------------|----------|-----------------|
-| `AGENTS.md` | ❌ | ❌ | ❌ | ✅ **Primary** (hierarchical) |
-| `CLAUDE.md` | ❌ (uses `.github/copilot-instructions.md`) | ✅ Primary | ✅ Fallback | ✅ Import compatible |
-| `.github/copilot-instructions.md` | ✅ Primary | ✅ Fallback | ✅ Fallback | ❌ |
-| `.github/instructions/*.md` | ✅ | ❌ | ❌ | ❌ |
-| `.github/agents/*.agent.md` | ✅ Custom agents | ❌ | ✅ Via `opencode.json` | ❌ |
-| `.github/skills/SKILL.md` | ✅ | ❌ | ❌ | ❌ (uses own SKILL.md format) |
-| `.github/bin/*` | ✅ Executable scripts | ❌ | ❌ | ❌ |
-| `.mcp.json` | ✅ MCP servers | ✅ MCP servers | ✅ MCP servers | ✅ MCP servers |
-| `opencode.json` | ❌ | ❌ | ✅ Primary config | ❌ |
-| `agents/openai.yaml` | ❌ | ❌ | ❌ | ✅ Skill metadata + MCP deps |
+| Feature | GitHub Copilot | Claude Code | OpenCode | OpenAI Codex CLI | Cursor | Continue |
+|---------|---------------|-------------|----------|-----------------|--------|----------|
+| `AGENTS.md` | ❌ | ❌ | ❌ | ✅ **Primary** (hierarchical) | ❌ | ❌ |
+| `CLAUDE.md` | ❌ (uses `.github/copilot-instructions.md`) | ✅ Primary | ✅ Fallback | ✅ Import compatible | ❌ | ❌ |
+| `.github/copilot-instructions.md` | ✅ Primary | ✅ Fallback | ✅ Fallback | ❌ | ❌ | ❌ |
+| `.github/instructions/*.md` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `.github/agents/*.agent.md` | ✅ Custom agents | ❌ | ✅ Via `opencode.json` | ❌ | ❌ | ❌ |
+| `.github/skills/SKILL.md` | ✅ | ❌ | ❌ | ❌ (uses own SKILL.md) | ❌ | ❌ |
+| `.github/bin/*` | ✅ Executable scripts | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `.mcp.json` | ✅ MCP servers | ✅ MCP servers | ✅ MCP servers | ✅ MCP servers | ✅ `.cursor/mcp.json` | ✅ Via `config.json` |
+| `opencode.json` | ❌ | ❌ | ✅ Primary config | ❌ | ❌ | ❌ |
+| `agents/openai.yaml` | ❌ | ❌ | ❌ | ✅ Skill metadata + MCP deps | ❌ | ❌ |
+| `.cursor/rules/*.mdc` | ❌ | ❌ | ❌ | ❌ | ✅ **Primary** (glob-scoped rules) | ❌ |
+| `.cursorrules` | ❌ | ❌ | ❌ | ❌ | ✅ Legacy fallback | ❌ |
+| `.continuerc.json` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ **Primary** (rules + model config) |
 
 ---
 
@@ -221,5 +214,7 @@ The `opencode` subcommand bridges `ai-adapter` with OpenCode:
 - **GitHub Copilot** has the richest configuration ecosystem with agents, skills, commands, prompts, bins, and MCP — all managed under `.github/`.
 - **Claude Code** relies primarily on `CLAUDE.md` and native `.mcp.json` support. It falls back to `.github/copilot-instructions.md`.
 - **OpenCode** uses `opencode.json` for configuration with a `rules/` directory, and can symlink to `.github/` for compatibility.
-- **OpenAI Codex CLI** uses a hierarchical `AGENTS.md` system (directory-scoped), supports `SKILL.md` with `agents/openai.yaml` metadata, and standard `.mcp.json`. It has built-in migration compatibility with Claude Code configurations.
+- **OpenAI Codex CLI** uses a hierarchical `AGENTS.md` system (directory-scoped), supports `SKILL.md` with `agents/openai.yaml` metadata, and standard `.mcp.json`.
+- **Cursor** uses `.cursor/rules/*.mdc` with YAML frontmatter and `globs` for file-scoped rules, plus `.cursor/mcp.json` for MCP. Legacy `.cursorrules` format is also supported.
+- **Continue** uses `.continuerc.json` with a `rules` array for project instructions and model configuration.
 - **ai-adapter** unifies these tools by managing `.github/` as the single source of truth and providing bridging commands (e.g., `opencode install`) for tool-specific formats.

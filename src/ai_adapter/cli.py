@@ -13,6 +13,7 @@ import click
 
 from ai_adapter import __version__
 from ai_adapter import config as _config
+from ai_adapter import diff as _diff
 from ai_adapter import git as _git
 from ai_adapter.agent import agent_group
 from ai_adapter.bin import bin_group
@@ -87,7 +88,10 @@ def cmd_init(remote: str | None) -> None:
 
 
 @main.command(name="status")
-def cmd_status() -> None:
+@click.option("--diff", is_flag=True, help="Show file-level sync diff with .github/ directories")
+@click.option("--project-dir", "-d", type=click.Path(exists=True, file_okay=False, readable=True), default=None,
+              help="Project directory for diff comparison (default: current directory)")
+def cmd_status(diff: bool, project_dir: str | None) -> None:
     """Show current status."""
     adapter_dir = _config.AI_ADAPTER_DIR
     if not adapter_dir.exists():
@@ -132,6 +136,10 @@ def cmd_status() -> None:
         conflicted = get_conflicted_files(adapter_dir)
         if conflicted:
             click.echo(f"  Conflicted files: {', '.join(conflicted)}")
+
+    # Diff section
+    if diff:
+        _show_diff(project_dir)
 
 
 @main.command(name="start")
@@ -231,6 +239,59 @@ def cmd_uninstall(force: bool, keep_git: bool) -> None:
         click.echo(f"Uninstalled: {adapter_dir}")
 
     click.echo("You can reinitialize with ai-adapter init.")
+
+
+def _show_diff(project_dir: str | None) -> None:
+    """Show the sync diff between ~/.ai-adapter/ and project .github/ directories."""
+    project_path = Path(project_dir).resolve() if project_dir else None
+
+    categories = _diff.compare_all(project_path)
+    has_diff = any(c.files for c in categories)
+
+    if not has_diff:
+        click.echo()
+        click.echo("Sync status: No files found in any category.")
+        return
+
+    click.echo()
+    click.echo("Sync status (store → project):")
+    click.echo("=" * 60)
+
+    for cat in categories:
+        if not cat.files:
+            continue
+
+        click.echo()
+        click.echo(f"  [{cat.category}]")
+        click.echo(f"    Store:   {cat.store_dir}")
+        click.echo(f"    Project: {cat.project_dir}")
+
+        has_any = False
+        for f in cat.files:
+            icon = {
+                "up-to-date": "✓",
+                "added": "➕",
+                "modified": "✏️",
+                "orphaned": "🗑️",
+                "missing_source": "⚠️",
+            }.get(f.status, "?")
+
+            label = {
+                "up-to-date": "Up to date",
+                "added": "Added (use get/get-all)",
+                "modified": "Modified (use get/get-all)",
+                "orphaned": "Orphaned (not in store)",
+                "missing_source": "Source missing",
+            }.get(f.status, f.status)
+
+            click.echo(f"    {icon} {f.name:30s} {label}")
+            has_any = True
+
+        if not has_any:
+            click.echo("    (empty)")
+
+    click.echo()
+    click.echo("  Legend: ✓=up-to-date  ➕=added  ✏️=modified  🗑️=orphaned")
 
 
 def _get_dir_size(path: Path) -> str:

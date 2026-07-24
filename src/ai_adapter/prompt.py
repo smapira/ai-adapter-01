@@ -11,6 +11,7 @@ from pathlib import Path
 import click
 
 from ai_adapter.config import (
+    add_to_gitignore,
     get_prompts_dir,
     get_github_prompts_dir,
     load_config,
@@ -107,6 +108,7 @@ def prompt_get(name: str, project_dir: str | None) -> None:
 
     dest = github_dir / src.name
     shutil.copy2(src, dest)
+    add_to_gitignore(dest)
     click.echo(f"Prompt '{name}' copied to {dest}.")
 
 
@@ -199,6 +201,7 @@ def prompt_get_all(project_dir: str | None) -> None:
             continue
         dest = github_dir / src.name
         shutil.copy2(src, dest)
+        add_to_gitignore(dest)
         copied += 1
 
     click.echo(f"All prompts ({copied}) copied to {github_dir}.")

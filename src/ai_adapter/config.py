@@ -161,3 +161,58 @@ def save_config(config: Config) -> None:
     config_path.parent.mkdir(parents=True, exist_ok=True)
     with open(config_path, "w") as f:
         json.dump(config.to_dict(), f, indent=2, ensure_ascii=False)
+
+
+def add_to_gitignore(path: Path) -> None:
+    """Append a path to .gitignore if not already present.
+
+    Creates .gitignore if it does not exist. Handles project root and
+    nested .gitignore files by walking up to the nearest .git directory.
+
+    Args:
+        path: The absolute path to add to .gitignore (converted to relative).
+    """
+    gitignore_path = _find_gitignore_path(path)
+    if gitignore_path is None:
+        return
+
+    # Compute relative path from the .gitignore's directory
+    try:
+        rel_path = path.relative_to(gitignore_path.parent)
+    except ValueError:
+        rel_path = path
+
+    rel_str = str(rel_path)
+    if rel_str.startswith("/"):
+        pass  # already absolute-style, keep as-is
+    elif not rel_str.startswith("/"):
+        # Ensure it's rooted so it only matches this specific path
+        rel_str = "/" + rel_str
+
+    # Append trailing slash for directories
+    if path.is_dir() and not rel_str.endswith("/"):
+        rel_str += "/"
+
+    existing = ""
+    if gitignore_path.exists():
+        existing = gitignore_path.read_text(encoding="utf-8")
+
+    lines = existing.splitlines()
+    if rel_str in lines:
+        return  # already present
+
+    with open(gitignore_path, "a") as f:
+        if existing and not existing.endswith("\n"):
+            f.write("\n")
+        f.write(f"{rel_str}\n")
+
+
+def _find_gitignore_path(path: Path) -> Path | None:
+    """Find the appropriate .gitignore for a path by walking up to .git.
+
+    Returns the .gitignore path, or None if no .git directory is found.
+    """
+    for parent in [path] + list(path.parents):
+        if (parent / ".git").exists() or (parent / ".git").is_dir():
+            return parent / ".gitignore"
+    return None

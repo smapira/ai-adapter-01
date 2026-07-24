@@ -13,6 +13,7 @@ import click
 import yaml
 
 from ai_adapter.config import (
+    add_to_gitignore,
     get_agents_dir,
     get_github_agents_dir,
     load_config,
@@ -232,6 +233,7 @@ def agent_get(name: str, force: bool, project_dir: str | None) -> None:
         click.confirm(f"'{dest.name}' already exists. Overwrite?", abort=True)
 
     shutil.copy2(src, dest)
+    add_to_gitignore(dest)
     click.echo(f"Agent '{name}' copied to {dest}.")
 
 
@@ -285,6 +287,7 @@ def agent_get_all(project_dir: str | None) -> None:
 
         dest = github_dir / src.name
         shutil.copy2(src, dest)
+        add_to_gitignore(dest)
         copied += 1
 
     click.echo(f"All agents ({copied}) copied to {github_dir}.")

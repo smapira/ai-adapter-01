@@ -11,6 +11,7 @@ from pathlib import Path
 import click
 
 from ai_adapter.config import (
+    add_to_gitignore,
     get_commands_dir,
     get_github_commands_dir,
     load_config,
@@ -107,6 +108,7 @@ def command_get(name: str, project_dir: str | None) -> None:
 
     dest = github_dir / src.name
     shutil.copy2(src, dest)
+    add_to_gitignore(dest)
     click.echo(f"Command '{name}' copied to {dest}.")
 
 
@@ -199,6 +201,7 @@ def command_get_all(project_dir: str | None) -> None:
             continue
         dest = github_dir / src.name
         shutil.copy2(src, dest)
+        add_to_gitignore(dest)
         copied += 1
 
     click.echo(f"All commands ({copied}) copied to {github_dir}.")

@@ -12,6 +12,7 @@ from pathlib import Path
 import click
 
 from ai_adapter.config import (
+    add_to_gitignore,
     get_bins_dir,
     get_github_bins_dir,
     load_config,
@@ -197,6 +198,7 @@ def bin_get(name: str, env: str | None, agent: str | None, project_dir: str | No
 
     dest = github_dir / name
     shutil.copy2(src, dest)
+    add_to_gitignore(dest)
     click.echo(f"Script '{name}' copied to {dest}.")
 
 
@@ -232,6 +234,7 @@ def bin_get_all(env: str | None, project_dir: str | None) -> None:
             continue
         dest = github_dir / bin_entry.name
         shutil.copy2(src, dest)
+        add_to_gitignore(dest)
         copied += 1
 
     env_info = f" (env: {env})" if env else ""

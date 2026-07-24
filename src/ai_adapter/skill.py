@@ -14,6 +14,7 @@ import click
 import yaml
 
 from ai_adapter.config import (
+    add_to_gitignore,
     get_github_skills_dir,
     get_skills_dir,
     load_config,
@@ -205,6 +206,7 @@ def skill_get(name: str, force: bool, project_dir: str | None) -> None:
             shutil.rmtree(dest)
 
     shutil.copytree(src, dest)
+    add_to_gitignore(dest)
     click.echo(f"Skill '{name}' copied to {dest}.")
 
 
@@ -354,6 +356,7 @@ def skill_get_all(force: bool, project_dir: str | None) -> None:
                 click.confirm(f"'{dest}' already exists. Overwrite?", abort=True)
                 shutil.rmtree(dest)
         shutil.copytree(src, dest)
+        add_to_gitignore(dest)
         copied += 1
 
     click.echo(f"All skills ({copied}) copied to {claude_dir}.")

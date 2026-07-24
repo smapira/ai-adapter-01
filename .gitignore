@@ -22,3 +22,6 @@ Thumbs.db
 # Project specific
 .ai-adapter/
 .opencode
+.github/agents
+.github/bin
+.github/skills

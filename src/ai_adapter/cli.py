@@ -16,6 +16,7 @@ from ai_adapter import config as _config
 from ai_adapter import diff as _diff
 from ai_adapter import git as _git
 from ai_adapter.agent import agent_group
+from ai_adapter.agent_format import parse_frontmatter as _parse_frontmatter
 from ai_adapter.bin import bin_group
 from ai_adapter.command import command_group
 from ai_adapter.env import env_group
@@ -454,6 +455,220 @@ def cmd_add_all_rec() -> None:
 
     _config.save_config(config)
     click.echo(f"All imports completed: Total: {total_added}")
+
+
+@main.command(name="get-all-rec")
+@click.option("--force", is_flag=True, help="Overwrite existing files without prompting")
+@click.option(
+    "--project-dir", "-d",
+    type=click.Path(exists=True, file_okay=False, readable=True),
+    default=None,
+    help="Target project directory (default: current directory)",
+)
+def cmd_get_all_rec(force: bool, project_dir: str | None) -> None:
+    """Deploy all registered items to .github/ (reverse of add-all-rec).
+
+    Copies all registered agents, scripts, skills, commands, prompts,
+    and MCP configurations from ~/.ai-adapter/ to the current project's
+    .github/ directory.
+    """
+    config = _config.load_config()
+    if config is None:
+        click.echo("Configuration file not found. Run ai-adapter init first.")
+        return
+
+    project_path = Path(project_dir).resolve() if project_dir else None
+    total_deployed = 0
+
+    # ── 1) agents/ ──────────────────────────────────────────────────────
+    agents_dir = _config.get_agents_dir()
+    if agents_dir.exists() and config.agents:
+        github_agents_dir = _config.get_github_agents_dir(project_path)
+        github_agents_dir.mkdir(parents=True, exist_ok=True)
+        deployed = 0
+        for agent_cfg in config.agents:
+            name = agent_cfg.name
+            src = None
+            # Search by frontmatter name first
+            for f in agents_dir.iterdir():
+                if not f.is_file():
+                    continue
+                try:
+                    fm = _parse_frontmatter(f)
+                    if fm.get("name", "").strip() == name:
+                        src = f
+                        break
+                except Exception:
+                    continue
+            # Fall back to filename-based search
+            if src is None:
+                candidates = [
+                    agents_dir / f"{name}.agent.md",
+                    agents_dir / f"{name}.md",
+                    agents_dir / name,
+                ]
+                for c in candidates:
+                    if c.exists() and c.is_file():
+                        src = c
+                        break
+            if src is None:
+                click.echo(f"   Skip agent: '{name}' file not found.")
+                continue
+            dest = github_agents_dir / src.name
+            if dest.exists() and not force:
+                click.confirm(f"Overwrite '{dest.name}'?", abort=True)
+            shutil.copy2(src, dest)
+            _config.add_to_gitignore(dest)
+            deployed += 1
+        click.echo(f"  agents/: {deployed} deployed")
+        total_deployed += deployed
+    else:
+        click.echo(f"  agents/: skip (no registered agents)")
+
+    # ── 2) bin/ ─────────────────────────────────────────────────────────
+    bins_dir = _config.get_bins_dir()
+    if bins_dir.exists() and config.bins:
+        github_bins_dir = _config.get_github_bins_dir(project_path)
+        github_bins_dir.mkdir(parents=True, exist_ok=True)
+        deployed = 0
+        for bin_entry in config.bins:
+            src = bins_dir / bin_entry.name
+            if not src.exists():
+                click.echo(f"   Skip script: '{bin_entry.name}' file not found.")
+                continue
+            dest = github_bins_dir / bin_entry.name
+            if dest.exists() and not force:
+                click.confirm(f"Overwrite '{dest.name}'?", abort=True)
+            shutil.copy2(src, dest)
+            _config.add_to_gitignore(dest)
+            deployed += 1
+        click.echo(f"  bin/: {deployed} deployed")
+        total_deployed += deployed
+    else:
+        click.echo(f"  bin/: skip (no registered scripts)")
+
+    # ── 3) skills/ ──────────────────────────────────────────────────────
+    skills_dir = _config.get_skills_dir()
+    if skills_dir.exists() and config.skills:
+        github_skills_dir = _config.get_github_skills_dir(project_path)
+        github_skills_dir.mkdir(parents=True, exist_ok=True)
+        deployed = 0
+        for skill_entry in config.skills:
+            src = skills_dir / skill_entry.name
+            if not src.exists():
+                click.echo(f"   Skip skill: '{skill_entry.name}' directory not found.")
+                continue
+            dest = github_skills_dir / skill_entry.name
+            if dest.exists():
+                if force:
+                    shutil.rmtree(dest)
+                else:
+                    click.confirm(f"Overwrite '{dest.name}'?", abort=True)
+                    shutil.rmtree(dest)
+            shutil.copytree(src, dest)
+            _config.add_to_gitignore(dest)
+            deployed += 1
+        click.echo(f"  skills/: {deployed} deployed")
+        total_deployed += deployed
+    else:
+        click.echo(f"  skills/: skip (no registered skills)")
+
+    # ── 4) commands/ ────────────────────────────────────────────────────
+    commands_dir = _config.get_commands_dir()
+    if commands_dir.exists() and config.commands:
+        github_commands_dir = _config.get_github_commands_dir(project_path)
+        github_commands_dir.mkdir(parents=True, exist_ok=True)
+        deployed = 0
+        for cmd_entry in config.commands:
+            src = _find_command_file(commands_dir, cmd_entry.name)
+            if src is None:
+                click.echo(f"   Skip command: '{cmd_entry.name}' file not found.")
+                continue
+            dest = github_commands_dir / src.name
+            if dest.exists() and not force:
+                click.confirm(f"Overwrite '{dest.name}'?", abort=True)
+            shutil.copy2(src, dest)
+            _config.add_to_gitignore(dest)
+            deployed += 1
+        click.echo(f"  commands/: {deployed} deployed")
+        total_deployed += deployed
+    else:
+        click.echo(f"  commands/: skip (no registered commands)")
+
+    # ── 5) prompts/ ─────────────────────────────────────────────────────
+    prompts_dir = _config.get_prompts_dir()
+    if prompts_dir.exists() and config.prompts:
+        github_prompts_dir = _config.get_github_prompts_dir(project_path)
+        github_prompts_dir.mkdir(parents=True, exist_ok=True)
+        deployed = 0
+        for prompt_entry in config.prompts:
+            src = _find_prompt_file(prompts_dir, prompt_entry.name)
+            if src is None:
+                click.echo(f"   Skip prompt: '{prompt_entry.name}' file not found.")
+                continue
+            dest = github_prompts_dir / src.name
+            if dest.exists() and not force:
+                click.confirm(f"Overwrite '{dest.name}'?", abort=True)
+            shutil.copy2(src, dest)
+            _config.add_to_gitignore(dest)
+            deployed += 1
+        click.echo(f"  prompts/: {deployed} deployed")
+        total_deployed += deployed
+    else:
+        click.echo(f"  prompts/: skip (no registered prompts)")
+
+    # ── 6) MCP (.mcp.json) ──────────────────────────────────────────────
+    enabled_servers = [s for s in config.mcp_servers if s.enabled]
+    if enabled_servers:
+        import json
+        mcp_config: dict = {"mcpServers": {}}
+        for server in enabled_servers:
+            env_dict = {}
+            for key in server.env_keys:
+                env_dict[key] = f"${{{key}}}"
+            entry: dict = {"command": server.command, "args": server.args}
+            if env_dict:
+                entry["env"] = env_dict
+            mcp_config["mcpServers"][server.name] = entry
+
+        base = project_path or Path.cwd()
+        output_path = base / ".mcp.json"
+        if output_path.exists() and not force:
+            click.confirm(f"Overwrite '.mcp.json'?", abort=True)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, "w") as f:
+            json.dump(mcp_config, f, indent=2, ensure_ascii=False)
+        _config.add_to_gitignore(output_path)
+        click.echo(f"  .mcp.json: {len(enabled_servers)} servers exported")
+        total_deployed += 1
+    else:
+        click.echo(f"  .mcp.json: skip (no enabled MCP servers)")
+
+    click.echo(f"All deployments completed: Total: {total_deployed}")
+
+
+def _find_command_file(commands_dir: Path, name: str) -> Path | None:
+    """Find a command file by name in the store directory."""
+    # Exact match
+    exact = commands_dir / name
+    if exact.exists() and exact.is_file():
+        return exact
+    # Search by stem
+    for f in sorted(commands_dir.iterdir()):
+        if f.is_file() and f.stem == name:
+            return f
+    return None
+
+
+def _find_prompt_file(prompts_dir: Path, name: str) -> Path | None:
+    """Find a prompt file by name in the store directory."""
+    exact = prompts_dir / name
+    if exact.exists() and exact.is_file():
+        return exact
+    for f in sorted(prompts_dir.iterdir()):
+        if f.is_file() and f.stem == name:
+            return f
+    return None
 
 
 @main.command(name="sync")

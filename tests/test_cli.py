@@ -51,6 +51,7 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("command", result.output)
         self.assertIn("prompt", result.output)
         self.assertIn("add-all-rec", result.output)
+        self.assertIn("get-all-rec", result.output)
         self.assertIn("sync", result.output)
         self.assertIn("uninstall", result.output)
         self.assertIn("start", result.output)
@@ -450,3 +451,179 @@ class TestAddAllRecCommand(unittest.TestCase):
         result = self.runner.invoke(main, ["add-all-rec"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("not found", result.output)
+
+
+class TestGetAllRecCommand(unittest.TestCase):
+    """Tests for get-all-rec command."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.patch_home = Path(self.temp_dir.name)
+        self.runner = CliRunner()
+
+        import pathlib
+        self._original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.patch_home)
+
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
+
+        from ai_adapter.config import init
+        init()
+
+    def tearDown(self):
+        import pathlib
+        pathlib.Path.home = staticmethod(self._original_home)
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        self.temp_dir.cleanup()
+
+    def _populate_store(self):
+        """Populate ~/.ai-adapter/ with test data for all categories."""
+        cfg = __import__("ai_adapter.config", fromlist=["config"])
+        from ai_adapter.models import Agent, Bin, Skill, Command, Prompt, MCPServer
+
+        # agents
+        agents_dir = cfg.get_agents_dir()
+        agents_dir.mkdir(parents=True, exist_ok=True)
+        (agents_dir / "reviewer.agent.md").write_text(
+            "---\nname: reviewer\n---\n# Reviewer"
+        )
+        (agents_dir / "implementer.agent.md").write_text(
+            "---\nname: implementer\n---\n# Implementer"
+        )
+
+        # bins
+        bins_dir = cfg.get_bins_dir()
+        bins_dir.mkdir(parents=True, exist_ok=True)
+        (bins_dir / "build.sh").write_text("#!/bin/bash\necho build")
+        (bins_dir / "deploy.sh").write_text("#!/bin/bash\necho deploy")
+
+        # skills
+        skills_dir = cfg.get_skills_dir()
+        skills_dir.mkdir(parents=True, exist_ok=True)
+        skill1 = skills_dir / "my-skill"
+        skill1.mkdir()
+        (skill1 / "SKILL.md").write_text(
+            "---\nname: my-skill\ndescription: A test skill\n---\n# My Skill"
+        )
+
+        # commands
+        commands_dir = cfg.get_commands_dir()
+        commands_dir.mkdir(parents=True, exist_ok=True)
+        (commands_dir / "hello.md").write_text("Say hello to the user")
+        (commands_dir / "list-files.md").write_text("List all files")
+
+        # prompts
+        prompts_dir = cfg.get_prompts_dir()
+        prompts_dir.mkdir(parents=True, exist_ok=True)
+        (prompts_dir / "code-review.md").write_text("Review this code")
+        (prompts_dir / "summarize.md").write_text("Summarize the content")
+
+        # Update config
+        config = __import__("ai_adapter.config", fromlist=["config"])
+        cfg_obj = config.load_config()
+        cfg_obj.agents = [Agent(name="reviewer"), Agent(name="implementer")]
+        cfg_obj.bins = [Bin(name="build.sh", env="default"), Bin(name="deploy.sh", env="default")]
+        cfg_obj.skills = [Skill(name="my-skill", description="A test skill", path="skills/my-skill")]
+        cfg_obj.commands = [Command(name="hello"), Command(name="list-files")]
+        cfg_obj.prompts = [Prompt(name="code-review"), Prompt(name="summarize")]
+        cfg_obj.mcp_servers = [
+            MCPServer(name="test-server", command="npx", args=["@test/server"], enabled=True),
+            MCPServer(name="disabled-server", command="npx", args=["@test/old"], enabled=False),
+        ]
+        config.save_config(cfg_obj)
+
+    def test_get_all_rec_before_init(self):
+        """Verify message before init."""
+        import shutil
+        shutil.rmtree(self.patch_home / ".ai-adapter", ignore_errors=True)
+
+        result = self.runner.invoke(main, ["get-all-rec"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("not found", result.output)  # config file not found
+
+    def test_get_all_rec_empty(self):
+        """Verify message when nothing registered."""
+        result = self.runner.invoke(main, ["get-all-rec"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("skip", result.output)
+        self.assertIn("Total:", result.output)
+
+    def test_get_all_rec_all_categories(self):
+        """Verify all categories are deployed to .github/."""
+        self._populate_store()
+
+        result = self.runner.invoke(main, ["get-all-rec", "--force"])
+        self.assertEqual(result.exit_code, 0)
+
+        # Check per-category output
+        self.assertIn("agents/: 2 deployed", result.output)
+        self.assertIn("bin/: 2 deployed", result.output)
+        self.assertIn("skills/: 1 deployed", result.output)
+        self.assertIn("commands/: 2 deployed", result.output)
+        self.assertIn("prompts/: 2 deployed", result.output)
+        self.assertIn(".mcp.json: 1 servers exported", result.output)
+
+        # Verify files exist in .github/
+        self.assertTrue((Path.cwd() / ".github" / "agents" / "reviewer.agent.md").exists())
+        self.assertTrue((Path.cwd() / ".github" / "agents" / "implementer.agent.md").exists())
+        self.assertTrue((Path.cwd() / ".github" / "bin" / "build.sh").exists())
+        self.assertTrue((Path.cwd() / ".github" / "bin" / "deploy.sh").exists())
+        self.assertTrue((Path.cwd() / ".github" / "skills" / "my-skill" / "SKILL.md").exists())
+        self.assertTrue((Path.cwd() / ".github" / "commands" / "hello.md").exists())
+        self.assertTrue((Path.cwd() / ".github" / "commands" / "list-files.md").exists())
+        self.assertTrue((Path.cwd() / ".github" / "prompts" / "code-review.md").exists())
+        self.assertTrue((Path.cwd() / ".github" / "prompts" / "summarize.md").exists())
+        self.assertTrue((Path.cwd() / ".mcp.json").exists())
+
+        # Verify .mcp.json content (only enabled servers)
+        mcp_data = json.loads((Path.cwd() / ".mcp.json").read_text())
+        self.assertIn("test-server", mcp_data["mcpServers"])
+        self.assertNotIn("disabled-server", mcp_data["mcpServers"])
+
+        # Cleanup
+        import shutil
+        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+        (Path.cwd() / ".mcp.json").unlink(missing_ok=True)
+
+    def test_get_all_rec_with_project_dir(self):
+        """Verify --project-dir deploys to a custom directory."""
+        self._populate_store()
+
+        project_dir = Path(self.temp_dir.name) / "my-project"
+        project_dir.mkdir(parents=True, exist_ok=True)
+
+        result = self.runner.invoke(main, [
+            "get-all-rec", "--force", "--project-dir", str(project_dir),
+        ])
+        self.assertEqual(result.exit_code, 0)
+
+        # Verify files in the custom project directory
+        self.assertTrue((project_dir / ".github" / "agents" / "reviewer.agent.md").exists())
+        self.assertTrue((project_dir / ".github" / "bin" / "build.sh").exists())
+        self.assertTrue((project_dir / ".mcp.json").exists())
+
+        # Cleanup
+        import shutil
+        shutil.rmtree(project_dir / ".github", ignore_errors=True)
+        (project_dir / ".mcp.json").unlink(missing_ok=True)
+
+    def test_get_all_rec_overwrite_prompt(self):
+        """Verify confirmation prompt is shown without --force."""
+        self._populate_store()
+
+        # First deploy with --force
+        result = self.runner.invoke(main, ["get-all-rec", "--force"])
+        self.assertEqual(result.exit_code, 0)
+
+        # Deploy again without --force → needs confirmation per file/dir
+        # 2 agents + 2 bins + 1 skill + 2 commands + 2 prompts + 1 mcp = 10 prompts
+        result = self.runner.invoke(main, ["get-all-rec"], input="\n".join(["y"] * 10))
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("agents", result.output)
+
+        # Cleanup
+        import shutil
+        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+        (Path.cwd() / ".mcp.json").unlink(missing_ok=True)

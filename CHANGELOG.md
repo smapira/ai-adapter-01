@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.15.0] - 2026-07-26
+
+### Added
+
+- **`get-all-rec` top-level command**: Deploy all registered items across all categories
+  to `.github/` in a single command (reverse of `add-all-rec`)
+  - `agents/`, `bin/`, `skills/`, `commands/`, `prompts/`, and `.mcp.json`
+  - Supports `--force` to skip confirmation prompts
+  - Supports `--project-dir`/`-d` to target a specific project directory
+
 ## [0.13.0] - 2026-07-25
 
 ### Changed

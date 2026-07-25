@@ -142,8 +142,23 @@ Run this after cloning a synced repository to automatically restore configuratio
 ai-adapter add-all-rec
 ```
 
+### `ai-adapter get-all-rec`
+
+Deploys **all** registered items across all categories to `.github/` at once.
+The reverse of `add-all-rec` — runs `agent get-all` + `bin get-all` + `skill get-all` +
+`command get-all` + `prompt get-all` + `mcp get` in a single command.
+
+| Option | Description |
+|--------|-------------|
+| `--force` | Overwrite existing files without prompting |
+| `--project-dir`, `-d` | Target project directory (default: current directory) |
+
 ```bash
-ai-adapter status
+# Deploy everything from ~/.ai-adapter/ to the current project
+ai-adapter get-all-rec
+
+# Force overwrite to a specific project
+ai-adapter get-all-rec --force --project-dir /path/to/project
 ```
 
 ### `ai-adapter agent`

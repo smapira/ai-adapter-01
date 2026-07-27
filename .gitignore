@@ -193,3 +193,4 @@ opencode.json
 /.github/prompts/summarize.md
 /.github/
 /.github/skills/another-skill/
+.mypy_cache

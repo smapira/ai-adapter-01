@@ -13,7 +13,7 @@ from click.testing import CliRunner
 from ai_adapter.cli import main
 from ai_adapter.config import init
 from ai_adapter.models import MCPServer
-from ai_adapter.mcp import export_openclaw_mcp, merge_into_openclaw_json
+from ai_adapter.providers.openclaw import export_mcp, merge_into_openclaw_json
 
 # ── Test fixture servers (from plan's BDD scenarios) ──
 
@@ -204,11 +204,11 @@ class TestMCPCommands(unittest.TestCase):
 class TestOpenClawMCPExport(unittest.TestCase):
     """Tests for OpenClaw MCP export functionality."""
 
-    # ── Unit tests for export_openclaw_mcp() ──
+    # ── Unit tests for providers.openclaw.export_mcp() ──
 
     def test_export_openclaw_basic(self):
         """4 servers (normal, empty env, empty args, disabled) → correct output."""
-        result = export_openclaw_mcp([
+        result = export_mcp([
             SERVER_GITHUB, SERVER_PLAYWRIGHT, SERVER_NO_ARGS, SERVER_DISABLED,
         ])
         # x-ai-adapter marker with managed names (disabled excluded)
@@ -232,25 +232,25 @@ class TestOpenClawMCPExport(unittest.TestCase):
 
     def test_export_openclaw_disabled_excluded(self):
         """Only disabled servers → empty mcp.servers and empty managed list."""
-        result = export_openclaw_mcp([SERVER_DISABLED])
+        result = export_mcp([SERVER_DISABLED])
         self.assertEqual(result["mcp"]["servers"], {})
         self.assertEqual(result["x-ai-adapter"]["managed_mcp_servers"], [])
 
     def test_export_openclaw_empty_env_omitted(self):
         """Empty env_keys → no env key in output entry."""
-        result = export_openclaw_mcp([SERVER_PLAYWRIGHT])
+        result = export_mcp([SERVER_PLAYWRIGHT])
         self.assertNotIn("env", result["mcp"]["servers"]["playwright"])
 
     def test_export_openclaw_empty_args_omitted(self):
         """Empty args → no args key in output entry."""
-        result = export_openclaw_mcp([SERVER_NO_ARGS])
+        result = export_mcp([SERVER_NO_ARGS])
         self.assertNotIn("args", result["mcp"]["servers"]["no-args"])
 
     def test_export_openclaw_invalid_env_key_warning(self):
         """Invalid env key name emits warning on stderr but still produces output."""
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
-            result = export_openclaw_mcp([SERVER_INVALID_ENV_KEY])
+            result = export_mcp([SERVER_INVALID_ENV_KEY])
         self.assertIn("Warning:", stderr.getvalue())
         self.assertIn("myApiKey", stderr.getvalue())
         # Output still produced despite warning
@@ -258,7 +258,7 @@ class TestOpenClawMCPExport(unittest.TestCase):
 
     def test_export_openclaw_x_ai_adapter_marker(self):
         """x-ai-adapter marker has correct version and managed names."""
-        result = export_openclaw_mcp([SERVER_GITHUB])
+        result = export_mcp([SERVER_GITHUB])
         self.assertEqual(result["x-ai-adapter"]["version"], 1)
         self.assertEqual(result["x-ai-adapter"]["managed_mcp_servers"], ["github"])
 
@@ -268,7 +268,7 @@ class TestOpenClawMCPExport(unittest.TestCase):
         """No existing file → creates new openclaw.json with correct content."""
         with tempfile.TemporaryDirectory() as tmp:
             output_path = Path(tmp) / "openclaw.json"
-            data = export_openclaw_mcp([SERVER_GITHUB])
+            data = export_mcp([SERVER_GITHUB])
             merge_into_openclaw_json(output_path, data, force=True)
 
             self.assertTrue(output_path.exists())
@@ -300,7 +300,7 @@ class TestOpenClawMCPExport(unittest.TestCase):
                 json.dump(existing_data, f, indent=2)
 
             # Merge with ai-adapter's github server
-            data = export_openclaw_mcp([SERVER_GITHUB])
+            data = export_mcp([SERVER_GITHUB])
             merge_into_openclaw_json(output_path, data, force=True)
 
             with open(output_path) as f:

@@ -191,3 +191,5 @@ opencode.json
 /.github/commands/list-files.md
 /.github/prompts/code-review.md
 /.github/prompts/summarize.md
+/.github/
+/.github/skills/another-skill/

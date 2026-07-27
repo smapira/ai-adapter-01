@@ -6,6 +6,7 @@ Syncs ~/.ai-adapter/ with a GitHub remote as a Git repository.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 import click
 
@@ -15,9 +16,8 @@ from ai_adapter.git import (
     add_all,
     add_remote,
     commit,
-    get_current_branch,
     get_conflicted_files,
-    get_remotes,
+    get_current_branch,
     has_remote,
     init_repo,
     is_rebasing,
@@ -97,7 +97,7 @@ def sync_command(adapter_dir: Path | None = None) -> None:
             click.echo("  Changes committed.")
         except GitError as e:
             logger.error("commit failed: %s", e)
-            click.echo(f"  Commit failed.")
+            click.echo("  Commit failed.")
             click.echo("  Git user configuration may not be set.")
             click.echo("  Run the following and try again:")
             click.echo("    git config --global user.email 'you@example.com'")
@@ -137,12 +137,12 @@ def sync_command(adapter_dir: Path | None = None) -> None:
             logger.error("pull --rebase failed: %s", e)
             if "would be overwritten by rebase" in str(e).lower() or "conflict" in str(e).lower():
                 click.echo("  Conflict occurred. Resolve it manually.")
-                click.echo(f"    cd ~/.ai-adapter && git status")
-                click.echo(f"    git rebase --abort  # to abort")
+                click.echo("    cd ~/.ai-adapter && git status")
+                click.echo("    git rebase --abort  # to abort")
             else:
-                click.echo(f"  Branch name may not match.")
+                click.echo("  Branch name may not match.")
                 click.echo(f"  Current branch: {branch}")
-                click.echo(f"  Check status: cd ~/.ai-adapter && git branch -a")
+                click.echo("  Check status: cd ~/.ai-adapter && git branch -a")
             return
 
     # Step 4: git push
@@ -159,7 +159,7 @@ def sync_command(adapter_dir: Path | None = None) -> None:
         elif "408" in str(e) or "Timeout" in str(e):
             click.echo("  Timeout. Check your network connection.")
         else:
-            click.echo(f"  Push failed.")
+            click.echo("  Push failed.")
             click.echo(f"    Branch: {branch}")
             click.echo(f"    Run manually: cd ~/.ai-adapter && git push origin {branch}")
 

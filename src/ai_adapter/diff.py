@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import NamedTuple
 
 from ai_adapter import config as _config
-from ai_adapter.models import Config
 
 
 class FileDiff(NamedTuple):

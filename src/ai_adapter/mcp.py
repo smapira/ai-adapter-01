@@ -56,8 +56,10 @@ def mcp_list(tool: str | None, env: str | None) -> None:
 @click.argument("name", required=False)
 @click.option("--command", "-c", help="Command to execute")
 @click.option("--args", "-a", multiple=True, help="Command arguments (can be specified multiple times)")
-@click.option("--env-key", "-e", multiple=True, help="Required environment variable keys (can be specified multiple times)")
-@click.option("--tool", "-t", multiple=True, help="Compatible tools: vscode/claude/cursor (can be specified multiple times)")
+@click.option("--env-key", "-e", multiple=True,
+              help="Required env var keys (can be specified multiple times)")
+@click.option("--tool", "-t", multiple=True,
+              help="Compatible tools: vscode/claude/cursor (can be specified multiple times)")
 @click.option("--env", help="Target environment")
 @click.option("--file", "-f", "json_path", type=click.Path(exists=True, readable=True),
               help="Path to .mcp.json file for bulk import")
@@ -385,6 +387,6 @@ def mcp_remove_all(force: bool) -> None:
     mcp_json = Path.cwd() / ".mcp.json"
     if mcp_json.exists():
         mcp_json.unlink()
-        click.echo(f".mcp.json deleted.")
+        click.echo(".mcp.json deleted.")
 
     click.echo(f"All MCP servers ({count}) removed.")

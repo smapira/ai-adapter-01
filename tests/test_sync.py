@@ -88,17 +88,15 @@ class TestSyncCommand(unittest.TestCase):
         self.assertIn("init", result.output)
 
     @patch("ai_adapter.sync._config.load_config")
-    @patch("ai_adapter.sync.get_remotes")
     @patch("ai_adapter.sync.is_repo")
     @patch("ai_adapter.sync.has_remote")
     def test_sync_no_remote_skip(
-        self, mock_has_remote, mock_is_repo, mock_get_remotes, mock_load_config,
+        self, mock_has_remote, mock_is_repo, mock_load_config,
     ):
         """Verify sync can be skipped when no remote is configured."""
         from ai_adapter.models import Config
         mock_is_repo.return_value = True
         mock_has_remote.return_value = False
-        mock_get_remotes.return_value = []
         mock_load_config.return_value = Config()
 
         # Skip with Enter

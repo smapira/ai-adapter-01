@@ -260,35 +260,35 @@ class Config:
         # Validate each list field
         agents_data = data.get("agents", [])
         if not isinstance(agents_data, list):
-            raise ValueError(f"agents must be a list")
+            raise ValueError("agents must be a list")
 
         envs_data = data.get("envs", [])
         if not isinstance(envs_data, list):
-            raise ValueError(f"envs must be a list")
+            raise ValueError("envs must be a list")
 
         bins_data = data.get("bins", [])
         if not isinstance(bins_data, list):
-            raise ValueError(f"bins must be a list")
+            raise ValueError("bins must be a list")
 
         skills_data = data.get("skills", [])
         if not isinstance(skills_data, list):
-            raise ValueError(f"skills must be a list")
+            raise ValueError("skills must be a list")
 
         commands_data = data.get("commands", [])
         if not isinstance(commands_data, list):
-            raise ValueError(f"commands must be a list")
+            raise ValueError("commands must be a list")
 
         prompts_data = data.get("prompts", [])
         if not isinstance(prompts_data, list):
-            raise ValueError(f"prompts must be a list")
+            raise ValueError("prompts must be a list")
 
         mcp_servers_data = data.get("mcp_servers", [])
         if not isinstance(mcp_servers_data, list):
-            raise ValueError(f"mcp_servers must be a list")
+            raise ValueError("mcp_servers must be a list")
 
         agent_bindings_data = data.get("agent_bindings", [])
         if not isinstance(agent_bindings_data, list):
-            raise ValueError(f"agent_bindings must be a list")
+            raise ValueError("agent_bindings must be a list")
 
         return cls(
             version=version,

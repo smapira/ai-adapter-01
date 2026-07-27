@@ -12,8 +12,8 @@ import click
 
 from ai_adapter.config import (
     add_to_gitignore,
-    get_prompts_dir,
     get_github_prompts_dir,
+    get_prompts_dir,
     load_config,
     save_config,
 )

@@ -328,7 +328,7 @@ def bin_add_path(shell: str | None) -> None:
         chosen = shell.lower()
     else:
         click.echo()
-        click.echo(f"Add the following line to your shell config to run scripts by short name:")
+        click.echo("Add the following line to your shell config to run scripts by short name:")
         click.echo(f"  {export_line}")
         click.echo()
         click.echo("Select a shell config file:")

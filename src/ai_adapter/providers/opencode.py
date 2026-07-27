@@ -62,7 +62,7 @@ def opencode_alias() -> None:
                 )
 
     if opencode_path.exists() or opencode_path.is_symlink():
-        click.echo(f"'.opencode' already exists.")
+        click.echo("'.opencode' already exists.")
         click.confirm("Replace it?", abort=True)
         if opencode_path.is_symlink() or opencode_path.is_dir():
             import shutil

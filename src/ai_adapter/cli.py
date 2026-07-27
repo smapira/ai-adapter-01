@@ -20,11 +20,11 @@ from ai_adapter.agent_format import parse_frontmatter as _parse_frontmatter
 from ai_adapter.bin import bin_group
 from ai_adapter.command import command_group
 from ai_adapter.env import env_group
+from ai_adapter.git import GitError, get_conflicted_files, is_rebasing
 from ai_adapter.mcp import mcp_group
-from ai_adapter.opencode import opencode_group
 from ai_adapter.prompt import prompt_group
+from ai_adapter.providers.opencode import opencode_group
 from ai_adapter.skill import skill_group
-from ai_adapter.git import GitError, is_rebasing, get_conflicted_files
 from ai_adapter.sync import sync_command
 
 logging.basicConfig(
@@ -340,11 +340,12 @@ def cmd_add_all_rec() -> None:
         click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
+    import json
+
     from ai_adapter.agent import _get_agent_name_from_path
     from ai_adapter.agent_format import parse_frontmatter
-    from ai_adapter.models import Agent, Bin, Skill, MCPServer
+    from ai_adapter.models import Agent, Bin, MCPServer, Skill
     from ai_adapter.skill import _parse_skill_metadata
-    import json
 
     total_added = 0
 
@@ -370,7 +371,7 @@ def cmd_add_all_rec() -> None:
         click.echo(f"  agents/: {added} registered")
         total_added += added
     else:
-        click.echo(f"  agents/: skip (directory not found)")
+        click.echo("  agents/: skip (directory not found)")
 
     # 2) bin/
     bins_src = github_dir / "bin"
@@ -390,7 +391,7 @@ def cmd_add_all_rec() -> None:
         click.echo(f"  bin/: {added} registered")
         total_added += added
     else:
-        click.echo(f"  bin/: skip (directory not found)")
+        click.echo("  bin/: skip (directory not found)")
 
     # 3) skills/
     skills_src = github_dir / "skills"
@@ -424,7 +425,7 @@ def cmd_add_all_rec() -> None:
         click.echo(f"  skills/: {added} registered")
         total_added += added
     else:
-        click.echo(f"  skills/: skip (directory not found)")
+        click.echo("  skills/: skip (directory not found)")
 
     # 4) .mcp.json
     mcp_json = Path.cwd() / ".mcp.json"
@@ -451,7 +452,7 @@ def cmd_add_all_rec() -> None:
         except (json.JSONDecodeError, Exception) as e:
             click.echo(f"  .mcp.json  failed to load: {e}")
     else:
-        click.echo(f"  .mcp.json: skip (file not found)")
+        click.echo("  .mcp.json: skip (file not found)")
 
     _config.save_config(config)
     click.echo(f"All imports completed: Total: {total_added}")
@@ -523,7 +524,7 @@ def cmd_get_all_rec(force: bool, project_dir: str | None) -> None:
         click.echo(f"  agents/: {deployed} deployed")
         total_deployed += deployed
     else:
-        click.echo(f"  agents/: skip (no registered agents)")
+        click.echo("  agents/: skip (no registered agents)")
 
     # ── 2) bin/ ─────────────────────────────────────────────────────────
     bins_dir = _config.get_bins_dir()
@@ -545,7 +546,7 @@ def cmd_get_all_rec(force: bool, project_dir: str | None) -> None:
         click.echo(f"  bin/: {deployed} deployed")
         total_deployed += deployed
     else:
-        click.echo(f"  bin/: skip (no registered scripts)")
+        click.echo("  bin/: skip (no registered scripts)")
 
     # ── 3) skills/ ──────────────────────────────────────────────────────
     skills_dir = _config.get_skills_dir()
@@ -571,7 +572,7 @@ def cmd_get_all_rec(force: bool, project_dir: str | None) -> None:
         click.echo(f"  skills/: {deployed} deployed")
         total_deployed += deployed
     else:
-        click.echo(f"  skills/: skip (no registered skills)")
+        click.echo("  skills/: skip (no registered skills)")
 
     # ── 4) commands/ ────────────────────────────────────────────────────
     commands_dir = _config.get_commands_dir()
@@ -593,7 +594,7 @@ def cmd_get_all_rec(force: bool, project_dir: str | None) -> None:
         click.echo(f"  commands/: {deployed} deployed")
         total_deployed += deployed
     else:
-        click.echo(f"  commands/: skip (no registered commands)")
+        click.echo("  commands/: skip (no registered commands)")
 
     # ── 5) prompts/ ─────────────────────────────────────────────────────
     prompts_dir = _config.get_prompts_dir()
@@ -615,7 +616,7 @@ def cmd_get_all_rec(force: bool, project_dir: str | None) -> None:
         click.echo(f"  prompts/: {deployed} deployed")
         total_deployed += deployed
     else:
-        click.echo(f"  prompts/: skip (no registered prompts)")
+        click.echo("  prompts/: skip (no registered prompts)")
 
     # ── 6) MCP (.mcp.json) ──────────────────────────────────────────────
     enabled_servers = [s for s in config.mcp_servers if s.enabled]
@@ -634,7 +635,7 @@ def cmd_get_all_rec(force: bool, project_dir: str | None) -> None:
         base = project_path or Path.cwd()
         output_path = base / ".mcp.json"
         if output_path.exists() and not force:
-            click.confirm(f"Overwrite '.mcp.json'?", abort=True)
+            click.confirm("Overwrite '.mcp.json'?", abort=True)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w") as f:
             json.dump(mcp_config, f, indent=2, ensure_ascii=False)
@@ -642,7 +643,7 @@ def cmd_get_all_rec(force: bool, project_dir: str | None) -> None:
         click.echo(f"  .mcp.json: {len(enabled_servers)} servers exported")
         total_deployed += 1
     else:
-        click.echo(f"  .mcp.json: skip (no enabled MCP servers)")
+        click.echo("  .mcp.json: skip (no enabled MCP servers)")
 
     click.echo(f"All deployments completed: Total: {total_deployed}")
 
@@ -689,7 +690,6 @@ def cmd_sync(do_continue: bool, do_abort: bool, do_skip: bool) -> None:
         return
 
     # Normal sync
-    from ai_adapter.sync import sync_command
     try:
         sync_command(adapter_dir)
     except GitError as e:

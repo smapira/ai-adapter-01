@@ -11,12 +11,12 @@ from pathlib import Path
 
 import click
 
-from ai_adapter.agent_format import parse_frontmatter as _parse_frontmatter
 from ai_adapter.agent_format import (
     _convert_tools_in_frontmatter,
     convert_agent_file,
     validate_agent_file,
 )
+from ai_adapter.agent_format import parse_frontmatter as _parse_frontmatter
 from ai_adapter.config import (
     add_to_gitignore,
     get_agents_dir,

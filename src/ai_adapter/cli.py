@@ -15,16 +15,16 @@ from ai_adapter import __version__
 from ai_adapter import config as _config
 from ai_adapter import diff as _diff
 from ai_adapter import git as _git
-from ai_adapter.agent import agent_group
 from ai_adapter.agent_format import parse_frontmatter as _parse_frontmatter
-from ai_adapter.bin import bin_group
-from ai_adapter.command import command_group
-from ai_adapter.env import env_group
+from ai_adapter.commands.agent import agent_group
+from ai_adapter.commands.bin import bin_group
+from ai_adapter.commands.command import command_group
+from ai_adapter.commands.env import env_group
+from ai_adapter.commands.mcp import mcp_group
+from ai_adapter.commands.prompt import prompt_group
+from ai_adapter.commands.skill import skill_group
 from ai_adapter.git import GitError, get_conflicted_files, is_rebasing
-from ai_adapter.mcp import mcp_group
-from ai_adapter.prompt import prompt_group
 from ai_adapter.providers.opencode import opencode_group
-from ai_adapter.skill import skill_group
 from ai_adapter.sync import sync_command
 
 logging.basicConfig(
@@ -342,10 +342,10 @@ def cmd_add_all_rec() -> None:
 
     import json
 
-    from ai_adapter.agent import _get_agent_name_from_path
     from ai_adapter.agent_format import parse_frontmatter
+    from ai_adapter.commands.agent import _get_agent_name_from_path
+    from ai_adapter.commands.skill import _parse_skill_metadata
     from ai_adapter.models import Agent, Bin, MCPServer, Skill
-    from ai_adapter.skill import _parse_skill_metadata
 
     total_added = 0
 

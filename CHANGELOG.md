@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.16.0] - 2026-07-27
+
+### Added
+
+- **OpenClaw MCP export** (`mcp get --format openclaw`): Export MCP server configurations
+  to OpenClaw format (`mcp.servers` in `openclaw.json`)
+  - Server-name-based merge preserves existing non-ai-adapter servers
+  - `enabled` flag per server, `${VAR}` env format, `.bak` backup
+  - `--force` to skip confirmation prompt
+- **OpenClaw skills export** (`skill get-all --format openclaw`): Deploy skills to
+  `~/.openclaw/skills/` using native SKILL.md format (identical format, no conversion needed)
+  - Existing non-ai-adapter skills in target directory are preserved
+  - Clear warning when OpenClaw is not installed
+
+### Changed
+
+- **`mcp get`**: Added `--format`/`-f` option (`standard` | `openclaw`, default: `standard`).
+  Existing logic refactored into `_mcp_get_standard()` for clarity.
+- **`skill get-all`**: Added `--format`/`-f` option (`standard` | `openclaw`, default: `standard`).
+  Deployment logic refactored into `_deploy_skills_standard()` and `_deploy_skills_openclaw()`.
+
 ## [0.15.0] - 2026-07-26
 
 ### Added

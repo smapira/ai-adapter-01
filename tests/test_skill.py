@@ -219,3 +219,143 @@ class TestSkillAddRecCommand(unittest.TestCase):
         result = self.runner.invoke(main, ["skill", "list"])
         self.assertIn("skill1", result.output)
         self.assertIn("skill2", result.output)
+
+
+class TestSkillOpenClawExport(unittest.TestCase):
+    """Tests for skill get-all --format openclaw."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.patch_home = Path(self.temp_dir.name)
+        self.runner = CliRunner()
+
+        import pathlib
+        self._original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.patch_home)
+
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
+
+        init()
+
+        # Create OpenClaw dir (simulate installed)
+        self.openclaw_dir = self.patch_home / ".openclaw"
+        self.openclaw_dir.mkdir(parents=True)
+
+        # Create and register test skill
+        self.skill_dir = Path(self.temp_dir.name) / "my-skill"
+        self.skill_dir.mkdir(parents=True)
+        (self.skill_dir / "SKILL.md").write_text(
+            "---\nname: my-skill\ndescription: My Test Skill\n---\n# My Skill\n"
+        )
+        self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
+
+        # Create a second skill to verify multiple
+        self.skill_dir2 = Path(self.temp_dir.name) / "another-skill"
+        self.skill_dir2.mkdir(parents=True)
+        (self.skill_dir2 / "SKILL.md").write_text(
+            "---\nname: another-skill\ndescription: Another Skill\ntags: [demo]\n---\n# Another\n"
+        )
+        self.runner.invoke(main, ["skill", "add", str(self.skill_dir2)])
+
+        # Place an existing skill in OpenClaw (simulate pre-existing non-ai-adapter skill)
+        self.existing_skill_dir = self.openclaw_dir / "skills" / "existing-skill"
+        self.existing_skill_dir.mkdir(parents=True)
+        (self.existing_skill_dir / "SKILL.md").write_text(
+            "---\nname: existing-skill\ndescription: Pre-existing\n---\n# Existing\n"
+        )
+
+    def tearDown(self):
+        import pathlib
+        pathlib.Path.home = staticmethod(self._original_home)
+        import ai_adapter.config as cfg
+        cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        self.temp_dir.cleanup()
+
+    def test_get_all_openclaw_basic(self):
+        """Skills deployed to ~/.openclaw/skills/."""
+        result = self.runner.invoke(main, [
+            "skill", "get-all", "--format", "openclaw", "--force",
+        ])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("(2) copied to", result.output)
+
+        oc_skills = self.openclaw_dir / "skills"
+        self.assertTrue((oc_skills / "my-skill" / "SKILL.md").exists())
+        self.assertTrue((oc_skills / "another-skill" / "SKILL.md").exists())
+
+    def test_get_all_openclaw_preserves_existing(self):
+        """Non-ai-adapter skills in OpenClaw are preserved."""
+        self.runner.invoke(main, [
+            "skill", "get-all", "--format", "openclaw", "--force",
+        ])
+        # existing-skill was placed before the deploy and should still be there
+        oc_skills = self.openclaw_dir / "skills"
+        self.assertTrue((oc_skills / "existing-skill" / "SKILL.md").exists())
+
+    def test_get_all_openclaw_overwrites_managed(self):
+        """Ai-adapter managed skill overwrites same-named skill in OpenClaw."""
+        # Pre-place a skill with the same name as our managed one but different content
+        preplaced = self.openclaw_dir / "skills" / "my-skill"
+        preplaced.mkdir(parents=True, exist_ok=True)
+        (preplaced / "SKILL.md").write_text("---\nname: old\n---\nOld content\n")
+
+        self.runner.invoke(main, [
+            "skill", "get-all", "--format", "openclaw", "--force",
+        ])
+        # Should be overwritten with our version
+        content = (self.openclaw_dir / "skills" / "my-skill" / "SKILL.md").read_text()
+        self.assertIn("My Test Skill", content)
+        self.assertNotIn("Old content", content)
+
+    def test_get_all_openclaw_not_installed(self):
+        """Warning when ~/.openclaw/ doesn't exist."""
+        import shutil
+        shutil.rmtree(self.openclaw_dir)
+
+        result = self.runner.invoke(main, [
+            "skill", "get-all", "--format", "openclaw", "--force",
+        ])
+        # Should show warning but not error
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("OpenClaw not found", result.output)
+
+    def test_get_all_standard_still_works(self):
+        """--format standard (default) still deploys to .github/skills/."""
+        result = self.runner.invoke(main, [
+            "skill", "get-all", "--force",
+        ])
+        self.assertEqual(result.exit_code, 0)
+        self.assertTrue((Path.cwd() / ".github" / "skills" / "my-skill" / "SKILL.md").exists())
+
+        import shutil
+        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+
+    def test_get_all_openclaw_no_skills(self):
+        """Message when no skills registered."""
+        # Remove all skills
+        self.runner.invoke(main, ["skill", "remove-all", "--force", "--purge"])
+
+        result = self.runner.invoke(main, [
+            "skill", "get-all", "--format", "openclaw",
+        ])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("No skills registered", result.output)
+
+    def test_get_all_openclaw_force_prompt(self):
+        """Without --force, prompt is shown for existing skills."""
+        # Pre-place a skill
+        preplaced = self.openclaw_dir / "skills" / "my-skill"
+        preplaced.mkdir(parents=True, exist_ok=True)
+        (preplaced / "SKILL.md").write_text("---\nname: old\n---\nOld\n")
+
+        # Without --force, should abort on prompt (we pass 'n' via input)
+        result = self.runner.invoke(
+            main,
+            ["skill", "get-all", "--format", "openclaw"],
+            input="n\n",  # answer no to the prompt
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        # Content should remain old
+        content = (self.openclaw_dir / "skills" / "my-skill" / "SKILL.md").read_text()
+        self.assertIn("Old", content)

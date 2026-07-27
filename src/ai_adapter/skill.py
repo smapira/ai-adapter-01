@@ -322,6 +322,19 @@ def skill_link_agent(skill: str, agent: str) -> None:
     click.echo(f"Skill '{skill}' linked to agent '{agent}'.")
 
 
+def _get_openclaw_skills_dir() -> Path | None:
+    """Return the OpenClaw skills directory if OpenClaw is installed.
+
+    Checks ~/.openclaw/ existence. Returns None if not found.
+    """
+    openclaw_dir = Path.home() / ".openclaw"
+    if not openclaw_dir.exists():
+        return None
+    skills_dir = openclaw_dir / "skills"
+    skills_dir.mkdir(parents=True, exist_ok=True)
+    return skills_dir
+
+
 @skill_group.command(name="get-all")
 @click.option("--force", is_flag=True, help="Overwrite existing skills")
 @click.option(
@@ -330,21 +343,43 @@ def skill_link_agent(skill: str, agent: str) -> None:
     default=None,
     help="Target project directory (default: current directory)",
 )
-def skill_get_all(force: bool, project_dir: str | None) -> None:
-    """Copy all registered skills to .github/skills/."""
+@click.option(
+    "--format", "-f", "format_name",
+    type=click.Choice(["standard", "openclaw"]),
+    default="standard",
+    help="Output format (standard=.github/skills/, openclaw=~/.openclaw/skills/)",
+)
+def skill_get_all(force: bool, project_dir: str | None, format_name: str) -> None:
+    """Copy all registered skills to project .github/skills/ or OpenClaw skills dir.
+
+    With --format openclaw, deploys to ~/.openclaw/skills/ (OpenClaw user skills).
+    Existing non-ai-adapter skills in the target directory are preserved.
+    """
     config = load_config()
     if config is None or not config.skills:
         click.echo("No skills registered.")
         return
 
     skills_dir = get_skills_dir()
+
+    if format_name == "openclaw":
+        _deploy_skills_openclaw(config.skills, skills_dir, force)
+    else:
+        _deploy_skills_standard(config.skills, skills_dir, force, project_dir)
+
+
+def _deploy_skills_standard(
+    skills: list[Skill], skills_store_dir: Path, force: bool,
+    project_dir: str | None,
+) -> None:
+    """Deploy skills to .github/skills/ (standard format)."""
     project_path = Path(project_dir).resolve() if project_dir else None
     claude_dir = get_github_skills_dir(project_path)
     claude_dir.mkdir(parents=True, exist_ok=True)
 
     copied = 0
-    for skill_entry in config.skills:
-        src = skills_dir / skill_entry.name
+    for skill_entry in skills:
+        src = skills_store_dir / skill_entry.name
         if not src.exists():
             click.echo(f"   Skip: '{skill_entry.name}' directory not found.")
             continue
@@ -360,6 +395,50 @@ def skill_get_all(force: bool, project_dir: str | None) -> None:
         copied += 1
 
     click.echo(f"All skills ({copied}) copied to {claude_dir}.")
+
+
+def _deploy_skills_openclaw(
+    skills: list[Skill], skills_store_dir: Path, force: bool,
+) -> None:
+    """Deploy skills to ~/.openclaw/skills/ (OpenClaw format).
+
+    Copies each registered skill directory into the OpenClaw skills folder.
+    Existing non-ai-adapter skills in the target directory are preserved
+    (only ai-adapter managed skills are written, leaving others untouched).
+    """
+    oc_skills_dir = _get_openclaw_skills_dir()
+    if oc_skills_dir is None:
+        click.echo(
+            "Warning: OpenClaw not found (~/.openclaw/ not detected). "
+            "Run 'npm install -g openclaw' first.",
+            err=True,
+        )
+
+    copied = 0
+    for skill_entry in skills:
+        src = skills_store_dir / skill_entry.name
+        if not src.exists():
+            click.echo(f"   Skip: '{skill_entry.name}' directory not found.")
+            continue
+
+        if oc_skills_dir is not None:
+            dest = oc_skills_dir / skill_entry.name
+            if dest.exists():
+                if force:
+                    shutil.rmtree(dest)
+                else:
+                    click.confirm(f"Overwrite '{skill_entry.name}' in OpenClaw skills?", abort=True)
+                    shutil.rmtree(dest)
+            shutil.copytree(src, dest)
+        copied += 1
+
+    if oc_skills_dir is not None:
+        click.echo(f"All skills ({copied}) copied to {oc_skills_dir}.")
+    else:
+        click.echo(
+            f"Skills ({copied}) processed. No OpenClaw install detected; "
+            f"skills were not written to disk.",
+        )
 
 
 @skill_group.command(name="remove-all")

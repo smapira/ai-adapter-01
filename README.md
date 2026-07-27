@@ -16,6 +16,8 @@ A CLI tool for managing AI agent instruction files (`.github/instructions` etc.)
 - **Command Management**: Manage and deploy VS Code custom command definitions (`.github/commands/`)
 - **Prompt Management**: Manage and deploy prompt templates for AI agents (`.github/prompts/`)
 - **MCP Server Management**: Centrally manage MCP server settings and output in each tool format
+- **OpenCode Integration**: Generate `opencode.json` and symlink `.opencode` → `.github`
+- **OpenClaw Integration**: Export MCP servers and skills to OpenClaw format (`--format openclaw`)
 
 ---
 
@@ -93,7 +95,11 @@ ai-adapter bin get --env myhome deploy   # → .github/bin/deploy.sh
 ai-adapter skill get database-schema  # → .github/skills/database-schema/
 ai-adapter mcp get   # → .mcp.json
 
-# 8. Sync with GitHub (share settings)
+# 8. Deploy to OpenClaw (optional, requires OpenClaw installed)
+ai-adapter mcp get --format openclaw          # → ~/.openclaw/openclaw.json
+ai-adapter skill get-all --format openclaw    # → ~/.openclaw/skills/
+
+# 9. Sync with GitHub (share settings)
 ai-adapter sync
 ```
 
@@ -241,6 +247,7 @@ Manages skills (directories containing SKILL.md).
 | `skill add-rec <dir>` | Recursively register all skills in a directory |
 | `skill get <name>` | Copy a skill to `.github/skills/` |
 | `skill get-all` | Copy all registered skills to `.github/skills/` |
+| `skill get-all --format openclaw` | Copy all registered skills to `~/.openclaw/skills/` (preserves existing skills) |
 | `skill list` | List registered skills (filter with `--tag`) |
 | `skill remove <name>` | Remove a skill (use `--purge` to also delete files) |
 | `skill remove-all` | Remove all skills (supports `--purge`, `--force`) |
@@ -266,6 +273,7 @@ Manages MCP server settings.
 | `mcp remove <name>` | Remove an MCP server setting |
 | `mcp list` | List MCP servers (filter with `--tool`, `--env`) |
 | `mcp get --path <dir>` | Export MCP settings to `.mcp.json` (default: current directory) |
+| `mcp get --format openclaw` | Export MCP settings to `~/.openclaw/openclaw.json` (server-name-based merge) |
 | `mcp remove-all` | Remove all MCP server settings (supports `--force`) |
 
 ```bash
@@ -279,10 +287,14 @@ ai-adapter mcp add --file .mcp.json
 # List
 ai-adapter mcp list
 
-# Export to current directory
+# Export to current directory (standard format)
 ai-adapter mcp get
 # Export to a specified directory
 ai-adapter mcp get --path /path/to/project
+# Export to OpenClaw format (~/.openclaw/openclaw.json)
+ai-adapter mcp get --format openclaw
+# Export to OpenClaw format with custom path (no merge, new file)
+ai-adapter mcp get --format openclaw --path /path/to/output
 ```
 
 ### `ai-adapter command`
@@ -338,6 +350,8 @@ Manages OpenCode integration settings.
 | `opencode alias` | Create a symbolic link `.opencode` → `.github` |
 | `opencode install` | Generate `opencode.json` in the current directory |
 | `opencode uninstall` | Remove `opencode.json` |
+| `opencode validate` | Validate agent file formats in `.github/agents/` |
+| `opencode validate --fix` | Automatically fix array-format tools to object format |
 
 ```bash
 # Create an alias from .opencode to .github
@@ -348,7 +362,37 @@ ai-adapter opencode install
 
 # Remove
 ai-adapter opencode uninstall
+
+# Validate and fix agent files
+ai-adapter opencode validate
+ai-adapter opencode validate --fix
 ```
+
+### OpenClaw Integration
+
+`ai-adapter` can export configurations to OpenClaw (a personal AI assistant with multi-channel gateway) using the `--format openclaw` option on existing commands.
+
+| Command | Description |
+|---------|------|
+| `mcp get --format openclaw` | Export MCP servers to `~/.openclaw/openclaw.json` (server-name-based merge preserves existing servers) |
+| `skill get-all --format openclaw` | Deploy skills to `~/.openclaw/skills/` (preserves non-ai-adapter skills) |
+
+```bash
+# Export MCP servers to OpenClaw format
+ai-adapter mcp get --format openclaw
+
+# Export MCP servers to a custom location (new file, no merge)
+ai-adapter mcp get --format openclaw --path /path/to/output
+
+# Deploy all skills to OpenClaw
+ai-adapter skill get-all --format openclaw --force
+```
+
+Key design principles:
+- **`${VAR}` format** for env values — resolved by OpenClaw at load time from `~/.openclaw/.env`
+- **Server-name-based merge** — existing non-ai-adapter MCP servers in `openclaw.json` are preserved
+- **`.bak` backup** — existing `openclaw.json` is backed up before modification
+- **No format conversion needed for skills** — both tools use `SKILL.md` with YAML frontmatter
 
 ### `ai-adapter bin add-path`
 
@@ -565,16 +609,24 @@ ai-adapter/
 │   └── ai_adapter/
 │       ├── __init__.py         # Version information
 │       ├── __main__.py         # python -m ai_adapter support
-│       ├── cli.py              # CLI entry point
+│       ├── cli.py              # CLI entry point (registers all subcommands)
 │       ├── config.py           # Read/write ~/.ai-adapter/config.json
 │       ├── models.py           # Data models (dataclass)
-│       ├── agent.py            # agent subcommand
-│       ├── env.py              # env subcommand
-│       ├── bin.py              # bin subcommand
-│       ├── skill.py            # skill subcommand
-│       ├── mcp.py              # mcp subcommand
+│       ├── diff.py             # Sync diff comparison
+│       ├── git.py              # Git operation wrapper
 │       ├── sync.py             # sync command (GitHub sync)
-│       └── git.py              # Git operation wrapper
+│       ├── agent_format.py     # Agent file YAML format utilities
+│       ├── commands/           # Subcommand implementations
+│       │   ├── agent.py        # agent subcommand
+│       │   ├── bin.py          # bin subcommand
+│       │   ├── command.py      # command subcommand
+│       │   ├── env.py          # env subcommand
+│       │   ├── mcp.py          # mcp subcommand
+│       │   ├── prompt.py       # prompt subcommand
+│       │   └── skill.py        # skill subcommand
+│       └── providers/          # External tool integrations
+│           ├── opencode.py     # OpenCode integration (install/alias/uninstall)
+│           └── openclaw.py     # OpenClaw integration (MCP + skills export)
 ├── tests/
 │   ├── __init__.py
 │   ├── test_config.py

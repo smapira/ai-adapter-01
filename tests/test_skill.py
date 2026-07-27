@@ -318,7 +318,8 @@ class TestSkillOpenClawExport(unittest.TestCase):
         ])
         # Should show warning but not error
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("OpenClaw not found", result.output)
+        self.assertIn("No OpenClaw install detected", result.output)
+        self.assertIn("Nothing was written", result.output)
 
     def test_get_all_standard_still_works(self):
         """--format standard (default) still deploys to .github/skills/."""

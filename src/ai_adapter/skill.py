@@ -430,15 +430,13 @@ def _deploy_skills_openclaw(
                     click.confirm(f"Overwrite '{skill_entry.name}' in OpenClaw skills?", abort=True)
                     shutil.rmtree(dest)
             shutil.copytree(src, dest)
-        copied += 1
+            copied += 1
 
     if oc_skills_dir is not None:
         click.echo(f"All skills ({copied}) copied to {oc_skills_dir}.")
     else:
-        click.echo(
-            f"Skills ({copied}) processed. No OpenClaw install detected; "
-            f"skills were not written to disk.",
-        )
+        click.echo("No OpenClaw install detected (~/.openclaw/ not found).")
+        click.echo("Nothing was written. Run 'npm install -g openclaw' first.")
 
 
 @skill_group.command(name="remove-all")

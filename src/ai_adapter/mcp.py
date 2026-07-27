@@ -1,12 +1,14 @@
 """mcp subcommand implementation.
 
 Manages MCP server configurations under ~/.ai-adapter/mcp/.
-Exports settings in formats compatible with various tools (VS Code / Claude / Cursor).
+Exports settings in formats compatible with various tools (VS Code / Claude / Cursor / OpenClaw).
 """
 
 from __future__ import annotations
 
 import json
+import re
+import shutil
 from pathlib import Path
 
 import click
@@ -139,20 +141,111 @@ def mcp_remove(name: str) -> None:
     click.echo(f"MCP server '{name}' removed.")
 
 
-@mcp_group.command(name="get")
-@click.option("--path", default=None,
-              help="Output directory (default: current directory)")
-def mcp_get(path: str | None) -> None:
-    """Export MCP configuration to .mcp.json."""
-    config = _config.load_config()
-    if config is None:
-        click.echo("Configuration file not found. Run ai-adapter init first.")
-        return
+def export_openclaw_mcp(servers: list[MCPServer]) -> dict:
+    """Export MCP servers in OpenClaw format (mcp.servers array).
 
-    enabled_servers = [s for s in config.mcp_servers if s.enabled]
+    Args:
+        servers: List of MCP server configurations from ai-adapter.
+                 Disabled servers are filtered out automatically.
 
+    Returns:
+        Dict suitable for writing to openclaw.json's mcp.servers section.
+    """
+    env_key_pattern = re.compile(r'^[A-Z_][A-Z0-9_]*$')
+
+    enabled_servers = [s for s in servers if s.enabled]
+    managed_names: list[str] = []
+    servers_dict: dict[str, dict] = {}
+
+    for s in enabled_servers:
+        managed_names.append(s.name)
+        entry: dict[str, object] = {
+            "enabled": True,
+            "command": s.command,
+        }
+        if s.args:
+            entry["args"] = list(s.args)
+        if s.env_keys:
+            # Warn about env keys that don't match OpenClaw's strict naming pattern
+            for key in s.env_keys:
+                if not env_key_pattern.match(key):
+                    click.echo(
+                        f"Warning: env key '{key}' in server '{s.name}' may not be valid "
+                        f"in OpenClaw format. OpenClaw only supports [A-Z_][A-Z0-9_]* pattern.",
+                        err=True,
+                    )
+            entry["env"] = {k: f"${{{k}}}" for k in s.env_keys}
+
+        servers_dict[s.name] = entry
+
+    return {
+        "x-ai-adapter": {
+            "version": 1,
+            "managed_mcp_servers": managed_names,
+        },
+        "mcp": {
+            "servers": servers_dict,
+        },
+    }
+
+
+def merge_into_openclaw_json(output_path: Path, openclaw_data: dict, force: bool = False) -> None:
+    """Merge OpenClaw MCP data into an openclaw.json file.
+
+    Reads existing file at output_path (if any), merges mcp.servers
+    server-name-based (new overwrites existing, unknown existing preserved),
+    writes backup before modifying.
+
+    Args:
+        output_path: Path to openclaw.json
+        openclaw_data: Dict from export_openclaw_mcp()
+        force: Skip confirmation prompt if True
+    """
+    # Load existing or start empty
+    existing: dict = {}
+    if output_path.exists():
+        if not force:
+            click.confirm(f"Overwrite MCP servers in '{output_path}'?", abort=True)
+        # Create backup before modifying
+        bak_path = output_path.with_suffix(output_path.suffix + ".bak")
+        shutil.copy2(output_path, bak_path)
+        try:
+            with open(output_path) as f:
+                existing = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            existing = {}
+
+    # Merge: existing servers not in ai-adapter are preserved
+    new_servers = openclaw_data.get("mcp", {}).get("servers", {})
+    existing_servers = existing.get("mcp", {}).get("servers", {})
+
+    # Preserve servers not managed by ai-adapter
+    managed_names = set(openclaw_data.get("x-ai-adapter", {}).get("managed_mcp_servers", []))
+    for name in list(existing_servers.keys()):
+        if name not in managed_names:
+            new_servers[name] = existing_servers[name]
+
+    # Ensure mcp struct exists
+    if "mcp" not in existing:
+        existing["mcp"] = {}
+    existing["mcp"]["servers"] = new_servers
+
+    # Write x-ai-adapter marker
+    existing["x-ai-adapter"] = openclaw_data["x-ai-adapter"]
+
+    # Write output
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w") as f:
+        json.dump(existing, f, indent=2, ensure_ascii=False)
+
+    count = len(new_servers)
+    click.echo(f"OpenClaw MCP configuration written: {output_path} ({count} servers)")
+
+
+def _mcp_get_standard(servers: list[MCPServer], path: str | None, force: bool = False) -> None:
+    """Export MCP servers in standard .mcp.json format."""
     mcp_config: dict = {"mcpServers": {}}
-    for server in enabled_servers:
+    for server in servers:
         env_dict = {}
         for key in server.env_keys:
             env_dict[key] = f"${{{key}}}"
@@ -174,6 +267,67 @@ def mcp_get(path: str | None) -> None:
 
     _config.add_to_gitignore(output_path)
     click.echo(f"MCP configuration exported: {output_path}")
+
+
+def _mcp_get_openclaw(servers: list[MCPServer], path: str | None, force: bool = False) -> None:
+    """Export MCP servers in OpenClaw openclaw.json format.
+
+    Determines output path based on --path flag and ~/.openclaw/ detection,
+    then merges ai-adapter's MCP servers into the target openclaw.json.
+    """
+    output_dir = Path(path).resolve() if path else Path.cwd()
+
+    # Determine output path
+    if path:
+        openclaw_path = output_dir / "openclaw.json"
+    else:
+        openclaw_dir = Path.home() / ".openclaw"
+        if openclaw_dir.exists():
+            openclaw_path = openclaw_dir / "openclaw.json"
+        else:
+            click.echo(
+                "Warning: OpenClaw not found (~/.openclaw/ not detected). "
+                "Run 'npm install -g openclaw' first.",
+                err=True,
+            )
+            openclaw_path = output_dir / "openclaw.json"
+
+    data = export_openclaw_mcp(servers)
+    merge_into_openclaw_json(openclaw_path, data, force=force)
+
+
+@mcp_group.command(name="get")
+@click.option("--path", default=None,
+              help="Output directory (default: current directory). "
+                   "With --format standard: writes .mcp.json. "
+                   "With --format openclaw: writes openclaw.json.")
+@click.option(
+    "--format", "-f",
+    type=click.Choice(["standard", "openclaw"]),
+    default="standard",
+    help="Output format (standard=.mcp.json, openclaw=openclaw.json)",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Overwrite output file without confirmation",
+)
+def mcp_get(path: str | None, format: str, force: bool) -> None:
+    """Export MCP configuration to .mcp.json or openclaw.json."""
+    config = _config.load_config()
+    if config is None:
+        click.echo("Configuration file not found. Run ai-adapter init first.")
+        return
+
+    enabled_servers = [s for s in config.mcp_servers if s.enabled]
+    if not enabled_servers:
+        click.echo("No enabled MCP servers registered.")
+        return
+
+    if format == "openclaw":
+        _mcp_get_openclaw(enabled_servers, path, force)
+    else:
+        _mcp_get_standard(enabled_servers, path, force)
 
 
 def _import_mcp_from_file(config, json_path: str) -> None:

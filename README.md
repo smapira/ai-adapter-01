@@ -2,6 +2,8 @@
 
 **Common management infrastructure CLI tool for AI agent scripts**
 
+[![CI](https://github.com/smapira/ai-adapter-01/actions/workflows/ci.yml/badge.svg)](https://github.com/smapira/ai-adapter-01/actions/workflows/ci.yml)
+
 A CLI tool for managing AI agent instruction files (`.github/instructions` etc.) and scripts in groups. Easily share and migrate settings across environments.
 
 ---

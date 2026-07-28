@@ -10,19 +10,20 @@ from ai_adapter.cli import main
 from ai_adapter.config import init
 
 
-def _safe_github_cleanup(base_dir: "Path") -> None:
-    """Remove test artifacts from .github/ without deleting .github/workflows/."""
-    import shutil as _shutil
+def _safe_github_cleanup(base_dir):
+    """Remove only test-created files from .github/ subdirectories.
 
+    Preserves directory structure and workflow files.
+    """
     github = Path(base_dir) / ".github"
     if not github.exists():
         return
     for sub in ("agents", "bin", "skills", "commands", "prompts"):
         d = github / sub
-        if d.exists():
-            _shutil.rmtree(d, ignore_errors=True)
-    for f in github.glob(".mcp.json"):
-        f.unlink(missing_ok=True)
+        if d.exists() and d.is_dir():
+            for f in d.iterdir():
+                if f.is_file() and f.name != "ci.yml":
+                    f.unlink(missing_ok=True)
 
 
 class TestAgentAddRecCommand(unittest.TestCase):
@@ -68,21 +69,6 @@ class TestAgentAddRecCommand(unittest.TestCase):
         result = self.runner.invoke(main, ["sub-agent", "list"])
         self.assertIn("agent1", result.output)
         self.assertIn("agent2", result.output)
-
-
-def _safe_github_cleanup(base_dir: "Path") -> None:
-    """Remove test artifacts from .github/ without deleting .github/workflows/."""
-    import shutil as _shutil
-
-    github = Path(base_dir) / ".github"
-    if not github.exists():
-        return
-    for sub in ("agents", "bin", "skills", "commands", "prompts"):
-        d = github / sub
-        if d.exists():
-            _shutil.rmtree(d, ignore_errors=True)
-    for f in github.glob(".mcp.json"):
-        f.unlink(missing_ok=True)
 
 
 class TestAgentCommands(unittest.TestCase):
@@ -328,21 +314,6 @@ class TestAgentCommands(unittest.TestCase):
         self.assertTrue((github_agents / "reviewer.agent.md").exists())
 
         _safe_github_cleanup(Path.cwd())
-
-
-def _safe_github_cleanup(base_dir: "Path") -> None:
-    """Remove test artifacts from .github/ without deleting .github/workflows/."""
-    import shutil as _shutil
-
-    github = Path(base_dir) / ".github"
-    if not github.exists():
-        return
-    for sub in ("agents", "bin", "skills", "commands", "prompts"):
-        d = github / sub
-        if d.exists():
-            _shutil.rmtree(d, ignore_errors=True)
-    for f in github.glob(".mcp.json"):
-        f.unlink(missing_ok=True)
 
 
 class TestAgentToolsConversion(unittest.TestCase):

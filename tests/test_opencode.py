@@ -10,7 +10,6 @@ from click.testing import CliRunner
 
 from ai_adapter.cli import main
 from ai_adapter.config import init
-from ai_adapter.models import Agent, Instruction
 
 
 class TestOpencodeCommands(unittest.TestCase):

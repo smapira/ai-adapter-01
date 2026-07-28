@@ -18,6 +18,7 @@ A CLI tool for managing AI agent instruction files (`.github/instructions` etc.)
 - **MCP Server Management**: Centrally manage MCP server settings and output in each tool format
 - **OpenCode Integration**: Generate `opencode.json` and symlink `.opencode` → `.github`
 - **OpenClaw Integration**: Export MCP servers and skills to OpenClaw format (`--format openclaw`)
+- **Root-Level Agent Management**: Manage `AGENTS.md`, `CLAUDE.md`, etc. as first-class artifacts, deployable to project root
 
 ---
 
@@ -73,8 +74,11 @@ ai-adapter --version
 # 1. Initialize
 ai-adapter init
 
-# 2. Add an agent file
-ai-adapter agent add ~/my-agents/reviewer.md
+# 2. Add an agent file (for .github/agents/, e.g. individual .agent.md files)
+ai-adapter sub-agent add ~/my-agents/reviewer.md
+
+# 2b. Add a root-level agent file (for project-root AGENTS.md/CLAUDE.md)
+ai-adapter agent add ~/my-agents/AGENTS.md
 
 # 3. Add an environment
 ai-adapter env add myhome
@@ -90,10 +94,11 @@ ai-adapter mcp add github --command npx --args @modelcontextprotocol/server-gith
 
 # 7. Deploy to a project
 cd your-project
-ai-adapter agent get reviewer      # → .github/agents/reviewer.md
+ai-adapter sub-agent get reviewer      # → .github/agents/reviewer.md
+ai-adapter agent get AGENTS            # → ./AGENTS.md (project root)
 ai-adapter bin get --env myhome deploy   # → .github/bin/deploy.sh
 ai-adapter skill get database-schema  # → .github/skills/database-schema/
-ai-adapter mcp get   # → .mcp.json
+ai-adapter mcp get                     # → .mcp.json
 
 # 8. Deploy to OpenClaw (optional, requires OpenClaw installed)
 ai-adapter mcp get --format openclaw          # → ~/.openclaw/openclaw.json
@@ -119,7 +124,7 @@ ai-adapter start git@github.com:user/my-agent-config.git
 
 ### `ai-adapter init`
 
-Initializes the `~/.ai-adapter/` directory and configuration file (creates `agents/`, `bin/`, `skills/`, `commands/`, `prompts/`, `mcp/` directories).
+Initializes the `~/.ai-adapter/` directory and configuration file (creates `agents/`, `bin/`, `skills/`, `commands/`, `prompts/`, `instructions/`, `mcp/` directories).
 You can set a remote repository via the `--remote` option or an interactive prompt.
 
 ```bash
@@ -141,6 +146,8 @@ ai-adapter status
 ### `ai-adapter add-all-rec`
 
 Batch-registers all files under `.github/` and `.mcp.json` into `~/.ai-adapter/`.
+Also discovers root-level files (AGENTS.md, AGENT.md, CLAUDE.md, copilot-instructions.md)
+and registers them into `~/.ai-adapter/instructions/`.
 Run this after cloning a synced repository to automatically restore configuration from files.
 
 ```bash
@@ -151,8 +158,8 @@ ai-adapter add-all-rec
 ### `ai-adapter get-all-rec`
 
 Deploys **all** registered items across all categories to `.github/` at once.
-The reverse of `add-all-rec` — runs `agent get-all` + `bin get-all` + `skill get-all` +
-`command get-all` + `prompt get-all` + `mcp get` in a single command.
+The reverse of `add-all-rec` — runs `sub-agent get-all` + `bin get-all` + `skill get-all` +
+`command get-all` + `prompt get-all` + `agent get-all` (root instructions) + `mcp get` in a single command.
 
 | Option | Description |
 |--------|-------------|
@@ -169,24 +176,49 @@ ai-adapter get-all-rec --force --project-dir /path/to/project
 
 ### `ai-adapter agent`
 
-Manages AI agent instruction files (`.md` etc.).
+Manages root-level agent instruction files (`AGENTS.md`, `CLAUDE.md`, `copilot-instructions.md`).
+Deploys to **project root** (`./`).
 
 | Command | Description |
 |---------|------|
-| `agent add <path>` | Add an agent file to `~/.ai-adapter/agents/` |
-| `agent add-rec <dir>` | Recursively register all agents in a directory |
-| `agent get <name>` | Copy an agent to `.github/agents/` (use `--force` to skip overwrite confirmation) |
-| `agent get-all` | Copy all registered agents to `.github/agents/` |
-| `agent list` | List registered agents |
-| `agent remove <name>` | Remove an agent (use `--keep-file` to keep the file) |
-| `agent remove-all` | Remove all agents (supports `--keep-file`, `--force`) |
+| `agent add <path>` | Add a root-level file to `~/.ai-adapter/instructions/` |
+| `agent add-rec <dir>` | Recursively register all files in a directory |
+| `agent get <name>` | Copy to project root (`./AGENTS.md` etc.) (use `--force` to skip overwrite confirmation) |
+| `agent get-all` | Copy all registered root-level files to project root |
+| `agent list` | List registered root-level files |
+| `agent remove <name>` | Remove a root-level file |
+| `agent remove-all` | Remove all root-level files (supports `--force`) |
 
 ```bash
-ai-adapter agent add ~/dotfiles/agents/reviewer.md
+ai-adapter agent add ~/my-agents/AGENTS.md
 ai-adapter agent list
-ai-adapter agent get reviewer
-ai-adapter agent remove reviewer
+ai-adapter agent get AGENTS          # → ./AGENTS.md
+ai-adapter agent get CLAUDE          # → ./CLAUDE.md
+ai-adapter agent remove AGENTS
 ai-adapter agent remove-all --force
+```
+
+### `ai-adapter sub-agent`
+
+Manages `.agent.md` files (for VS Code / GitHub Copilot agent definitions).
+Deploys to `.github/agents/`.
+
+| Command | Description |
+|---------|------|
+| `sub-agent add <path>` | Add an agent file to `~/.ai-adapter/agents/` |
+| `sub-agent add-rec <dir>` | Recursively register all agents in a directory |
+| `sub-agent get <name>` | Copy an agent to `.github/agents/` (use `--force` to skip overwrite confirmation) |
+| `sub-agent get-all` | Copy all registered agents to `.github/agents/` |
+| `sub-agent list` | List registered agents |
+| `sub-agent remove <name>` | Remove an agent (use `--keep-file` to keep the file) |
+| `sub-agent remove-all` | Remove all agents (supports `--keep-file`, `--force`) |
+
+```bash
+ai-adapter sub-agent add ~/dotfiles/agents/reviewer.md
+ai-adapter sub-agent list
+ai-adapter sub-agent get reviewer
+ai-adapter sub-agent remove reviewer
+ai-adapter sub-agent remove-all --force
 ```
 
 ### `ai-adapter env`
@@ -447,7 +479,7 @@ Project-level files are deployed to `.github/` (may change in future versions).
 ```
 ~/.ai-adapter/
 ├── config.json                 # Main configuration file
-├── agents/                     # AI agent instruction files
+├── agents/                     # AI agent .agent.md files (managed by sub-agent)
 │   ├── reviewer.md
 │   ├── implementer.md
 │   └── researcher.md
@@ -460,6 +492,9 @@ Project-level files are deployed to `.github/` (may change in future versions).
 │   │   └── examples/
 │   └── security-review/
 │       └── SKILL.md
+├── instructions/               # Root-level agent files (managed by agent)
+│   ├── AGENTS.md
+│   └── CLAUDE.md
 └── mcp/                        # MCP server settings
     └── servers.json
 ```

@@ -13,7 +13,7 @@ This page compares how different AI coding tools handle the configuration catego
 | **Config format** | Markdown + YAML frontmatter | Markdown (`CLAUDE.md`) | JSON (`opencode.json`) | Markdown (`AGENTS.md`) + YAML | Markdown (`*.mdc`) with YAML frontmatter | JSON (`.continuerc.json`) | JSON |
 | **Tool type** | VS Code extension | CLI tool (Anthropic) | Terminal AI agent | Terminal AI agent | AI-first IDE | VS Code + JetBrains extension | Desktop app (AI orchestrator) |
 | **Instruction files** | `.github/instructions/*.md`, `.github/agents/*.agent.md` | `CLAUDE.md` | `opencode.json` → `instructions` | `AGENTS.md` (hierarchical) | `.cursor/rules/*.mdc` | `.continuerc.json` → `rules` array | Hook-based orchestration / agent delegation |
-| **ai-adapter support** | ✅ Full | ✅ Via `.github/` Fallback | ✅ Full (opencode subcommand) | ❌ Planned | ❌ Planned | ❌ Planned | ❌ Planned |
+| **ai-adapter support** | ✅ Full | ✅ Via `.github/` Fallback | ✅ Full (opencode subcommand) | ✅ Partial (root-level agent via `ai-adapter agent`) | ❌ Planned | ❌ Planned | ✅ Partial (skills + MCP export via `--format openclaw`) |
 
 ---
 
@@ -73,7 +73,7 @@ Follow React + TypeScript best practices.
 | **Scoping** | Agent-level (via `@agent` mention) | Global (root only) | Global | ✅ **Directory-scoped**: each `AGENTS.md` applies to its sub-tree | ✅ **Glob-based**: per-rule file pattern matching | Global | ✅ Worktree-level |
 | **Name resolution** | Frontmatter `name` > filename | N/A | N/A | File-path based | Filename (displayed in UI) | N/A | N/A |
 | **Override support** | N/A | N/A | N/A | ✅ `AGENTS.override.md` | ✅ Deeper rules override shallower ones | N/A | ✅ Worktree-level hooks override global hooks |
-| **ai-adapter commands** | `agent add/list/get/remove/get-all/remove-all/add-all-rec` | — | — | — | — | — | — |
+| **ai-adapter commands** | `sub-agent add/list/get/remove/get-all/remove-all/add-all-rec` (`.github/agents/`)  `agent add/list/get/remove/get-all/remove-all` (root-level) | — | — | — | — | — | — |
 
 ### Instructions Example
 

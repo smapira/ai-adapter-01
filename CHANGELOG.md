@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.17.0] - 2026-07-29
+
+### Added
+
+- **Root-level agent file management** (`ai-adapter agent`): Manage `AGENTS.md`, `CLAUDE.md`,
+  and other project-root agent instruction files
+  - Store: `~/.ai-adapter/instructions/`
+  - Deploy: project root (`./AGENTS.md`, `./CLAUDE.md`)
+  - Full CRUD: `add`, `get`, `list`, `remove`, `add-rec`, `get-all`, `remove-all`
+  - `--force` overwrite support, `--project-dir` targeting
+  - `Instruction` dataclass and `config.instructions` config field
+  - Integrated into `add-all-rec` (auto-discovers root-level files) and `get-all-rec`
+- **`ai-adapter sub-agent` command**: Renamed from `ai-adapter agent` (manages `.github/agents/`)
+
+### Changed
+
+- **`ai-adapter agent` → `ai-adapter sub-agent`**: Old `agent` command renamed to `sub-agent`
+  to make room for the new root-level agent command. Storage path (`~/.ai-adapter/agents/`)
+  and config field (`config.agents`) remain unchanged.
+- **`add-all-rec`**: Now discovers root-level files (`AGENTS.md`, `AGENT.md`, `CLAUDE.md`,
+  `copilot-instructions.md`) and registers them into `~/.ai-adapter/instructions/`
+- **`get-all-rec`**: Now deploys root-level instruction files to project root
+- **Linting**: Applied `ruff check --fix` and `ruff format` across the project
+  (37 files reformatted)
+
 ## [0.16.0] - 2026-07-27
 
 ### Added

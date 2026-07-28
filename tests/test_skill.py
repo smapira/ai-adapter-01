@@ -10,6 +10,21 @@ from ai_adapter.cli import main
 from ai_adapter.config import init
 
 
+def _safe_github_cleanup(base_dir: "Path") -> None:
+    """Remove test artifacts from .github/ without deleting .github/workflows/."""
+    import shutil as _shutil
+
+    github = Path(base_dir) / ".github"
+    if not github.exists():
+        return
+    for sub in ("agents", "bin", "skills", "commands", "prompts"):
+        d = github / sub
+        if d.exists():
+            _shutil.rmtree(d, ignore_errors=True)
+    for f in github.glob(".mcp.json"):
+        f.unlink(missing_ok=True)
+
+
 class TestSkillCommands(unittest.TestCase):
     """Tests for skill subcommands."""
 
@@ -104,9 +119,8 @@ class TestSkillCommands(unittest.TestCase):
         self.assertIn("test-skill", result.output)
         self.assertTrue((github_skills / "test-skill" / "SKILL.md").exists())
 
-        import shutil
 
-        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+        _safe_github_cleanup(Path.cwd())
 
     def test_skill_get_not_found(self):
         """Verify get fails for non-existent skill."""
@@ -185,9 +199,8 @@ class TestSkillCommands(unittest.TestCase):
         self.assertIn("1", result.output)
         self.assertTrue((github_skills / "test-skill" / "SKILL.md").exists())
 
-        import shutil
 
-        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+        _safe_github_cleanup(Path.cwd())
 
     def test_skill_remove_all(self):
         """Verify skill remove-all removes all skills."""
@@ -200,6 +213,21 @@ class TestSkillCommands(unittest.TestCase):
         # remove-all only clears config (directory is preserved, but list reads from config)
         result = self.runner.invoke(main, ["skill", "list"])
         self.assertIn("No skills registered.", result.output)
+
+
+def _safe_github_cleanup(base_dir: "Path") -> None:
+    """Remove test artifacts from .github/ without deleting .github/workflows/."""
+    import shutil as _shutil
+
+    github = Path(base_dir) / ".github"
+    if not github.exists():
+        return
+    for sub in ("agents", "bin", "skills", "commands", "prompts"):
+        d = github / sub
+        if d.exists():
+            _shutil.rmtree(d, ignore_errors=True)
+    for f in github.glob(".mcp.json"):
+        f.unlink(missing_ok=True)
 
 
 class TestSkillAddRecCommand(unittest.TestCase):
@@ -248,6 +276,21 @@ class TestSkillAddRecCommand(unittest.TestCase):
         result = self.runner.invoke(main, ["skill", "list"])
         self.assertIn("skill1", result.output)
         self.assertIn("skill2", result.output)
+
+
+def _safe_github_cleanup(base_dir: "Path") -> None:
+    """Remove test artifacts from .github/ without deleting .github/workflows/."""
+    import shutil as _shutil
+
+    github = Path(base_dir) / ".github"
+    if not github.exists():
+        return
+    for sub in ("agents", "bin", "skills", "commands", "prompts"):
+        d = github / sub
+        if d.exists():
+            _shutil.rmtree(d, ignore_errors=True)
+    for f in github.glob(".mcp.json"):
+        f.unlink(missing_ok=True)
 
 
 class TestSkillOpenClawExport(unittest.TestCase):
@@ -411,9 +454,8 @@ class TestSkillOpenClawExport(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((Path.cwd() / ".github" / "skills" / "my-skill" / "SKILL.md").exists())
 
-        import shutil
 
-        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+        _safe_github_cleanup(Path.cwd())
 
     def test_get_all_openclaw_no_skills(self):
         """Message when no skills registered."""

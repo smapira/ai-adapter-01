@@ -12,6 +12,21 @@ from ai_adapter.cli import main
 from ai_adapter.git import GitError
 
 
+def _safe_github_cleanup(base_dir: "Path") -> None:
+    """Remove test artifacts from .github/ without deleting .github/workflows/."""
+    import shutil as _shutil
+
+    github = Path(base_dir) / ".github"
+    if not github.exists():
+        return
+    for sub in ("agents", "bin", "skills", "commands", "prompts"):
+        d = github / sub
+        if d.exists():
+            _shutil.rmtree(d, ignore_errors=True)
+    for f in github.glob(".mcp.json"):
+        f.unlink(missing_ok=True)
+
+
 class TestCLIIntegration(unittest.TestCase):
     """Overall CLI integration tests."""
 
@@ -192,6 +207,21 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("uninstall", result.output)
 
 
+def _safe_github_cleanup(base_dir: "Path") -> None:
+    """Remove test artifacts from .github/ without deleting .github/workflows/."""
+    import shutil as _shutil
+
+    github = Path(base_dir) / ".github"
+    if not github.exists():
+        return
+    for sub in ("agents", "bin", "skills", "commands", "prompts"):
+        d = github / sub
+        if d.exists():
+            _shutil.rmtree(d, ignore_errors=True)
+    for f in github.glob(".mcp.json"):
+        f.unlink(missing_ok=True)
+
+
 class TestUninstallCommand(unittest.TestCase):
     """Tests for the uninstall command."""
 
@@ -263,6 +293,21 @@ class TestUninstallCommand(unittest.TestCase):
         self.assertTrue(adapter_dir.exists())
 
 
+def _safe_github_cleanup(base_dir: "Path") -> None:
+    """Remove test artifacts from .github/ without deleting .github/workflows/."""
+    import shutil as _shutil
+
+    github = Path(base_dir) / ".github"
+    if not github.exists():
+        return
+    for sub in ("agents", "bin", "skills", "commands", "prompts"):
+        d = github / sub
+        if d.exists():
+            _shutil.rmtree(d, ignore_errors=True)
+    for f in github.glob(".mcp.json"):
+        f.unlink(missing_ok=True)
+
+
 class TestStartCommand(unittest.TestCase):
     """Tests for the start command."""
 
@@ -326,6 +371,21 @@ class TestStartCommand(unittest.TestCase):
         self.assertNotEqual(result.exit_code, 0)
 
 
+def _safe_github_cleanup(base_dir: "Path") -> None:
+    """Remove test artifacts from .github/ without deleting .github/workflows/."""
+    import shutil as _shutil
+
+    github = Path(base_dir) / ".github"
+    if not github.exists():
+        return
+    for sub in ("agents", "bin", "skills", "commands", "prompts"):
+        d = github / sub
+        if d.exists():
+            _shutil.rmtree(d, ignore_errors=True)
+    for f in github.glob(".mcp.json"):
+        f.unlink(missing_ok=True)
+
+
 class TestBinAddPathCommand(unittest.TestCase):
     """Tests for bin add-path command."""
 
@@ -369,9 +429,8 @@ class TestBinAddPathCommand(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("export PATH", result.output)
 
-        import shutil
 
-        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+        _safe_github_cleanup(Path.cwd())
 
     def test_bin_add_path_to_zshrc(self):
         """Verify bin add-path appends to zshrc."""
@@ -394,10 +453,24 @@ class TestBinAddPathCommand(unittest.TestCase):
         self.assertIn("export PATH", content)
         self.assertIn(".github/bin", content)
 
-        import shutil
 
         pathlib.Path.home = staticmethod(orig_home)
-        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+        _safe_github_cleanup(Path.cwd())
+
+
+def _safe_github_cleanup(base_dir: "Path") -> None:
+    """Remove test artifacts from .github/ without deleting .github/workflows/."""
+    import shutil as _shutil
+
+    github = Path(base_dir) / ".github"
+    if not github.exists():
+        return
+    for sub in ("agents", "bin", "skills", "commands", "prompts"):
+        d = github / sub
+        if d.exists():
+            _shutil.rmtree(d, ignore_errors=True)
+    for f in github.glob(".mcp.json"):
+        f.unlink(missing_ok=True)
 
 
 class TestAddAllRecCommand(unittest.TestCase):
@@ -464,9 +537,8 @@ class TestAddAllRecCommand(unittest.TestCase):
         self.assertIn("reviewer", result.output)
         self.assertIn("implementer", result.output)
 
-        import shutil
 
-        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+        _safe_github_cleanup(Path.cwd())
 
     def test_add_all_rec_bins(self):
         """Verify scripts are registered from .github/bin."""
@@ -479,9 +551,8 @@ class TestAddAllRecCommand(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("bin", result.output)
 
-        import shutil
 
-        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+        _safe_github_cleanup(Path.cwd())
 
     def test_add_all_rec_skills(self):
         """Verify skills are registered from .github/skills."""
@@ -495,9 +566,8 @@ class TestAddAllRecCommand(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("skills", result.output)
 
-        import shutil
 
-        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+        _safe_github_cleanup(Path.cwd())
 
     def test_add_all_rec_mcp(self):
         """Verify MCP servers are registered from .mcp.json."""
@@ -527,6 +597,21 @@ class TestAddAllRecCommand(unittest.TestCase):
         result = self.runner.invoke(main, ["add-all-rec"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("not found", result.output)
+
+
+def _safe_github_cleanup(base_dir: "Path") -> None:
+    """Remove test artifacts from .github/ without deleting .github/workflows/."""
+    import shutil as _shutil
+
+    github = Path(base_dir) / ".github"
+    if not github.exists():
+        return
+    for sub in ("agents", "bin", "skills", "commands", "prompts"):
+        d = github / sub
+        if d.exists():
+            _shutil.rmtree(d, ignore_errors=True)
+    for f in github.glob(".mcp.json"):
+        f.unlink(missing_ok=True)
 
 
 class TestGetAllRecCommand(unittest.TestCase):
@@ -676,9 +761,8 @@ class TestGetAllRecCommand(unittest.TestCase):
         self.assertNotIn("disabled-server", mcp_data["mcpServers"])
 
         # Cleanup
-        import shutil
 
-        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+        _safe_github_cleanup(Path.cwd())
         (Path.cwd() / ".mcp.json").unlink(missing_ok=True)
 
     def test_get_all_rec_with_project_dir(self):
@@ -725,7 +809,6 @@ class TestGetAllRecCommand(unittest.TestCase):
         self.assertIn("agents", result.output)
 
         # Cleanup
-        import shutil
 
-        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+        _safe_github_cleanup(Path.cwd())
         (Path.cwd() / ".mcp.json").unlink(missing_ok=True)

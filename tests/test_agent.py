@@ -10,6 +10,21 @@ from ai_adapter.cli import main
 from ai_adapter.config import init
 
 
+def _safe_github_cleanup(base_dir: "Path") -> None:
+    """Remove test artifacts from .github/ without deleting .github/workflows/."""
+    import shutil as _shutil
+
+    github = Path(base_dir) / ".github"
+    if not github.exists():
+        return
+    for sub in ("agents", "bin", "skills", "commands", "prompts"):
+        d = github / sub
+        if d.exists():
+            _shutil.rmtree(d, ignore_errors=True)
+    for f in github.glob(".mcp.json"):
+        f.unlink(missing_ok=True)
+
+
 class TestAgentAddRecCommand(unittest.TestCase):
     """Tests for the agent add-rec command."""
 
@@ -53,6 +68,21 @@ class TestAgentAddRecCommand(unittest.TestCase):
         result = self.runner.invoke(main, ["sub-agent", "list"])
         self.assertIn("agent1", result.output)
         self.assertIn("agent2", result.output)
+
+
+def _safe_github_cleanup(base_dir: "Path") -> None:
+    """Remove test artifacts from .github/ without deleting .github/workflows/."""
+    import shutil as _shutil
+
+    github = Path(base_dir) / ".github"
+    if not github.exists():
+        return
+    for sub in ("agents", "bin", "skills", "commands", "prompts"):
+        d = github / sub
+        if d.exists():
+            _shutil.rmtree(d, ignore_errors=True)
+    for f in github.glob(".mcp.json"):
+        f.unlink(missing_ok=True)
 
 
 class TestAgentCommands(unittest.TestCase):
@@ -134,9 +164,8 @@ class TestAgentCommands(unittest.TestCase):
         self.assertTrue((github_agents / "test-agent.md").exists())
 
         # Cleanup
-        import shutil
 
-        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+        _safe_github_cleanup(Path.cwd())
 
     def test_agent_get_not_found(self):
         """Verify get fails for non-existent agent."""
@@ -160,9 +189,8 @@ class TestAgentCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((github_dir / "test-agent.md").exists())
 
-        import shutil
 
-        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+        _safe_github_cleanup(Path.cwd())
 
     def test_agent_get_with_project_dir(self):
         """Verify agent get --project-dir copies to the specified directory."""
@@ -204,9 +232,8 @@ class TestAgentCommands(unittest.TestCase):
         self.assertTrue((github_agents / "agent1.md").exists())
         self.assertTrue((github_agents / "agent2.md").exists())
 
-        import shutil
 
-        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+        _safe_github_cleanup(Path.cwd())
 
     def test_agent_remove(self):
         """Verify agent remove removes an agent."""
@@ -286,9 +313,8 @@ class TestAgentCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((github_agents / "reviewer.agent.md").exists())
 
-        import shutil
 
-        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+        _safe_github_cleanup(Path.cwd())
 
     def test_agent_get_with_dot_agent_suffix(self):
         """Verify backward compatibility: agents can be retrieved with .agent suffix."""
@@ -304,9 +330,23 @@ class TestAgentCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((github_agents / "reviewer.agent.md").exists())
 
-        import shutil
 
-        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+        _safe_github_cleanup(Path.cwd())
+
+
+def _safe_github_cleanup(base_dir: "Path") -> None:
+    """Remove test artifacts from .github/ without deleting .github/workflows/."""
+    import shutil as _shutil
+
+    github = Path(base_dir) / ".github"
+    if not github.exists():
+        return
+    for sub in ("agents", "bin", "skills", "commands", "prompts"):
+        d = github / sub
+        if d.exists():
+            _shutil.rmtree(d, ignore_errors=True)
+    for f in github.glob(".mcp.json"):
+        f.unlink(missing_ok=True)
 
 
 class TestAgentToolsConversion(unittest.TestCase):

@@ -10,6 +10,21 @@ from ai_adapter.cli import main
 from ai_adapter.config import init
 
 
+def _safe_github_cleanup(base_dir: "Path") -> None:
+    """Remove test artifacts from .github/ without deleting .github/workflows/."""
+    import shutil as _shutil
+
+    github = Path(base_dir) / ".github"
+    if not github.exists():
+        return
+    for sub in ("agents", "bin", "skills", "commands", "prompts"):
+        d = github / sub
+        if d.exists():
+            _shutil.rmtree(d, ignore_errors=True)
+    for f in github.glob(".mcp.json"):
+        f.unlink(missing_ok=True)
+
+
 class TestCommandCommands(unittest.TestCase):
     """Tests for command subcommands."""
 
@@ -81,9 +96,8 @@ class TestCommandCommands(unittest.TestCase):
         result = self.runner.invoke(main, ["command", "get", "deploy"])
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((github_dir / "deploy.sh").exists())
-        import shutil
 
-        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+        _safe_github_cleanup(Path.cwd())
 
     def test_command_remove(self):
         self.runner.invoke(main, ["command", "add", str(self.cmd_file)])
@@ -122,9 +136,8 @@ class TestCommandCommands(unittest.TestCase):
         self.assertTrue((github_dir / "deploy.sh").exists())
         self.assertTrue((github_dir / "build.sh").exists())
 
-        import shutil
 
-        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+        _safe_github_cleanup(Path.cwd())
 
     def test_command_remove_all(self):
         """Verify remove-all --force removes all commands."""

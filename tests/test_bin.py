@@ -10,6 +10,21 @@ from ai_adapter.cli import main
 from ai_adapter.config import init
 
 
+def _safe_github_cleanup(base_dir: "Path") -> None:
+    """Remove test artifacts from .github/ without deleting .github/workflows/."""
+    import shutil as _shutil
+
+    github = Path(base_dir) / ".github"
+    if not github.exists():
+        return
+    for sub in ("agents", "bin", "skills", "commands", "prompts"):
+        d = github / sub
+        if d.exists():
+            _shutil.rmtree(d, ignore_errors=True)
+    for f in github.glob(".mcp.json"):
+        f.unlink(missing_ok=True)
+
+
 class TestBinAddRecCommand(unittest.TestCase):
     """Tests for the bin add-rec command."""
 
@@ -53,6 +68,21 @@ class TestBinAddRecCommand(unittest.TestCase):
         result = self.runner.invoke(main, ["bin", "list"])
         self.assertIn("script1.sh", result.output)
         self.assertIn("script2.sh", result.output)
+
+
+def _safe_github_cleanup(base_dir: "Path") -> None:
+    """Remove test artifacts from .github/ without deleting .github/workflows/."""
+    import shutil as _shutil
+
+    github = Path(base_dir) / ".github"
+    if not github.exists():
+        return
+    for sub in ("agents", "bin", "skills", "commands", "prompts"):
+        d = github / sub
+        if d.exists():
+            _shutil.rmtree(d, ignore_errors=True)
+    for f in github.glob(".mcp.json"):
+        f.unlink(missing_ok=True)
 
 
 class TestBinCommands(unittest.TestCase):
@@ -160,9 +190,8 @@ class TestBinCommands(unittest.TestCase):
         self.assertIn("deploy-test.sh", result.output)
         self.assertTrue((github_bin / "deploy-test.sh").exists())
 
-        import shutil
 
-        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+        _safe_github_cleanup(Path.cwd())
 
     def test_bin_get_not_found(self):
         """Verify get fails for non-existent script."""
@@ -209,9 +238,8 @@ class TestBinCommands(unittest.TestCase):
         self.assertTrue((github_bin / "test1.sh").exists())
         self.assertTrue((github_bin / "test2.sh").exists())
 
-        import shutil
 
-        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+        _safe_github_cleanup(Path.cwd())
 
     def test_bin_remove(self):
         """Verify bin remove unregisters a script."""

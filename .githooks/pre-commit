@@ -1,5 +1,14 @@
 #!/bin/zsh
-# pre-commit hook — ローカル限定: lint, test, CCN check
+# pre-commit hook — ローカル限定: format, lint, test, CCN check
+echo "=== 🧹 Ruff Format ==="
+uv run ruff format --check .
+if [ $? -ne 0 ]; then
+    echo "❌ Format check failed. Commit aborted."
+    exit 1
+fi
+echo "✅ Format passed"
+echo
+
 echo "=== 🧹 Ruff Lint ==="
 uv run ruff check src/ tests/
 if [ $? -ne 0 ]; then

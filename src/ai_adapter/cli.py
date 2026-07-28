@@ -25,6 +25,7 @@ from ai_adapter.commands.mcp import mcp_group
 from ai_adapter.commands.prompt import prompt_group
 from ai_adapter.commands.skill import skill_group
 from ai_adapter.git import GitError, get_conflicted_files, is_rebasing
+from ai_adapter.providers.codex import codex_group
 from ai_adapter.providers.opencode import opencode_group
 from ai_adapter.sync import sync_command
 
@@ -328,6 +329,7 @@ main.add_command(prompt_group)
 main.add_command(instruction_group, name="agent")
 main.add_command(mcp_group)
 main.add_command(opencode_group)
+main.add_command(codex_group)
 
 
 @main.command(name="add-all-rec")

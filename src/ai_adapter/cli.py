@@ -335,12 +335,6 @@ main.add_command(cmd_add_all_rec)
 main.add_command(cmd_get_all_rec)
 
 
-
-
-
-
-
-
 @main.command(name="sync")
 @click.option("--continue", "do_continue", is_flag=True, help="Continue an interrupted rebase")
 @click.option("--abort", "do_abort", is_flag=True, help="Abort the rebase")
@@ -364,6 +358,3 @@ def cmd_sync(do_continue: bool, do_abort: bool, do_skip: bool) -> None:
     except GitError as e:
         click.echo(f"Error: {e}", err=True)
         raise click.ClickException(str(e))
-
-
-

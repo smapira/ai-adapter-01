@@ -69,7 +69,7 @@ def opencode_alias() -> None:
                 shutil.rmtree(opencode_path)
 
     os.symlink(str(github_path), str(opencode_path))
-    _config.add_to_gitignore(opencode_path.resolve())
+    _config.add_to_gitignore(opencode_path)
     click.echo(f"Symlink created: {opencode_path} → {github_path}")
 
 

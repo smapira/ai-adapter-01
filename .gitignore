@@ -194,3 +194,4 @@ opencode.json
 .mypy_cache
 /AGENTS.md
 /CLAUDE.md
+/.opencode/

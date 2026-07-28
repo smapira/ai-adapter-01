@@ -17,6 +17,11 @@ class TestOpencodeCommands(unittest.TestCase):
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
+        self.orig_cwd = Path.cwd()
+        self.isolated_dir = Path(self.temp_dir.name) / "project"
+        self.isolated_dir.mkdir(parents=True)
+        os.chdir(self.isolated_dir)
+
         self.patch_home = Path(self.temp_dir.name)
         self.runner = CliRunner()
 
@@ -38,6 +43,7 @@ class TestOpencodeCommands(unittest.TestCase):
         import ai_adapter.config as cfg
 
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        os.chdir(self.orig_cwd)
         self.temp_dir.cleanup()
 
     def test_opencode_install_default(self):

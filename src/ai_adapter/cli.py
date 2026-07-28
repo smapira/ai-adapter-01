@@ -15,11 +15,12 @@ from ai_adapter import __version__
 from ai_adapter import config as _config
 from ai_adapter import diff as _diff
 from ai_adapter import git as _git
-from ai_adapter.agent_format import parse_frontmatter as _parse_frontmatter
+from ai_adapter.commands.add_all_rec import cmd_add_all_rec
 from ai_adapter.commands.agent import agent_group
 from ai_adapter.commands.bin import bin_group
 from ai_adapter.commands.command import command_group
 from ai_adapter.commands.env import env_group
+from ai_adapter.commands.get_all_rec import cmd_get_all_rec
 from ai_adapter.commands.instruction import instruction_group
 from ai_adapter.commands.mcp import mcp_group
 from ai_adapter.commands.prompt import prompt_group
@@ -27,7 +28,7 @@ from ai_adapter.commands.skill import skill_group
 from ai_adapter.git import GitError, get_conflicted_files, is_rebasing
 from ai_adapter.providers.codex import codex_group
 from ai_adapter.providers.opencode import opencode_group
-from ai_adapter.sync import sync_command
+from ai_adapter.sync import handle_rebase_operation, sync_command
 
 logging.basicConfig(
     level=logging.INFO,
@@ -330,410 +331,14 @@ main.add_command(instruction_group, name="agent")
 main.add_command(mcp_group)
 main.add_command(opencode_group)
 main.add_command(codex_group)
+main.add_command(cmd_add_all_rec)
+main.add_command(cmd_get_all_rec)
 
 
-@main.command(name="add-all-rec")
-def cmd_add_all_rec() -> None:
-    """Import all files under .github/ into ~/.ai-adapter/."""
-    github_dir = Path.cwd() / ".github"
-    if not github_dir.exists():
-        github_dir.mkdir(parents=True, exist_ok=True)
-        click.echo(f"'{github_dir}/' created.")
-
-    config = _config.load_config()
-    if config is None:
-        click.echo("Configuration file not found. Run ai-adapter init first.")
-        return
-
-    import json
-
-    from ai_adapter.agent_format import parse_frontmatter
-    from ai_adapter.commands.agent import _get_agent_name_from_path
-    from ai_adapter.commands.skill import _parse_skill_metadata
-    from ai_adapter.models import Agent, Bin, Instruction, MCPServer, Skill
-
-    total_added = 0
-
-    # 1) agents/
-    agents_src = github_dir / "agents"
-    if agents_src.exists():
-        agents_dir = _config.get_agents_dir()
-        agents_dir.mkdir(parents=True, exist_ok=True)
-        added = 0
-        for f in sorted(agents_src.rglob("*")):
-            if not f.is_file():
-                continue
-            dest = agents_dir / f.name
-            if str(f).endswith(".agent.md"):
-                fm = parse_frontmatter(f)
-                if not fm or not fm.get("name", "").strip():
-                    continue
-            name = _get_agent_name_from_path(f)
-            config.agents = [a for a in config.agents if a.name != name]
-            shutil.copy2(f, dest)
-            config.agents.append(Agent(name=name))
-            added += 1
-        click.echo(f"  agents/: {added} registered")
-        total_added += added
-    else:
-        click.echo("  agents/: skip (directory not found)")
-
-    # 2) bin/
-    bins_src = github_dir / "bin"
-    if bins_src.exists():
-        bins_dir = _config.get_bins_dir()
-        bins_dir.mkdir(parents=True, exist_ok=True)
-        resolved_env = config.default_env
-        added = 0
-        for f in sorted(bins_src.rglob("*")):
-            if not f.is_file():
-                continue
-            dest = bins_dir / f.name
-            config.bins = [b for b in config.bins if b.name != f.name]
-            shutil.copy2(f, dest)
-            config.bins.append(Bin(name=f.name, env=resolved_env))
-            added += 1
-        click.echo(f"  bin/: {added} registered")
-        total_added += added
-    else:
-        click.echo("  bin/: skip (directory not found)")
-
-    # 3) skills/
-    skills_src = github_dir / "skills"
-    if skills_src.exists():
-        skills_dir = _config.get_skills_dir()
-        skills_dir.mkdir(parents=True, exist_ok=True)
-        added = 0
-        for d in sorted(skills_src.iterdir()):
-            if not d.is_dir():
-                continue
-            skill_file = d / "SKILL.md"
-            if not skill_file.exists():
-                continue
-            try:
-                metadata = _parse_skill_metadata(d)
-            except Exception:
-                continue
-            name = metadata.get("name") or d.name
-            dest = skills_dir / name
-            if dest.exists():
-                shutil.rmtree(dest)
-            config.skills = [s for s in config.skills if s.name != name]
-            shutil.copytree(d, dest)
-            config.skills.append(
-                Skill(
-                    name=name,
-                    description=metadata.get("description", ""),
-                    path=f"skills/{name}",
-                    tags=metadata.get("tags", []),
-                )
-            )
-            added += 1
-        click.echo(f"  skills/: {added} registered")
-        total_added += added
-    else:
-        click.echo("  skills/: skip (directory not found)")
-
-    # 4) .mcp.json
-    mcp_json = Path.cwd() / ".mcp.json"
-    if mcp_json.exists():
-        try:
-            with open(mcp_json) as f:
-                data = json.load(f)
-            servers_data = data.get("mcpServers", {})
-            added = 0
-            for name, sd in servers_data.items():
-                if not any(s.name == name for s in config.mcp_servers):
-                    config.mcp_servers.append(
-                        MCPServer(
-                            name=name,
-                            command=sd.get("command", ""),
-                            args=sd.get("args", []),
-                            env_keys=list(sd.get("env", {}).keys()),
-                            enabled=sd.get("enabled", True),
-                            tools=[],
-                            env=None,
-                        )
-                    )
-                    added += 1
-            click.echo(f"  .mcp.json: {added} registered")
-            total_added += added
-        except (json.JSONDecodeError, Exception) as e:
-            click.echo(f"  .mcp.json  failed to load: {e}")
-    else:
-        click.echo("  .mcp.json: skip (file not found)")
-
-    # 5) root-level instruction files (AGENTS.md, CLAUDE.md, etc.)
-    root_instruction_names = ["AGENTS.md", "AGENT.md", "CLAUDE.md", "copilot-instructions.md"]
-    instructions_dir = _config.get_instructions_dir()
-    instructions_dir.mkdir(parents=True, exist_ok=True)
-    added = 0
-    for fname in root_instruction_names:
-        candidate = Path.cwd() / fname
-        if candidate.exists():
-            dest = instructions_dir / fname
-            if not dest.exists():
-                shutil.copy2(candidate, dest)
-            name = candidate.stem
-            config.instructions = [i for i in config.instructions if i.name != name]
-            config.instructions.append(Instruction(name=name))
-            added += 1
-    if added:
-        click.echo(f"  root instructions/: {added} registered")
-        total_added += added
-    else:
-        click.echo("  root instructions: skip (no root-level files found)")
-
-    _config.save_config(config)
-    click.echo(f"All imports completed: Total: {total_added}")
 
 
-@main.command(name="get-all-rec")
-@click.option("--force", is_flag=True, help="Overwrite existing files without prompting")
-@click.option(
-    "--project-dir",
-    "-d",
-    type=click.Path(exists=True, file_okay=False, readable=True),
-    default=None,
-    help="Target project directory (default: current directory)",
-)
-def cmd_get_all_rec(force: bool, project_dir: str | None) -> None:
-    """Deploy all registered items to .github/ (reverse of add-all-rec).
-
-    Copies all registered agents, scripts, skills, commands, prompts,
-    and MCP configurations from ~/.ai-adapter/ to the current project's
-    .github/ directory.
-    """
-    config = _config.load_config()
-    if config is None:
-        click.echo("Configuration file not found. Run ai-adapter init first.")
-        return
-
-    project_path = Path(project_dir).resolve() if project_dir else None
-    total_deployed = 0
-
-    # ── 1) agents/ ──────────────────────────────────────────────────────
-    agents_dir = _config.get_agents_dir()
-    if agents_dir.exists() and config.agents:
-        github_agents_dir = _config.get_github_agents_dir(project_path)
-        github_agents_dir.mkdir(parents=True, exist_ok=True)
-        deployed = 0
-        for agent_cfg in config.agents:
-            name = agent_cfg.name
-            src = None
-            # Search by frontmatter name first
-            for f in agents_dir.iterdir():
-                if not f.is_file():
-                    continue
-                try:
-                    fm = _parse_frontmatter(f)
-                    if fm.get("name", "").strip() == name:
-                        src = f
-                        break
-                except Exception:
-                    continue
-            # Fall back to filename-based search
-            if src is None:
-                candidates = [
-                    agents_dir / f"{name}.agent.md",
-                    agents_dir / f"{name}.md",
-                    agents_dir / name,
-                ]
-                for c in candidates:
-                    if c.exists() and c.is_file():
-                        src = c
-                        break
-            if src is None:
-                click.echo(f"   Skip agent: '{name}' file not found.")
-                continue
-            dest = github_agents_dir / src.name
-            if dest.exists() and not force:
-                click.confirm(f"Overwrite '{dest.name}'?", abort=True)
-            shutil.copy2(src, dest)
-            _config.add_to_gitignore(dest)
-            deployed += 1
-        click.echo(f"  agents/: {deployed} deployed")
-        total_deployed += deployed
-    else:
-        click.echo("  agents/: skip (no registered agents)")
-
-    # ── 2) bin/ ─────────────────────────────────────────────────────────
-    bins_dir = _config.get_bins_dir()
-    if bins_dir.exists() and config.bins:
-        github_bins_dir = _config.get_github_bins_dir(project_path)
-        github_bins_dir.mkdir(parents=True, exist_ok=True)
-        deployed = 0
-        for bin_entry in config.bins:
-            src = bins_dir / bin_entry.name
-            if not src.exists():
-                click.echo(f"   Skip script: '{bin_entry.name}' file not found.")
-                continue
-            dest = github_bins_dir / bin_entry.name
-            if dest.exists() and not force:
-                click.confirm(f"Overwrite '{dest.name}'?", abort=True)
-            shutil.copy2(src, dest)
-            _config.add_to_gitignore(dest)
-            deployed += 1
-        click.echo(f"  bin/: {deployed} deployed")
-        total_deployed += deployed
-    else:
-        click.echo("  bin/: skip (no registered scripts)")
-
-    # ── 3) skills/ ──────────────────────────────────────────────────────
-    skills_dir = _config.get_skills_dir()
-    if skills_dir.exists() and config.skills:
-        github_skills_dir = _config.get_github_skills_dir(project_path)
-        github_skills_dir.mkdir(parents=True, exist_ok=True)
-        deployed = 0
-        for skill_entry in config.skills:
-            src = skills_dir / skill_entry.name
-            if not src.exists():
-                click.echo(f"   Skip skill: '{skill_entry.name}' directory not found.")
-                continue
-            dest = github_skills_dir / skill_entry.name
-            if dest.exists():
-                if force:
-                    shutil.rmtree(dest)
-                else:
-                    click.confirm(f"Overwrite '{dest.name}'?", abort=True)
-                    shutil.rmtree(dest)
-            shutil.copytree(src, dest)
-            _config.add_to_gitignore(dest)
-            deployed += 1
-        click.echo(f"  skills/: {deployed} deployed")
-        total_deployed += deployed
-    else:
-        click.echo("  skills/: skip (no registered skills)")
-
-    # ── 4) commands/ ────────────────────────────────────────────────────
-    commands_dir = _config.get_commands_dir()
-    if commands_dir.exists() and config.commands:
-        github_commands_dir = _config.get_github_commands_dir(project_path)
-        github_commands_dir.mkdir(parents=True, exist_ok=True)
-        deployed = 0
-        for cmd_entry in config.commands:
-            src = _find_command_file(commands_dir, cmd_entry.name)
-            if src is None:
-                click.echo(f"   Skip command: '{cmd_entry.name}' file not found.")
-                continue
-            dest = github_commands_dir / src.name
-            if dest.exists() and not force:
-                click.confirm(f"Overwrite '{dest.name}'?", abort=True)
-            shutil.copy2(src, dest)
-            _config.add_to_gitignore(dest)
-            deployed += 1
-        click.echo(f"  commands/: {deployed} deployed")
-        total_deployed += deployed
-    else:
-        click.echo("  commands/: skip (no registered commands)")
-
-    # ── 5) prompts/ ─────────────────────────────────────────────────────
-    prompts_dir = _config.get_prompts_dir()
-    if prompts_dir.exists() and config.prompts:
-        github_prompts_dir = _config.get_github_prompts_dir(project_path)
-        github_prompts_dir.mkdir(parents=True, exist_ok=True)
-        deployed = 0
-        for prompt_entry in config.prompts:
-            src = _find_prompt_file(prompts_dir, prompt_entry.name)
-            if src is None:
-                click.echo(f"   Skip prompt: '{prompt_entry.name}' file not found.")
-                continue
-            dest = github_prompts_dir / src.name
-            if dest.exists() and not force:
-                click.confirm(f"Overwrite '{dest.name}'?", abort=True)
-            shutil.copy2(src, dest)
-            _config.add_to_gitignore(dest)
-            deployed += 1
-        click.echo(f"  prompts/: {deployed} deployed")
-        total_deployed += deployed
-    else:
-        click.echo("  prompts/: skip (no registered prompts)")
-
-    # ── 6) MCP (.mcp.json) ──────────────────────────────────────────────
-    enabled_servers = [s for s in config.mcp_servers if s.enabled]
-    if enabled_servers:
-        import json
-
-        mcp_config: dict = {"mcpServers": {}}
-        for server in enabled_servers:
-            env_dict = {}
-            for key in server.env_keys:
-                env_dict[key] = f"${{{key}}}"
-            entry: dict = {"command": server.command, "args": server.args}
-            if env_dict:
-                entry["env"] = env_dict
-            mcp_config["mcpServers"][server.name] = entry
-
-        base = project_path or Path.cwd()
-        output_path = base / ".mcp.json"
-        if output_path.exists() and not force:
-            click.confirm("Overwrite '.mcp.json'?", abort=True)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "w") as f:
-            json.dump(mcp_config, f, indent=2, ensure_ascii=False)
-        _config.add_to_gitignore(output_path)
-        click.echo(f"  .mcp.json: {len(enabled_servers)} servers exported")
-        total_deployed += 1
-    else:
-        click.echo("  .mcp.json: skip (no enabled MCP servers)")
-
-    # ── 7) instructions/ (root-level) ────────────────────────────────────
-    instructions_dir = _config.get_instructions_dir()
-    if instructions_dir.exists() and config.instructions:
-        root_dir = _config.get_github_instructions_dir(project_path)
-        deployed = 0
-        for inst_entry in config.instructions:
-            src = _find_instruction_file(instructions_dir, inst_entry.name)
-            if src is None:
-                click.echo(f"   Skip instruction: '{inst_entry.name}' file not found.")
-                continue
-            dest = root_dir / src.name
-            if dest.exists() and not force:
-                click.confirm(f"Overwrite '{dest.name}'?", abort=True)
-            shutil.copy2(src, dest)
-            _config.add_to_gitignore(dest)
-            deployed += 1
-        click.echo(f"  instructions/: {deployed} deployed")
-        total_deployed += deployed
-    else:
-        click.echo("  instructions/: skip (no registered instructions)")
-
-    click.echo(f"All deployments completed: Total: {total_deployed}")
 
 
-def _find_command_file(commands_dir: Path, name: str) -> Path | None:
-    """Find a command file by name in the store directory."""
-    # Exact match
-    exact = commands_dir / name
-    if exact.exists() and exact.is_file():
-        return exact
-    # Search by stem
-    for f in sorted(commands_dir.iterdir()):
-        if f.is_file() and f.stem == name:
-            return f
-    return None
-
-
-def _find_prompt_file(prompts_dir: Path, name: str) -> Path | None:
-    """Find a prompt file by name in the store directory."""
-    exact = prompts_dir / name
-    if exact.exists() and exact.is_file():
-        return exact
-    for f in sorted(prompts_dir.iterdir()):
-        if f.is_file() and f.stem == name:
-            return f
-    return None
-
-
-def _find_instruction_file(instructions_dir: Path, name: str) -> Path | None:
-    """Find an instruction file by name in the store directory."""
-    exact = instructions_dir / name
-    if exact.exists() and exact.is_file():
-        return exact
-    for f in sorted(instructions_dir.iterdir()):
-        if f.is_file() and f.stem == name:
-            return f
-    return None
 
 
 @main.command(name="sync")
@@ -750,7 +355,7 @@ def cmd_sync(do_continue: bool, do_abort: bool, do_skip: bool) -> None:
 
     # Rebase operation mode
     if do_continue or do_abort or do_skip:
-        _handle_rebase_operation(adapter_dir, do_continue, do_abort, do_skip)
+        handle_rebase_operation(adapter_dir, do_continue, do_abort, do_skip)
         return
 
     # Normal sync
@@ -761,35 +366,4 @@ def cmd_sync(do_continue: bool, do_abort: bool, do_skip: bool) -> None:
         raise click.ClickException(str(e))
 
 
-def _handle_rebase_operation(adapter_dir: Path, do_continue: bool, do_abort: bool, do_skip: bool) -> None:
-    """Handle rebase operations."""
-    if not is_rebasing(adapter_dir):
-        click.echo("Not currently in a rebase state.")
-        return
 
-    if do_abort:
-        click.echo("Aborting rebase...")
-        _git._run_git(["rebase", "--abort"], cwd=adapter_dir)
-        click.echo("Rebase aborted. Restored to original state.")
-    elif do_skip:
-        click.echo("Skipping commit and continuing rebase...")
-        _git._run_git(["rebase", "--skip"], cwd=adapter_dir)
-        if is_rebasing(adapter_dir):
-            click.echo("There are still commits in the rebase. Check with git status.")
-        else:
-            click.echo("Push with ai-adapter sync.")
-    elif do_continue:
-        click.echo("continuing rebase...")
-        try:
-            _git._run_git(["rebase", "--continue"], cwd=adapter_dir)
-            if is_rebasing(adapter_dir):
-                click.echo("There are still commits in the rebase.")
-            else:
-                click.echo("Push with ai-adapter sync.")
-        except GitError as e:
-            if "Author identity unknown" in str(e):
-                click.echo("Git user configuration not set.")
-                click.echo("  git config --global user.email 'you@example.com'")
-                click.echo("  git config --global user.name 'Your Name'")
-            else:
-                click.echo(f"Failed to continue rebase: {e}")

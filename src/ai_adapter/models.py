@@ -225,6 +225,14 @@ class MCPServer:
         )
 
 
+def _ensure_list(data: dict[str, Any], key: str) -> list:
+    """Get a list field from *data*, validating it is a list."""
+    val = data.get(key, [])
+    if not isinstance(val, list):
+        raise ValueError(f"{key} must be a list, got {type(val).__name__}")
+    return val
+
+
 @dataclass
 class Config:
     version: int = 1
@@ -273,64 +281,25 @@ class Config:
         if not isinstance(data, dict):
             raise ValueError("Invalid config format: must be a dict")
 
-        # Version validation
         version = data.get("version", 1)
         if not isinstance(version, int):
             raise ValueError(f"version must be an integer: {version}")
 
-        # default_env validation
         default_env = data.get("default_env", "default")
         if not isinstance(default_env, str):
             raise ValueError(f"default_env must be a string: {default_env}")
 
-        # Validate each list field
-        agents_data = data.get("agents", [])
-        if not isinstance(agents_data, list):
-            raise ValueError("agents must be a list")
-
-        envs_data = data.get("envs", [])
-        if not isinstance(envs_data, list):
-            raise ValueError("envs must be a list")
-
-        bins_data = data.get("bins", [])
-        if not isinstance(bins_data, list):
-            raise ValueError("bins must be a list")
-
-        skills_data = data.get("skills", [])
-        if not isinstance(skills_data, list):
-            raise ValueError("skills must be a list")
-
-        commands_data = data.get("commands", [])
-        if not isinstance(commands_data, list):
-            raise ValueError("commands must be a list")
-
-        prompts_data = data.get("prompts", [])
-        if not isinstance(prompts_data, list):
-            raise ValueError("prompts must be a list")
-
-        instructions_data = data.get("instructions", [])
-        if not isinstance(instructions_data, list):
-            raise ValueError("instructions must be a list")
-
-        mcp_servers_data = data.get("mcp_servers", [])
-        if not isinstance(mcp_servers_data, list):
-            raise ValueError("mcp_servers must be a list")
-
-        agent_bindings_data = data.get("agent_bindings", [])
-        if not isinstance(agent_bindings_data, list):
-            raise ValueError("agent_bindings must be a list")
-
         return cls(
             version=version,
             default_env=default_env,
-            agent_bindings=[AgentBinding.from_dict(b) for b in agent_bindings_data],
-            agents=[Agent.from_dict(a) for a in agents_data],
-            envs=[Env.from_dict(e) for e in envs_data],
-            bins=[Bin.from_dict(b) for b in bins_data],
-            skills=[Skill.from_dict(s) for s in skills_data],
-            commands=[Command.from_dict(c) for c in commands_data],
-            prompts=[Prompt.from_dict(p) for p in prompts_data],
-            instructions=[Instruction.from_dict(i) for i in instructions_data],
-            mcp_servers=[MCPServer.from_dict(m) for m in mcp_servers_data],
+            agent_bindings=[AgentBinding.from_dict(b) for b in _ensure_list(data, "agent_bindings")],
+            agents=[Agent.from_dict(a) for a in _ensure_list(data, "agents")],
+            envs=[Env.from_dict(e) for e in _ensure_list(data, "envs")],
+            bins=[Bin.from_dict(b) for b in _ensure_list(data, "bins")],
+            skills=[Skill.from_dict(s) for s in _ensure_list(data, "skills")],
+            commands=[Command.from_dict(c) for c in _ensure_list(data, "commands")],
+            prompts=[Prompt.from_dict(p) for p in _ensure_list(data, "prompts")],
+            instructions=[Instruction.from_dict(i) for i in _ensure_list(data, "instructions")],
+            mcp_servers=[MCPServer.from_dict(m) for m in _ensure_list(data, "mcp_servers")],
             remote=data.get("remote"),
         )

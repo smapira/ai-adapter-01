@@ -55,11 +55,13 @@ def command_add_rec(dir: str) -> None:
     """ディレクトリ内の全ファイルを ~/.ai-adapter/commands/ に再帰的に追加する。"""
     # ... 実装 ...
 
+
 @command_group.command(name="get-all")
 @click.option("--project-dir", "-d", type=click.Path(...), default=None)
 def command_get_all(project_dir: str | None) -> None:
     """全登録コマンドを .github/commands/ に一括コピーする。"""
     # ... 実装 ...
+
 
 @command_group.command(name="remove-all")
 @click.option("--force", is_flag=True, help="確認プロンプトを表示せずに削除")

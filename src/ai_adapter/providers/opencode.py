@@ -41,8 +41,7 @@ def opencode_alias() -> None:
         errors = batch_validate_and_fix(agents_dir, fix=False)
         if errors:
             click.echo(
-                "Warning: the following agent files have array-format "
-                "tools (expected object format):",
+                "Warning: the following agent files have array-format tools (expected object format):",
                 err=True,
             )
             for err in errors:
@@ -56,16 +55,14 @@ def opencode_alias() -> None:
                             fixed += 1
                 click.echo(f"Fixed {fixed} file(s).")
             else:
-                raise click.ClickException(
-                    "Agent file format validation failed. "
-                    "Run 'opencode validate --fix' to fix."
-                )
+                raise click.ClickException("Agent file format validation failed. Run 'opencode validate --fix' to fix.")
 
     if opencode_path.exists() or opencode_path.is_symlink():
         click.echo("'.opencode' already exists.")
         click.confirm("Replace it?", abort=True)
         if opencode_path.is_symlink() or opencode_path.is_dir():
             import shutil
+
             if opencode_path.is_symlink() or opencode_path.is_file():
                 opencode_path.unlink()
             else:
@@ -130,7 +127,8 @@ def opencode_uninstall() -> None:
     help="Minimal output; only exit code indicates result (0 = valid).",
 )
 @click.option(
-    "--project-dir", "-d",
+    "--project-dir",
+    "-d",
     type=click.Path(exists=True, file_okay=False, readable=True),
     default=None,
     help="Target project directory (default: current directory)",

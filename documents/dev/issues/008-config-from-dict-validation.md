@@ -116,10 +116,12 @@ def test_from_dict_invalid_version(self):
     with self.assertRaises(ValueError):
         Config.from_dict({"version": "1"})
 
+
 def test_from_dict_invalid_agents(self):
     """agents が配列でない場合に ValueError が上がることを確認する。"""
     with self.assertRaises(ValueError):
         Config.from_dict({"agents": "not a list"})
+
 
 def test_from_dict_invalid_default_env(self):
     """default_env が文字列でない場合に ValueError が上がることを確認する。"""

@@ -120,6 +120,7 @@ from ai_adapter.git import is_rebasing, get_conflicted_files, _run_git as run_gi
 
 # main.add_command(sync_command) を削除し、以下に置き換え
 
+
 @main.command(name="sync")
 @click.option("--continue", "do_continue", is_flag=True, help="中断されたリベースを続行")
 @click.option("--abort", "do_abort", is_flag=True, help="リベースを中断")
@@ -140,6 +141,7 @@ def cmd_sync(ctx: click.Context, do_continue: bool, do_abort: bool, do_skip: boo
 
     # 通常の sync（リベース検出付き）
     from ai_adapter.sync import sync_command
+
     try:
         sync_command(adapter_dir)
     except GitError as e:
@@ -147,9 +149,7 @@ def cmd_sync(ctx: click.Context, do_continue: bool, do_abort: bool, do_skip: boo
         raise click.ClickException(str(e))
 
 
-def _handle_rebase_operation(
-    adapter_dir: Path, do_continue: bool, do_abort: bool, do_skip: bool
-) -> None:
+def _handle_rebase_operation(adapter_dir: Path, do_continue: bool, do_abort: bool, do_skip: bool) -> None:
     """リベース操作を処理する。"""
     if not is_rebasing(adapter_dir):
         click.echo("リベース中の状態ではありません。")
@@ -187,9 +187,9 @@ def _handle_rebase_operation(
             else:
                 click.echo(f"リベース続行に失敗: {e}")
 
-
-# cmd_status 内に追加:
+    # cmd_status 内に追加:
     from ai_adapter.git import is_rebasing, get_conflicted_files
+
     rebasing = is_rebasing(adapter_dir)
     click.echo(f"  リベース状態: {'⚠ 中断中' if rebasing else '✓'}")
     if rebasing:

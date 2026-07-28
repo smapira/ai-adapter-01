@@ -167,6 +167,29 @@ class Prompt:
 
 
 @dataclass
+class Instruction:
+    name: str
+    description: str = ""
+    content: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {"name": self.name}
+        if self.description:
+            d["description"] = self.description
+        if self.content:
+            d["content"] = self.content
+        return d
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Instruction:
+        return cls(
+            name=data["name"],
+            description=data.get("description", ""),
+            content=data.get("content", ""),
+        )
+
+
+@dataclass
 class MCPServer:
     name: str
     command: str
@@ -211,6 +234,7 @@ class Config:
     skills: list[Skill] = field(default_factory=list)
     commands: list[Command] = field(default_factory=list)
     prompts: list[Prompt] = field(default_factory=list)
+    instructions: list[Instruction] = field(default_factory=list)
     mcp_servers: list[MCPServer] = field(default_factory=list)
     default_env: str = "default"
     agent_bindings: list[AgentBinding] = field(default_factory=list)
@@ -231,6 +255,8 @@ class Config:
             d["commands"] = [c.to_dict() for c in self.commands]
         if self.prompts:
             d["prompts"] = [p.to_dict() for p in self.prompts]
+        if self.instructions:
+            d["instructions"] = [i.to_dict() for i in self.instructions]
         if self.mcp_servers:
             d["mcp_servers"] = [m.to_dict() for m in self.mcp_servers]
         if self.remote:
@@ -282,6 +308,10 @@ class Config:
         if not isinstance(prompts_data, list):
             raise ValueError("prompts must be a list")
 
+        instructions_data = data.get("instructions", [])
+        if not isinstance(instructions_data, list):
+            raise ValueError("instructions must be a list")
+
         mcp_servers_data = data.get("mcp_servers", [])
         if not isinstance(mcp_servers_data, list):
             raise ValueError("mcp_servers must be a list")
@@ -293,16 +323,14 @@ class Config:
         return cls(
             version=version,
             default_env=default_env,
-            agent_bindings=[
-                AgentBinding.from_dict(b)
-                for b in agent_bindings_data
-            ],
+            agent_bindings=[AgentBinding.from_dict(b) for b in agent_bindings_data],
             agents=[Agent.from_dict(a) for a in agents_data],
             envs=[Env.from_dict(e) for e in envs_data],
             bins=[Bin.from_dict(b) for b in bins_data],
             skills=[Skill.from_dict(s) for s in skills_data],
             commands=[Command.from_dict(c) for c in commands_data],
             prompts=[Prompt.from_dict(p) for p in prompts_data],
+            instructions=[Instruction.from_dict(i) for i in instructions_data],
             mcp_servers=[MCPServer.from_dict(m) for m in mcp_servers_data],
             remote=data.get("remote"),
         )

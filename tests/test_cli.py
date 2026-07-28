@@ -4,8 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from click.testing import CliRunner
 
@@ -22,16 +21,20 @@ class TestCLIIntegration(unittest.TestCase):
         self.runner = CliRunner()
 
         import pathlib
+
         self._original_home = pathlib.Path.home
         pathlib.Path.home = staticmethod(lambda: self.patch_home)
 
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
 
     def tearDown(self):
         import pathlib
+
         pathlib.Path.home = staticmethod(self._original_home)
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         self.temp_dir.cleanup()
 
@@ -42,7 +45,7 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("ai-adapter", result.output)
         self.assertIn("init", result.output)
         self.assertIn("status", result.output)
-        self.assertIn("agent", result.output)
+        self.assertIn("sub-agent", result.output)
         self.assertIn("env", result.output)
         self.assertIn("bin", result.output)
         self.assertIn("skill", result.output)
@@ -50,6 +53,7 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("opencode", result.output)
         self.assertIn("command", result.output)
         self.assertIn("prompt", result.output)
+        self.assertIn("agent", result.output)
         self.assertIn("add-all-rec", result.output)
         self.assertIn("get-all-rec", result.output)
         self.assertIn("sync", result.output)
@@ -59,6 +63,7 @@ class TestCLIIntegration(unittest.TestCase):
     def test_version(self):
         """Verify --version is displayed."""
         from ai_adapter import __version__
+
         result = self.runner.invoke(main, ["--version"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn(__version__, result.output)
@@ -78,9 +83,14 @@ class TestCLIIntegration(unittest.TestCase):
 
     def test_init_with_remote(self):
         """Verify init --remote sets up a remote."""
-        result = self.runner.invoke(main, [
-            "init", "--remote", "git@github.com:user/test.git",
-        ])
+        result = self.runner.invoke(
+            main,
+            [
+                "init",
+                "--remote",
+                "git@github.com:user/test.git",
+            ],
+        )
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Remote set", result.output)
         self.assertIn("git@github.com:user/test.git", result.output)
@@ -93,7 +103,7 @@ class TestCLIIntegration(unittest.TestCase):
 
     def test_agent_help(self):
         """Verify agent --help is displayed."""
-        result = self.runner.invoke(main, ["agent", "--help"])
+        result = self.runner.invoke(main, ["sub-agent", "--help"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("list", result.output)
         self.assertIn("add", result.output)
@@ -102,7 +112,7 @@ class TestCLIIntegration(unittest.TestCase):
 
     def test_agent_get_help(self):
         """Verify agent get --help shows --force option."""
-        result = self.runner.invoke(main, ["agent", "get", "--help"])
+        result = self.runner.invoke(main, ["sub-agent", "get", "--help"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("--force", result.output)
         self.assertIn("Overwrite", result.output)
@@ -191,16 +201,20 @@ class TestUninstallCommand(unittest.TestCase):
         self.runner = CliRunner()
 
         import pathlib
+
         self._original_home = pathlib.Path.home
         pathlib.Path.home = staticmethod(lambda: self.patch_home)
 
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
 
     def tearDown(self):
         import pathlib
+
         pathlib.Path.home = staticmethod(self._original_home)
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         self.temp_dir.cleanup()
 
@@ -258,16 +272,20 @@ class TestStartCommand(unittest.TestCase):
         self.runner = CliRunner()
 
         import pathlib
+
         self._original_home = pathlib.Path.home
         pathlib.Path.home = staticmethod(lambda: self.patch_home)
 
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
 
     def tearDown(self):
         import pathlib
+
         pathlib.Path.home = staticmethod(self._original_home)
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         self.temp_dir.cleanup()
 
@@ -277,9 +295,13 @@ class TestStartCommand(unittest.TestCase):
         # Clone failed → new init path
         mock_clone.side_effect = GitError("clone failed")
 
-        result = self.runner.invoke(main, [
-            "start", "git@github.com:user/test.git",
-        ])
+        result = self.runner.invoke(
+            main,
+            [
+                "start",
+                "git@github.com:user/test.git",
+            ],
+        )
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Setup complete", result.output)
         adapter_dir = self.patch_home / ".ai-adapter"
@@ -293,9 +315,14 @@ class TestStartCommand(unittest.TestCase):
         adapter_dir = self.patch_home / ".ai-adapter"
         adapter_dir.mkdir(parents=True)
 
-        result = self.runner.invoke(main, [
-            "start", "git@github.com:user/test.git",
-        ], input="n\n")
+        result = self.runner.invoke(
+            main,
+            [
+                "start",
+                "git@github.com:user/test.git",
+            ],
+            input="n\n",
+        )
         self.assertNotEqual(result.exit_code, 0)
 
 
@@ -326,11 +353,13 @@ class TestBinAddPathCommand(unittest.TestCase):
         self.assertIn("export PATH", result.output)
 
         import shutil
+
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_bin_add_path_to_zshrc(self):
         """Verify bin add-path appends to zshrc."""
         import pathlib
+
         orig_home = pathlib.Path.home
         pathlib.Path.home = staticmethod(lambda: Path(self.temp_dir.name))
 
@@ -349,6 +378,7 @@ class TestBinAddPathCommand(unittest.TestCase):
         self.assertIn(".github/bin", content)
 
         import shutil
+
         pathlib.Path.home = staticmethod(orig_home)
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
@@ -362,20 +392,25 @@ class TestAddAllRecCommand(unittest.TestCase):
         self.runner = CliRunner()
 
         import pathlib
+
         self._original_home = pathlib.Path.home
         pathlib.Path.home = staticmethod(lambda: self.patch_home)
 
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
 
         # init
         from ai_adapter.config import init
+
         init()
 
     def tearDown(self):
         import pathlib
+
         pathlib.Path.home = staticmethod(self._original_home)
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         self.temp_dir.cleanup()
 
@@ -391,11 +426,12 @@ class TestAddAllRecCommand(unittest.TestCase):
         self.assertIn("agents", result.output)
 
         # Verify via list
-        result = self.runner.invoke(main, ["agent", "list"])
+        result = self.runner.invoke(main, ["sub-agent", "list"])
         self.assertIn("reviewer", result.output)
         self.assertIn("implementer", result.output)
 
         import shutil
+
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_add_all_rec_bins(self):
@@ -410,6 +446,7 @@ class TestAddAllRecCommand(unittest.TestCase):
         self.assertIn("bin", result.output)
 
         import shutil
+
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_add_all_rec_skills(self):
@@ -425,19 +462,24 @@ class TestAddAllRecCommand(unittest.TestCase):
         self.assertIn("skills", result.output)
 
         import shutil
+
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_add_all_rec_mcp(self):
         """Verify MCP servers are registered from .mcp.json."""
         mcp_json = Path.cwd() / ".mcp.json"
-        mcp_json.write_text(json.dumps({
-            "mcpServers": {
-                "test-server": {
-                    "command": "npx",
-                    "args": ["@test/server"],
+        mcp_json.write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        "test-server": {
+                            "command": "npx",
+                            "args": ["@test/server"],
+                        }
+                    }
                 }
-            }
-        }))
+            )
+        )
 
         result = self.runner.invoke(main, ["add-all-rec"])
         self.assertEqual(result.exit_code, 0)
@@ -462,36 +504,37 @@ class TestGetAllRecCommand(unittest.TestCase):
         self.runner = CliRunner()
 
         import pathlib
+
         self._original_home = pathlib.Path.home
         pathlib.Path.home = staticmethod(lambda: self.patch_home)
 
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
 
         from ai_adapter.config import init
+
         init()
 
     def tearDown(self):
         import pathlib
+
         pathlib.Path.home = staticmethod(self._original_home)
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         self.temp_dir.cleanup()
 
     def _populate_store(self):
         """Populate ~/.ai-adapter/ with test data for all categories."""
         cfg = __import__("ai_adapter.config", fromlist=["config"])
-        from ai_adapter.models import Agent, Bin, Skill, Command, Prompt, MCPServer
+        from ai_adapter.models import Agent, Bin, Command, MCPServer, Prompt, Skill
 
         # agents
         agents_dir = cfg.get_agents_dir()
         agents_dir.mkdir(parents=True, exist_ok=True)
-        (agents_dir / "reviewer.agent.md").write_text(
-            "---\nname: reviewer\n---\n# Reviewer"
-        )
-        (agents_dir / "implementer.agent.md").write_text(
-            "---\nname: implementer\n---\n# Implementer"
-        )
+        (agents_dir / "reviewer.agent.md").write_text("---\nname: reviewer\n---\n# Reviewer")
+        (agents_dir / "implementer.agent.md").write_text("---\nname: implementer\n---\n# Implementer")
 
         # bins
         bins_dir = cfg.get_bins_dir()
@@ -504,9 +547,7 @@ class TestGetAllRecCommand(unittest.TestCase):
         skills_dir.mkdir(parents=True, exist_ok=True)
         skill1 = skills_dir / "my-skill"
         skill1.mkdir()
-        (skill1 / "SKILL.md").write_text(
-            "---\nname: my-skill\ndescription: A test skill\n---\n# My Skill"
-        )
+        (skill1 / "SKILL.md").write_text("---\nname: my-skill\ndescription: A test skill\n---\n# My Skill")
 
         # commands
         commands_dir = cfg.get_commands_dir()
@@ -537,6 +578,7 @@ class TestGetAllRecCommand(unittest.TestCase):
     def test_get_all_rec_before_init(self):
         """Verify message before init."""
         import shutil
+
         shutil.rmtree(self.patch_home / ".ai-adapter", ignore_errors=True)
 
         result = self.runner.invoke(main, ["get-all-rec"])
@@ -584,6 +626,7 @@ class TestGetAllRecCommand(unittest.TestCase):
 
         # Cleanup
         import shutil
+
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
         (Path.cwd() / ".mcp.json").unlink(missing_ok=True)
 
@@ -594,9 +637,15 @@ class TestGetAllRecCommand(unittest.TestCase):
         project_dir = Path(self.temp_dir.name) / "my-project"
         project_dir.mkdir(parents=True, exist_ok=True)
 
-        result = self.runner.invoke(main, [
-            "get-all-rec", "--force", "--project-dir", str(project_dir),
-        ])
+        result = self.runner.invoke(
+            main,
+            [
+                "get-all-rec",
+                "--force",
+                "--project-dir",
+                str(project_dir),
+            ],
+        )
         self.assertEqual(result.exit_code, 0)
 
         # Verify files in the custom project directory
@@ -606,6 +655,7 @@ class TestGetAllRecCommand(unittest.TestCase):
 
         # Cleanup
         import shutil
+
         shutil.rmtree(project_dir / ".github", ignore_errors=True)
         (project_dir / ".mcp.json").unlink(missing_ok=True)
 
@@ -625,5 +675,6 @@ class TestGetAllRecCommand(unittest.TestCase):
 
         # Cleanup
         import shutil
+
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
         (Path.cwd() / ".mcp.json").unlink(missing_ok=True)

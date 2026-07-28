@@ -39,9 +39,7 @@ def _run_git(
             check=False,
         )
         if result.returncode != 0:
-            raise GitError(
-                f"git {' '.join(args)} failed:\n{result.stderr.strip()}"
-            )
+            raise GitError(f"git {' '.join(args)} failed:\n{result.stderr.strip()}")
         return result
     except FileNotFoundError:
         raise GitError("git command not found. Make sure Git is installed.")
@@ -102,12 +100,12 @@ def commit(path: Path, message: str = "ai-adapter sync") -> None:
             raise GitError(
                 "Git user configuration is not set.\n"
                 "Run the following to set user.name and user.email:\n"
-                "  git config --global user.email \"you@example.com\"\n"
-                "  git config --global user.name \"Your Name\"\n"
+                '  git config --global user.email "you@example.com"\n'
+                '  git config --global user.name "Your Name"\n'
                 "Or set only for the ~/.ai-adapter repository:\n"
                 "  cd ~/.ai-adapter\n"
-                "  git config user.email \"you@example.com\"\n"
-                "  git config user.name \"Your Name\""
+                '  git config user.email "you@example.com"\n'
+                '  git config user.name "Your Name"'
             )
         raise
 
@@ -157,9 +155,7 @@ def pull_rebase(path: Path, branch: str = "main") -> None:
             conflicted = get_conflicted_files(path)
             detail = ""
             if conflicted:
-                detail = "\n  Conflicted files:\n" + "\n".join(
-                    f"    - {f}" for f in conflicted
-                )
+                detail = "\n  Conflicted files:\n" + "\n".join(f"    - {f}" for f in conflicted)
             raise GitError(
                 f"Conflict occurred during pull --rebase.{detail}\n\n"
                 "  Resolve manually with these commands:\n\n"
@@ -204,9 +200,7 @@ def remote_branch_exists(path: Path, branch: str = "main") -> bool:
     Uses git ls-remote --heads origin <branch>.
     """
     try:
-        result = _run_git(
-            ["ls-remote", "--heads", "origin", branch], cwd=path
-        )
+        result = _run_git(["ls-remote", "--heads", "origin", branch], cwd=path)
         return bool(result.stdout.strip())
     except GitError:
         return False

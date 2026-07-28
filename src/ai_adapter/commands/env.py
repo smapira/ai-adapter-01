@@ -103,9 +103,7 @@ def env_remove(name: str, force: bool) -> None:
     config.envs.remove(target)
 
     # Also remove agent associations
-    config.agent_bindings = [
-        b for b in config.agent_bindings if b.env != name
-    ]
+    config.agent_bindings = [b for b in config.agent_bindings if b.env != name]
 
     save_config(config)
     click.echo(f"Environment '{name}' removed.")
@@ -171,9 +169,7 @@ def env_link_agent(agent: str, env: str) -> None:
             old_env = binding.env
             binding.env = env
             save_config(config)
-            click.echo(
-                f"Agent '{agent}' binding changed from '{old_env}' to '{env}'."
-            )
+            click.echo(f"Agent '{agent}' binding changed from '{old_env}' to '{env}'.")
             return
 
     config.agent_bindings.append(AgentBinding(agent=agent, env=env))
@@ -230,8 +226,7 @@ def env_remove_all(force: bool) -> None:
     ref_bins = [b for b in config.bins if b.env in [e.name for e in non_default]]
     if ref_bins and not force:
         click.echo(
-            f"Target environments are referenced by {len(ref_bins)} bin(s)."
-            f" Use --force to force removal.",
+            f"Target environments are referenced by {len(ref_bins)} bin(s). Use --force to force removal.",
             err=True,
         )
         raise click.ClickException("Cannot remove environment referenced by bins. Use --force.")
@@ -240,9 +235,7 @@ def env_remove_all(force: bool) -> None:
     config.envs = [e for e in config.envs if e.name == config.default_env]
 
     # Also remove agent associations
-    config.agent_bindings = [
-        b for b in config.agent_bindings if b.env not in removed_names
-    ]
+    config.agent_bindings = [b for b in config.agent_bindings if b.env not in removed_names]
 
     save_config(config)
     click.echo(f"All environments ({count}) removed. Default '{config.default_env}' kept.")

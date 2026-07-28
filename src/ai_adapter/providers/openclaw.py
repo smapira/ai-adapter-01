@@ -86,7 +86,9 @@ def export_mcp(servers: list[MCPServer]) -> dict:
 
 
 def merge_into_openclaw_json(
-    output_path: Path, openclaw_data: dict, force: bool = False,
+    output_path: Path,
+    openclaw_data: dict,
+    force: bool = False,
 ) -> None:
     """Merge ai-adapter's MCP data into an openclaw.json file.
 
@@ -103,7 +105,8 @@ def merge_into_openclaw_json(
     if output_path.exists():
         if not force:
             click.confirm(
-                f"Overwrite MCP servers in '{output_path}'?", abort=True,
+                f"Overwrite MCP servers in '{output_path}'?",
+                abort=True,
             )
         bak_path = output_path.with_suffix(output_path.suffix + ".bak")
         shutil.copy2(output_path, bak_path)
@@ -155,8 +158,7 @@ def resolve_mcp_output_path(path: str | None) -> Path:
         return oc_dir / "openclaw.json"
 
     click.echo(
-        "Warning: OpenClaw not found (~/.openclaw/ not detected). "
-        "Run 'npm install -g openclaw' first.",
+        "Warning: OpenClaw not found (~/.openclaw/ not detected). Run 'npm install -g openclaw' first.",
         err=True,
     )
     return Path.cwd() / "openclaw.json"
@@ -180,7 +182,9 @@ def get_skills_dir() -> Path | None:
 
 
 def deploy_skills(
-    skills: list, skills_store_dir: Path, force: bool = False,
+    skills: list,
+    skills_store_dir: Path,
+    force: bool = False,
 ) -> None:
     """Deploy ai-adapter skills to ~/.openclaw/skills/.
 
@@ -196,8 +200,7 @@ def deploy_skills(
     oc_skills_dir = get_skills_dir()
     if oc_skills_dir is None:
         click.echo(
-            "Warning: OpenClaw not found (~/.openclaw/ not detected). "
-            "Run 'npm install -g openclaw' first.",
+            "Warning: OpenClaw not found (~/.openclaw/ not detected). Run 'npm install -g openclaw' first.",
             err=True,
         )
 
@@ -225,7 +228,5 @@ def deploy_skills(
     if oc_skills_dir is not None:
         click.echo(f"All skills ({copied}) copied to {oc_skills_dir}.")
     else:
-        click.echo(
-            "No OpenClaw install detected (~/.openclaw/ not found)."
-        )
+        click.echo("No OpenClaw install detected (~/.openclaw/ not found).")
         click.echo("Nothing was written. Run 'npm install -g openclaw' first.")

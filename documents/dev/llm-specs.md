@@ -353,8 +353,8 @@ Cursor の読み込み順:
 
 ```python
 # agent.py の検索ロジック（参考）
-src_md = agents_dir / f"{name}.md"    # .md 優先
-src_try = agents_dir / name           # 拡張子なしでも試す
+src_md = agents_dir / f"{name}.md"  # .md 優先
+src_try = agents_dir / name  # 拡張子なしでも試す
 ```
 
 ---
@@ -467,9 +467,11 @@ def get_opencode_rules_dir() -> Path:
     """カレントプロジェクトの .opencode/rules/ を返す。"""
     return Path.cwd() / ".opencode" / "rules"
 
+
 def get_claude_md_path() -> Path:
     """カレントプロジェクトの CLAUDE.md を返す。"""
     return Path.cwd() / "CLAUDE.md"
+
 
 def get_cursor_rules_dir() -> Path:
     """カレントプロジェクトの .cursor/rules/ を返す。"""

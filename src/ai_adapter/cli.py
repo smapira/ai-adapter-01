@@ -20,6 +20,7 @@ from ai_adapter.commands.agent import agent_group
 from ai_adapter.commands.bin import bin_group
 from ai_adapter.commands.command import command_group
 from ai_adapter.commands.env import env_group
+from ai_adapter.commands.instruction import instruction_group
 from ai_adapter.commands.mcp import mcp_group
 from ai_adapter.commands.prompt import prompt_group
 from ai_adapter.commands.skill import skill_group
@@ -176,6 +177,7 @@ def cmd_start(url: str) -> None:
 
     # Step 3: Generate default config.json if missing
     from ai_adapter.models import Config, Env
+
     config_path = _config.get_config_path()
     if not config_path.exists():
         config = Config(
@@ -317,12 +319,13 @@ def _remove_contents_except_git(path: Path) -> None:
 
 
 # Register subcommand groups
-main.add_command(agent_group)
+main.add_command(agent_group, name="sub-agent")
 main.add_command(env_group)
 main.add_command(bin_group)
 main.add_command(skill_group)
 main.add_command(command_group)
 main.add_command(prompt_group)
+main.add_command(instruction_group, name="agent")
 main.add_command(mcp_group)
 main.add_command(opencode_group)
 
@@ -345,7 +348,7 @@ def cmd_add_all_rec() -> None:
     from ai_adapter.agent_format import parse_frontmatter
     from ai_adapter.commands.agent import _get_agent_name_from_path
     from ai_adapter.commands.skill import _parse_skill_metadata
-    from ai_adapter.models import Agent, Bin, MCPServer, Skill
+    from ai_adapter.models import Agent, Bin, Instruction, MCPServer, Skill
 
     total_added = 0
 
@@ -415,12 +418,14 @@ def cmd_add_all_rec() -> None:
                 shutil.rmtree(dest)
             config.skills = [s for s in config.skills if s.name != name]
             shutil.copytree(d, dest)
-            config.skills.append(Skill(
-                name=name,
-                description=metadata.get("description", ""),
-                path=f"skills/{name}",
-                tags=metadata.get("tags", []),
-            ))
+            config.skills.append(
+                Skill(
+                    name=name,
+                    description=metadata.get("description", ""),
+                    path=f"skills/{name}",
+                    tags=metadata.get("tags", []),
+                )
+            )
             added += 1
         click.echo(f"  skills/: {added} registered")
         total_added += added
@@ -437,15 +442,17 @@ def cmd_add_all_rec() -> None:
             added = 0
             for name, sd in servers_data.items():
                 if not any(s.name == name for s in config.mcp_servers):
-                    config.mcp_servers.append(MCPServer(
-                        name=name,
-                        command=sd.get("command", ""),
-                        args=sd.get("args", []),
-                        env_keys=list(sd.get("env", {}).keys()),
-                        enabled=sd.get("enabled", True),
-                        tools=[],
-                        env=None,
-                    ))
+                    config.mcp_servers.append(
+                        MCPServer(
+                            name=name,
+                            command=sd.get("command", ""),
+                            args=sd.get("args", []),
+                            env_keys=list(sd.get("env", {}).keys()),
+                            enabled=sd.get("enabled", True),
+                            tools=[],
+                            env=None,
+                        )
+                    )
                     added += 1
             click.echo(f"  .mcp.json: {added} registered")
             total_added += added
@@ -454,6 +461,27 @@ def cmd_add_all_rec() -> None:
     else:
         click.echo("  .mcp.json: skip (file not found)")
 
+    # 5) root-level instruction files (AGENTS.md, CLAUDE.md, etc.)
+    root_instruction_names = ["AGENTS.md", "AGENT.md", "CLAUDE.md", "copilot-instructions.md"]
+    instructions_dir = _config.get_instructions_dir()
+    instructions_dir.mkdir(parents=True, exist_ok=True)
+    added = 0
+    for fname in root_instruction_names:
+        candidate = Path.cwd() / fname
+        if candidate.exists():
+            dest = instructions_dir / fname
+            if not dest.exists():
+                shutil.copy2(candidate, dest)
+            name = candidate.stem
+            config.instructions = [i for i in config.instructions if i.name != name]
+            config.instructions.append(Instruction(name=name))
+            added += 1
+    if added:
+        click.echo(f"  root instructions/: {added} registered")
+        total_added += added
+    else:
+        click.echo("  root instructions: skip (no root-level files found)")
+
     _config.save_config(config)
     click.echo(f"All imports completed: Total: {total_added}")
 
@@ -461,7 +489,8 @@ def cmd_add_all_rec() -> None:
 @main.command(name="get-all-rec")
 @click.option("--force", is_flag=True, help="Overwrite existing files without prompting")
 @click.option(
-    "--project-dir", "-d",
+    "--project-dir",
+    "-d",
     type=click.Path(exists=True, file_okay=False, readable=True),
     default=None,
     help="Target project directory (default: current directory)",
@@ -622,6 +651,7 @@ def cmd_get_all_rec(force: bool, project_dir: str | None) -> None:
     enabled_servers = [s for s in config.mcp_servers if s.enabled]
     if enabled_servers:
         import json
+
         mcp_config: dict = {"mcpServers": {}}
         for server in enabled_servers:
             env_dict = {}
@@ -645,6 +675,27 @@ def cmd_get_all_rec(force: bool, project_dir: str | None) -> None:
     else:
         click.echo("  .mcp.json: skip (no enabled MCP servers)")
 
+    # ── 7) instructions/ (root-level) ────────────────────────────────────
+    instructions_dir = _config.get_instructions_dir()
+    if instructions_dir.exists() and config.instructions:
+        root_dir = _config.get_github_instructions_dir(project_path)
+        deployed = 0
+        for inst_entry in config.instructions:
+            src = _find_instruction_file(instructions_dir, inst_entry.name)
+            if src is None:
+                click.echo(f"   Skip instruction: '{inst_entry.name}' file not found.")
+                continue
+            dest = root_dir / src.name
+            if dest.exists() and not force:
+                click.confirm(f"Overwrite '{dest.name}'?", abort=True)
+            shutil.copy2(src, dest)
+            _config.add_to_gitignore(dest)
+            deployed += 1
+        click.echo(f"  instructions/: {deployed} deployed")
+        total_deployed += deployed
+    else:
+        click.echo("  instructions/: skip (no registered instructions)")
+
     click.echo(f"All deployments completed: Total: {total_deployed}")
 
 
@@ -667,6 +718,17 @@ def _find_prompt_file(prompts_dir: Path, name: str) -> Path | None:
     if exact.exists() and exact.is_file():
         return exact
     for f in sorted(prompts_dir.iterdir()):
+        if f.is_file() and f.stem == name:
+            return f
+    return None
+
+
+def _find_instruction_file(instructions_dir: Path, name: str) -> Path | None:
+    """Find an instruction file by name in the store directory."""
+    exact = instructions_dir / name
+    if exact.exists() and exact.is_file():
+        return exact
+    for f in sorted(instructions_dir.iterdir()):
         if f.is_file() and f.stem == name:
             return f
     return None
@@ -697,9 +759,7 @@ def cmd_sync(do_continue: bool, do_abort: bool, do_skip: bool) -> None:
         raise click.ClickException(str(e))
 
 
-def _handle_rebase_operation(
-    adapter_dir: Path, do_continue: bool, do_abort: bool, do_skip: bool
-) -> None:
+def _handle_rebase_operation(adapter_dir: Path, do_continue: bool, do_abort: bool, do_skip: bool) -> None:
     """Handle rebase operations."""
     if not is_rebasing(adapter_dir):
         click.echo("Not currently in a rebase state.")

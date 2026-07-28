@@ -76,10 +76,7 @@ class TestConvertToolsInFrontmatter(unittest.TestCase):
 
     def test_convert_tools_in_frontmatter_basic(self):
         """Array format in frontmatter text is converted to object format."""
-        frontmatter = (
-            "name: test\n"
-            "tools: [execute, read]\n"
-        )
+        frontmatter = "name: test\ntools: [execute, read]\n"
         result, modified = _convert_tools_in_frontmatter(frontmatter)
         self.assertTrue(modified)
         self.assertIn("tools:", result)
@@ -89,22 +86,14 @@ class TestConvertToolsInFrontmatter(unittest.TestCase):
 
     def test_convert_tools_in_frontmatter_no_change(self):
         """Already object format → no change."""
-        frontmatter = (
-            "name: test\n"
-            "tools:\n"
-            "  execute: true\n"
-        )
+        frontmatter = "name: test\ntools:\n  execute: true\n"
         result, modified = _convert_tools_in_frontmatter(frontmatter)
         self.assertFalse(modified)
         self.assertEqual(result, frontmatter)
 
     def test_convert_tools_in_frontmatter_comment(self):
         """YAML comment in frontmatter is preserved."""
-        frontmatter = (
-            "name: test\n"
-            "# this is a comment\n"
-            "tools: [execute, read]\n"
-        )
+        frontmatter = "name: test\n# this is a comment\ntools: [execute, read]\n"
         result, modified = _convert_tools_in_frontmatter(frontmatter)
         self.assertTrue(modified)
         self.assertIn("# this is a comment", result)
@@ -127,12 +116,7 @@ class TestConvertToolsInFrontmatter(unittest.TestCase):
 
     def test_convert_tools_in_frontmatter_other_lines_untouched(self):
         """Non-tools lines in frontmatter are preserved unchanged."""
-        frontmatter = (
-            "name: test\n"
-            "description: some agent\n"
-            "tools: [execute, read]\n"
-            "temperature: 0.7\n"
-        )
+        frontmatter = "name: test\ndescription: some agent\ntools: [execute, read]\ntemperature: 0.7\n"
         result, modified = _convert_tools_in_frontmatter(frontmatter)
         self.assertTrue(modified)
         self.assertIn("name: test", result)
@@ -149,10 +133,7 @@ class TestConvertToolsInFrontmatter(unittest.TestCase):
 
     def test_convert_tools_in_frontmatter_indented(self):
         """Indented tools line is preserved."""
-        frontmatter = (
-            "metadata:\n"
-            "  tools: [execute]\n"
-        )
+        frontmatter = "metadata:\n  tools: [execute]\n"
         result, modified = _convert_tools_in_frontmatter(frontmatter)
         self.assertTrue(modified)
         self.assertIn("  tools:", result)
@@ -160,14 +141,14 @@ class TestConvertToolsInFrontmatter(unittest.TestCase):
 
     def test_convert_tools_in_frontmatter_inline_comment(self):
         """Line with ``#`` as inline comment is still converted."""
-        frontmatter = 'tools: [execute]  # allow execution\n'
+        frontmatter = "tools: [execute]  # allow execution\n"
         result, modified = _convert_tools_in_frontmatter(frontmatter)
         self.assertTrue(modified)
         self.assertIn("  execute: true", result)
 
     def test_convert_tools_in_frontmatter_quoted_items(self):
         """Items with quotes in array are handled."""
-        frontmatter = 'tools: ["execute", \'read\']\n'
+        frontmatter = "tools: [\"execute\", 'read']\n"
         result, modified = _convert_tools_in_frontmatter(frontmatter)
         self.assertTrue(modified)
         self.assertIn("  execute: true", result)
@@ -187,13 +168,7 @@ class TestConvertAgentFile(unittest.TestCase):
     def test_convert_agent_file_array_to_object(self):
         """File with array-format tools is converted."""
         path = self.temp_path / "test.agent.md"
-        path.write_text(
-            "---\n"
-            "name: test\n"
-            "tools: [execute, read]\n"
-            "---\n"
-            "# Test\n"
-        )
+        path.write_text("---\nname: test\ntools: [execute, read]\n---\n# Test\n")
         result = convert_agent_file(path)
         self.assertTrue(result)
         content = path.read_text()
@@ -222,26 +197,14 @@ class TestConvertAgentFile(unittest.TestCase):
     def test_convert_agent_file_already_object(self):
         """Already correct format is not modified."""
         path = self.temp_path / "test.agent.md"
-        path.write_text(
-            "---\n"
-            "name: test\n"
-            "tools:\n"
-            "  execute: true\n"
-            "---\n"
-        )
+        path.write_text("---\nname: test\ntools:\n  execute: true\n---\n")
         result = convert_agent_file(path)
         self.assertFalse(result)
 
     def test_convert_agent_file_comment_preserved(self):
         """YAML comment is preserved after conversion."""
         path = self.temp_path / "test.agent.md"
-        original = (
-            "---\n"
-            "# this is a comment\n"
-            "name: test\n"
-            "tools: [execute]\n"
-            "---\n"
-        )
+        original = "---\n# this is a comment\nname: test\ntools: [execute]\n---\n"
         path.write_text(original)
         result = convert_agent_file(path)
         self.assertTrue(result)
@@ -262,25 +225,14 @@ class TestValidateAgentFile(unittest.TestCase):
     def test_validate_agent_file_valid_object(self):
         """Object-format tools → no errors."""
         path = self.temp_path / "valid.agent.md"
-        path.write_text(
-            "---\n"
-            "name: test\n"
-            "tools:\n"
-            "  execute: true\n"
-            "---\n"
-        )
+        path.write_text("---\nname: test\ntools:\n  execute: true\n---\n")
         errors = validate_agent_file(path)
         self.assertEqual(errors, [])
 
     def test_validate_agent_file_invalid_array(self):
         """Array-format tools → error detected."""
         path = self.temp_path / "invalid.agent.md"
-        path.write_text(
-            "---\n"
-            "name: test\n"
-            "tools: [execute, read]\n"
-            "---\n"
-        )
+        path.write_text("---\nname: test\ntools: [execute, read]\n---\n")
         errors = validate_agent_file(path)
         self.assertEqual(len(errors), 1)
         self.assertIn("array format", errors[0])
@@ -302,11 +254,7 @@ class TestValidateAgentFile(unittest.TestCase):
     def test_validate_agent_file_no_tools(self):
         """File without tools field → no errors."""
         path = self.temp_path / "test.agent.md"
-        path.write_text(
-            "---\n"
-            "name: test\n"
-            "---\n"
-        )
+        path.write_text("---\nname: test\n---\n")
         errors = validate_agent_file(path)
         self.assertEqual(errors, [])
 
@@ -332,21 +280,10 @@ class TestBatchValidateAndFix(unittest.TestCase):
         self.temp_path = Path(self.temp_dir.name)
         # Create a valid file
         self.valid = self.temp_path / "valid.agent.md"
-        self.valid.write_text(
-            "---\n"
-            "name: valid\n"
-            "tools:\n"
-            "  execute: true\n"
-            "---\n"
-        )
+        self.valid.write_text("---\nname: valid\ntools:\n  execute: true\n---\n")
         # Create an invalid file
         self.invalid = self.temp_path / "invalid.agent.md"
-        self.invalid.write_text(
-            "---\n"
-            "name: invalid\n"
-            "tools: [execute, read]\n"
-            "---\n"
-        )
+        self.invalid.write_text("---\nname: invalid\ntools: [execute, read]\n---\n")
         # Create a non-agent file (should be skipped)
         self.plain = self.temp_path / "plain.md"
         self.plain.write_text("---\ntools: [execute]\n---\n")
@@ -389,13 +326,7 @@ class TestParseFrontmatter(unittest.TestCase):
     def test_parse_frontmatter_basic(self):
         """Basic frontmatter is parsed correctly."""
         path = self.temp_path / "test.agent.md"
-        path.write_text(
-            "---\n"
-            "name: TestAgent\n"
-            "description: A test agent\n"
-            "---\n"
-            "# Content\n"
-        )
+        path.write_text("---\nname: TestAgent\ndescription: A test agent\n---\n# Content\n")
         data = parse_frontmatter(path)
         self.assertEqual(data.get("name"), "TestAgent")
         self.assertEqual(data.get("description"), "A test agent")
@@ -417,12 +348,7 @@ class TestParseFrontmatter(unittest.TestCase):
     def test_parse_frontmatter_with_tools_array(self):
         """Frontmatter with array-format tools is parsed as YAML list."""
         path = self.temp_path / "test.agent.md"
-        path.write_text(
-            "---\n"
-            "name: test\n"
-            "tools: [execute, read]\n"
-            "---\n"
-        )
+        path.write_text("---\nname: test\ntools: [execute, read]\n---\n")
         data = parse_frontmatter(path)
         self.assertEqual(data.get("name"), "test")
         self.assertEqual(data.get("tools"), ["execute", "read"])
@@ -430,13 +356,7 @@ class TestParseFrontmatter(unittest.TestCase):
     def test_parse_frontmatter_with_tools_object(self):
         """Frontmatter with object-format tools is parsed as YAML dict."""
         path = self.temp_path / "test.agent.md"
-        path.write_text(
-            "---\n"
-            "name: test\n"
-            "tools:\n"
-            "  execute: true\n"
-            "---\n"
-        )
+        path.write_text("---\nname: test\ntools:\n  execute: true\n---\n")
         data = parse_frontmatter(path)
         self.assertEqual(data.get("name"), "test")
         self.assertEqual(data.get("tools"), {"execute": True})

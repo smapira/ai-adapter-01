@@ -9,8 +9,8 @@ from ai_adapter.config import (
     AI_ADAPTER_DIR,
     get_agents_dir,
     get_bins_dir,
-    get_github_skills_dir,
     get_config_path,
+    get_github_skills_dir,
     get_mcp_dir,
     get_skills_dir,
     init,
@@ -68,7 +68,6 @@ class TestConfigInit(unittest.TestCase):
         self._original_home = Path.home
 
         # Replace Home with a temporary directory
-        import builtins
         import pathlib
 
         def mock_home():
@@ -77,13 +76,16 @@ class TestConfigInit(unittest.TestCase):
         pathlib.Path.home = staticmethod(mock_home)
         # Also update AI_ADAPTER_DIR in the config module
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
 
     def tearDown(self):
         import pathlib
+
         pathlib.Path.home = staticmethod(self._original_home)
         # Restore AI_ADAPTER_DIR in the config module
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         self.temp_dir.cleanup()
 

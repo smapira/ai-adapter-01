@@ -84,6 +84,11 @@ def get_prompts_dir() -> Path:
     return AI_ADAPTER_DIR / "prompts"
 
 
+def get_instructions_dir() -> Path:
+    """Return ~/.ai-adapter/instructions/."""
+    return AI_ADAPTER_DIR / "instructions"
+
+
 def get_github_commands_dir(project_dir: Path | None = None) -> Path:
     """Return the current project's .github/commands/ directory."""
     base = project_dir or Path.cwd()
@@ -94,6 +99,15 @@ def get_github_prompts_dir(project_dir: Path | None = None) -> Path:
     """Return the current project's .github/prompts/ directory."""
     base = project_dir or Path.cwd()
     return base / ".github" / "prompts"
+
+
+def get_github_instructions_dir(project_dir: Path | None = None) -> Path:
+    """Return the project root directory.
+
+    Used for deploying AGENTS.md (or similar root-level agent files).
+    """
+    base = project_dir or Path.cwd()
+    return base
 
 
 def init() -> bool:
@@ -109,6 +123,7 @@ def init() -> bool:
         AI_ADAPTER_DIR / "skills",
         AI_ADAPTER_DIR / "commands",
         AI_ADAPTER_DIR / "prompts",
+        AI_ADAPTER_DIR / "instructions",
         AI_ADAPTER_DIR / "mcp",
     ]
     for d in dirs:

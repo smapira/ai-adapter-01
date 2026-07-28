@@ -8,7 +8,6 @@ from click.testing import CliRunner
 
 from ai_adapter.cli import main
 from ai_adapter.config import init
-from ai_adapter.models import Bin, Config
 
 
 class TestBinAddRecCommand(unittest.TestCase):
@@ -20,18 +19,22 @@ class TestBinAddRecCommand(unittest.TestCase):
         self.runner = CliRunner()
 
         import pathlib
+
         self._original_home = pathlib.Path.home
         pathlib.Path.home = staticmethod(lambda: self.patch_home)
 
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
 
         init()
 
     def tearDown(self):
         import pathlib
+
         pathlib.Path.home = staticmethod(self._original_home)
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         self.temp_dir.cleanup()
 
@@ -61,10 +64,12 @@ class TestBinCommands(unittest.TestCase):
         self.runner = CliRunner()
 
         import pathlib
+
         self._original_home = pathlib.Path.home
         pathlib.Path.home = staticmethod(lambda: self.patch_home)
 
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
 
         init()
@@ -75,8 +80,10 @@ class TestBinCommands(unittest.TestCase):
 
     def tearDown(self):
         import pathlib
+
         pathlib.Path.home = staticmethod(self._original_home)
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         self.temp_dir.cleanup()
 
@@ -88,10 +95,18 @@ class TestBinCommands(unittest.TestCase):
 
     def test_bin_add(self):
         """Verify bin add adds a script."""
-        result = self.runner.invoke(main, [
-            "bin", "add", "--env", "default", str(self.script_file),
-            "--description", "Test script",
-        ])
+        result = self.runner.invoke(
+            main,
+            [
+                "bin",
+                "add",
+                "--env",
+                "default",
+                str(self.script_file),
+                "--description",
+                "Test script",
+            ],
+        )
         self.assertEqual(result.exit_code, 0)
         self.assertIn("deploy-test.sh", result.output)
 
@@ -129,6 +144,7 @@ class TestBinCommands(unittest.TestCase):
         self.assertTrue((github_bin / "deploy-test.sh").exists())
 
         import shutil
+
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_bin_get_not_found(self):
@@ -143,10 +159,18 @@ class TestBinCommands(unittest.TestCase):
         project_dir = Path(self.temp_dir.name) / "my-project"
         project_dir.mkdir(parents=True)
 
-        result = self.runner.invoke(main, [
-            "bin", "get", "--env", "default", "deploy-test.sh",
-            "--project-dir", str(project_dir),
-        ])
+        result = self.runner.invoke(
+            main,
+            [
+                "bin",
+                "get",
+                "--env",
+                "default",
+                "deploy-test.sh",
+                "--project-dir",
+                str(project_dir),
+            ],
+        )
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((project_dir / ".github" / "bin" / "deploy-test.sh").exists())
 
@@ -169,6 +193,7 @@ class TestBinCommands(unittest.TestCase):
         self.assertTrue((github_bin / "test2.sh").exists())
 
         import shutil
+
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_bin_remove(self):

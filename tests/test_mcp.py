@@ -67,18 +67,22 @@ class TestMCPCommands(unittest.TestCase):
         self.runner = CliRunner()
 
         import pathlib
+
         self._original_home = pathlib.Path.home
         pathlib.Path.home = staticmethod(lambda: self.patch_home)
 
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
 
         init()
 
     def tearDown(self):
         import pathlib
+
         pathlib.Path.home = staticmethod(self._original_home)
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         self.temp_dir.cleanup()
 
@@ -90,51 +94,90 @@ class TestMCPCommands(unittest.TestCase):
 
     def test_mcp_add(self):
         """Verify mcp add adds an MCP server."""
-        result = self.runner.invoke(main, [
-            "mcp", "add", "github",
-            "--command", "npx",
-            "--args", "@modelcontextprotocol/server-github",
-            "--env-key", "GITHUB_TOKEN",
-            "--tool", "vscode",
-            "--tool", "claude",
-        ])
+        result = self.runner.invoke(
+            main,
+            [
+                "mcp",
+                "add",
+                "github",
+                "--command",
+                "npx",
+                "--args",
+                "@modelcontextprotocol/server-github",
+                "--env-key",
+                "GITHUB_TOKEN",
+                "--tool",
+                "vscode",
+                "--tool",
+                "claude",
+            ],
+        )
         self.assertEqual(result.exit_code, 0)
         self.assertIn("github", result.output)
 
     def test_mcp_add_and_list(self):
         """Verify mcp add → mcp list flow."""
-        self.runner.invoke(main, [
-            "mcp", "add", "github",
-            "--command", "npx",
-            "--args", "@modelcontextprotocol/server-github",
-            "--env-key", "GITHUB_TOKEN",
-        ])
+        self.runner.invoke(
+            main,
+            [
+                "mcp",
+                "add",
+                "github",
+                "--command",
+                "npx",
+                "--args",
+                "@modelcontextprotocol/server-github",
+                "--env-key",
+                "GITHUB_TOKEN",
+            ],
+        )
         result = self.runner.invoke(main, ["mcp", "list"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("github", result.output)
 
     def test_mcp_add_duplicate(self):
         """Verify duplicate MCP server name raises error."""
-        self.runner.invoke(main, [
-            "mcp", "add", "github",
-            "--command", "npx",
-            "--args", "@modelcontextprotocol/server-github",
-        ])
-        result = self.runner.invoke(main, [
-            "mcp", "add", "github",
-            "--command", "npx",
-            "--args", "@modelcontextprotocol/server-github",
-        ])
+        self.runner.invoke(
+            main,
+            [
+                "mcp",
+                "add",
+                "github",
+                "--command",
+                "npx",
+                "--args",
+                "@modelcontextprotocol/server-github",
+            ],
+        )
+        result = self.runner.invoke(
+            main,
+            [
+                "mcp",
+                "add",
+                "github",
+                "--command",
+                "npx",
+                "--args",
+                "@modelcontextprotocol/server-github",
+            ],
+        )
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("already exists", result.output)
 
     def test_mcp_remove(self):
         """Verify mcp remove removes an MCP server."""
-        self.runner.invoke(main, [
-            "mcp", "add", "github",
-            "--command", "npx",
-            "--args", "@modelcontextprotocol/server-github",
-        ])
+        self.runner.invoke(
+            main,
+            [
+                "mcp",
+                "add",
+                "github",
+                "--command",
+                "npx",
+                "--args",
+                "@modelcontextprotocol/server-github",
+            ],
+        )
         result = self.runner.invoke(main, ["mcp", "remove", "github"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("github", result.output)
@@ -142,35 +185,55 @@ class TestMCPCommands(unittest.TestCase):
     def test_mcp_add_bulk(self):
         """Verify mcp add --file imports from .mcp.json."""
         mcp_file = Path(self.temp_dir.name) / ".mcp.json"
-        mcp_file.write_text(json.dumps({
-            "mcpServers": {
-                "github": {
-                    "command": "npx",
-                    "args": ["@modelcontextprotocol/server-github"],
-                    "env": {"GITHUB_TOKEN": "${GITHOT_TOKEN}"},
+        mcp_file.write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        "github": {
+                            "command": "npx",
+                            "args": ["@modelcontextprotocol/server-github"],
+                            "env": {"GITHUB_TOKEN": "${GITHOT_TOKEN}"},
+                        },
+                        "filesystem": {
+                            "command": "npx",
+                            "args": ["@modelcontextprotocol/server-filesystem", "."],
+                        },
+                    }
                 },
-                "filesystem": {
-                    "command": "npx",
-                    "args": ["@modelcontextprotocol/server-filesystem", "."],
-                },
-            }
-        }, indent=2))
+                indent=2,
+            )
+        )
 
-        result = self.runner.invoke(main, [
-            "mcp", "add", "--file", str(mcp_file),
-        ])
+        result = self.runner.invoke(
+            main,
+            [
+                "mcp",
+                "add",
+                "--file",
+                str(mcp_file),
+            ],
+        )
         self.assertEqual(result.exit_code, 0)
         self.assertIn("imported", result.output.lower())
 
     def test_mcp_get(self):
         """Verify mcp get outputs .mcp.json."""
-        self.runner.invoke(main, [
-            "mcp", "add", "github",
-            "--command", "npx",
-            "--args", "@modelcontextprotocol/server-github",
-            "--env-key", "GITHUB_TOKEN",
-            "--tool", "vscode",
-        ])
+        self.runner.invoke(
+            main,
+            [
+                "mcp",
+                "add",
+                "github",
+                "--command",
+                "npx",
+                "--args",
+                "@modelcontextprotocol/server-github",
+                "--env-key",
+                "GITHUB_TOKEN",
+                "--tool",
+                "vscode",
+            ],
+        )
 
         result = self.runner.invoke(main, ["mcp", "get"])
         self.assertEqual(result.exit_code, 0)
@@ -187,11 +250,18 @@ class TestMCPCommands(unittest.TestCase):
 
     def test_mcp_get_with_path(self):
         """Verify mcp get --path outputs to specified directory."""
-        self.runner.invoke(main, [
-            "mcp", "add", "github",
-            "--command", "npx",
-            "--args", "@modelcontextprotocol/server-github",
-        ])
+        self.runner.invoke(
+            main,
+            [
+                "mcp",
+                "add",
+                "github",
+                "--command",
+                "npx",
+                "--args",
+                "@modelcontextprotocol/server-github",
+            ],
+        )
 
         export_dir = Path(self.temp_dir.name) / "my-project"
         export_dir.mkdir(parents=True)
@@ -208,9 +278,14 @@ class TestOpenClawMCPExport(unittest.TestCase):
 
     def test_export_openclaw_basic(self):
         """4 servers (normal, empty env, empty args, disabled) → correct output."""
-        result = export_mcp([
-            SERVER_GITHUB, SERVER_PLAYWRIGHT, SERVER_NO_ARGS, SERVER_DISABLED,
-        ])
+        result = export_mcp(
+            [
+                SERVER_GITHUB,
+                SERVER_PLAYWRIGHT,
+                SERVER_NO_ARGS,
+                SERVER_DISABLED,
+            ]
+        )
         # x-ai-adapter marker with managed names (disabled excluded)
         self.assertIn("x-ai-adapter", result)
         self.assertEqual(
@@ -328,10 +403,12 @@ class TestOpenClawMCPExport(unittest.TestCase):
         self.runner = CliRunner()
 
         import pathlib
+
         self._original_home = pathlib.Path.home
         pathlib.Path.home = staticmethod(lambda: self.patch_home)
 
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
 
         init()
@@ -339,8 +416,10 @@ class TestOpenClawMCPExport(unittest.TestCase):
     def tearDown(self):
         """Restore original home directory and clean up."""
         import pathlib
+
         pathlib.Path.home = staticmethod(self._original_home)
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         self.temp_dir.cleanup()
 
@@ -358,20 +437,24 @@ class TestOpenClawMCPExport(unittest.TestCase):
     def test_cli_mcp_get_openclaw(self):
         """CLI: --format openclaw writes openclaw.json with correct structure."""
         # Add 3 enabled servers (disabled server tested in unit tests)
-        self._add_server("github", "npx",
-                         args=["@modelcontextprotocol/server-github"],
-                         env_keys=["GITHUB_TOKEN"])
-        self._add_server("playwright", "npx",
-                         args=["@playwright/mcp@latest"])
-        self._add_server("no-args", "/usr/bin/python",
-                         env_keys=["API_KEY"])
+        self._add_server("github", "npx", args=["@modelcontextprotocol/server-github"], env_keys=["GITHUB_TOKEN"])
+        self._add_server("playwright", "npx", args=["@playwright/mcp@latest"])
+        self._add_server("no-args", "/usr/bin/python", env_keys=["API_KEY"])
 
         export_dir = Path(self.temp_dir.name) / "openclaw-out"
         export_dir.mkdir(parents=True, exist_ok=True)
 
-        result = self.runner.invoke(main, [
-            "mcp", "get", "--format", "openclaw", "--path", str(export_dir),
-        ])
+        result = self.runner.invoke(
+            main,
+            [
+                "mcp",
+                "get",
+                "--format",
+                "openclaw",
+                "--path",
+                str(export_dir),
+            ],
+        )
         self.assertEqual(result.exit_code, 0)
 
         output_path = export_dir / "openclaw.json"
@@ -402,8 +485,7 @@ class TestOpenClawMCPExport(unittest.TestCase):
 
     def test_cli_mcp_get_standard_still_works(self):
         """CLI: default format (standard) still produces .mcp.json (backward compat)."""
-        self._add_server("github", "npx",
-                         args=["@modelcontextprotocol/server-github"])
+        self._add_server("github", "npx", args=["@modelcontextprotocol/server-github"])
 
         # Default invocation (no --format) → standard
         result = self.runner.invoke(main, ["mcp", "get"])
@@ -427,8 +509,7 @@ class TestOpenClawMCPExport(unittest.TestCase):
         # Ensure ~/.openclaw/ does NOT exist in the patched home
         self.assertFalse((self.patch_home / ".openclaw").exists())
 
-        self._add_server("github", "npx",
-                         args=["@modelcontextprotocol/server-github"])
+        self._add_server("github", "npx", args=["@modelcontextprotocol/server-github"])
 
         # Change CWD to an isolated temp dir so we don't pollute the real project
         old_cwd = os.getcwd()
@@ -456,26 +537,41 @@ class TestOpenClawMCPExport(unittest.TestCase):
 
     def test_cli_mcp_get_force_overwrite(self):
         """CLI: --format openclaw --force overwrites without confirmation prompt."""
-        self._add_server("github", "npx",
-                         args=["@modelcontextprotocol/server-github"])
+        self._add_server("github", "npx", args=["@modelcontextprotocol/server-github"])
 
         export_dir = Path(self.temp_dir.name) / "force-out"
         export_dir.mkdir(parents=True, exist_ok=True)
 
         # First write: creates new file (with --force, no confirm needed)
-        result1 = self.runner.invoke(main, [
-            "mcp", "get", "--format", "openclaw",
-            "--path", str(export_dir), "--force",
-        ])
+        result1 = self.runner.invoke(
+            main,
+            [
+                "mcp",
+                "get",
+                "--format",
+                "openclaw",
+                "--path",
+                str(export_dir),
+                "--force",
+            ],
+        )
         self.assertEqual(result1.exit_code, 0)
         output_path = export_dir / "openclaw.json"
         self.assertTrue(output_path.exists())
 
         # Second write with --force: overwrites existing without prompt
-        result2 = self.runner.invoke(main, [
-            "mcp", "get", "--format", "openclaw",
-            "--path", str(export_dir), "--force",
-        ])
+        result2 = self.runner.invoke(
+            main,
+            [
+                "mcp",
+                "get",
+                "--format",
+                "openclaw",
+                "--path",
+                str(export_dir),
+                "--force",
+            ],
+        )
         self.assertEqual(result2.exit_code, 0)
 
         # Verify content is still valid

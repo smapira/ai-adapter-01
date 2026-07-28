@@ -21,18 +21,22 @@ class TestOpencodeCommands(unittest.TestCase):
         self.runner = CliRunner()
 
         import pathlib
+
         self._original_home = pathlib.Path.home
         pathlib.Path.home = staticmethod(lambda: self.patch_home)
 
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
 
         init()
 
     def tearDown(self):
         import pathlib
+
         pathlib.Path.home = staticmethod(self._original_home)
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         self.temp_dir.cleanup()
 
@@ -106,21 +110,26 @@ class TestOpencodeValidateCommand(unittest.TestCase):
         self.runner = CliRunner()
 
         import pathlib
+
         self._original_home = pathlib.Path.home
         pathlib.Path.home = staticmethod(lambda: self.patch_home)
 
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
 
         init()
 
     def tearDown(self):
         import pathlib
+
         pathlib.Path.home = staticmethod(self._original_home)
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         self.temp_dir.cleanup()
         import shutil
+
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def _create_github_agents(self) -> Path:
@@ -132,13 +141,7 @@ class TestOpencodeValidateCommand(unittest.TestCase):
     def test_opencode_validate_valid(self):
         """All files valid → exit 0."""
         agents_dir = self._create_github_agents()
-        (agents_dir / "good.agent.md").write_text(
-            "---\n"
-            "name: good\n"
-            "tools:\n"
-            "  execute: true\n"
-            "---\n"
-        )
+        (agents_dir / "good.agent.md").write_text("---\nname: good\ntools:\n  execute: true\n---\n")
         result = self.runner.invoke(main, ["opencode", "validate"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("All agent files are valid", result.output)
@@ -146,12 +149,7 @@ class TestOpencodeValidateCommand(unittest.TestCase):
     def test_opencode_validate_invalid(self):
         """Invalid files detected → exit 1."""
         agents_dir = self._create_github_agents()
-        (agents_dir / "bad.agent.md").write_text(
-            "---\n"
-            "name: bad\n"
-            "tools: [execute]\n"
-            "---\n"
-        )
+        (agents_dir / "bad.agent.md").write_text("---\nname: bad\ntools: [execute]\n---\n")
         result = self.runner.invoke(main, ["opencode", "validate"])
         self.assertEqual(result.exit_code, 1)
         self.assertIn("array format", result.output)
@@ -160,12 +158,7 @@ class TestOpencodeValidateCommand(unittest.TestCase):
         """``--fix`` automatically repairs invalid files."""
         agents_dir = self._create_github_agents()
         bad_file = agents_dir / "bad.agent.md"
-        bad_file.write_text(
-            "---\n"
-            "name: bad\n"
-            "tools: [execute]\n"
-            "---\n"
-        )
+        bad_file.write_text("---\nname: bad\ntools: [execute]\n---\n")
         result = self.runner.invoke(main, ["opencode", "validate", "--fix"])
         self.assertEqual(result.exit_code, 0)  # fixed, so no errors
 
@@ -177,12 +170,7 @@ class TestOpencodeValidateCommand(unittest.TestCase):
     def test_opencode_validate_quiet(self):
         """``--quiet`` minimises output, still returns exit code."""
         agents_dir = self._create_github_agents()
-        (agents_dir / "bad.agent.md").write_text(
-            "---\n"
-            "name: bad\n"
-            "tools: [execute]\n"
-            "---\n"
-        )
+        (agents_dir / "bad.agent.md").write_text("---\nname: bad\ntools: [execute]\n---\n")
         result = self.runner.invoke(main, ["opencode", "validate", "--quiet"])
         self.assertEqual(result.exit_code, 1)
         self.assertEqual(result.output.strip(), "")
@@ -210,18 +198,22 @@ class TestOpencodeAliasValidation(unittest.TestCase):
         self.runner = CliRunner()
 
         import pathlib
+
         self._original_home = pathlib.Path.home
         pathlib.Path.home = staticmethod(lambda: self.patch_home)
 
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
 
         init()
 
     def tearDown(self):
         import pathlib
+
         pathlib.Path.home = staticmethod(self._original_home)
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         self.temp_dir.cleanup()
         os.chdir(self.orig_cwd)
@@ -236,16 +228,13 @@ class TestOpencodeAliasValidation(unittest.TestCase):
         """Alias detects invalid agents and prompts to fix."""
         agents_dir = self._create_github_with_agents()
         bad_file = agents_dir / "bad.agent.md"
-        bad_file.write_text(
-            "---\n"
-            "name: bad\n"
-            "tools: [execute]\n"
-            "---\n"
-        )
+        bad_file.write_text("---\nname: bad\ntools: [execute]\n---\n")
 
         # Input 'y' to confirm fixing
         result = self.runner.invoke(
-            main, ["opencode", "alias"], input="y\n",
+            main,
+            ["opencode", "alias"],
+            input="y\n",
         )
         # After fixing, symlink should be created
         self.assertEqual(result.exit_code, 0)

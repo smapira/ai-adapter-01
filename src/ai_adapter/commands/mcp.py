@@ -57,13 +57,18 @@ def mcp_list(tool: str | None, env: str | None) -> None:
 @click.argument("name", required=False)
 @click.option("--command", "-c", help="Command to execute")
 @click.option("--args", "-a", multiple=True, help="Command arguments (can be specified multiple times)")
-@click.option("--env-key", "-e", multiple=True,
-              help="Required env var keys (can be specified multiple times)")
-@click.option("--tool", "-t", multiple=True,
-              help="Compatible tools: vscode/claude/cursor (can be specified multiple times)")
+@click.option("--env-key", "-e", multiple=True, help="Required env var keys (can be specified multiple times)")
+@click.option(
+    "--tool", "-t", multiple=True, help="Compatible tools: vscode/claude/cursor (can be specified multiple times)"
+)
 @click.option("--env", help="Target environment")
-@click.option("--file", "-f", "json_path", type=click.Path(exists=True, readable=True),
-              help="Path to .mcp.json file for bulk import")
+@click.option(
+    "--file",
+    "-f",
+    "json_path",
+    type=click.Path(exists=True, readable=True),
+    help="Path to .mcp.json file for bulk import",
+)
 def mcp_add(
     name: str | None,
     command: str | None,
@@ -183,12 +188,16 @@ def _mcp_get_openclaw(servers: list[MCPServer], path: str | None, force: bool = 
 
 
 @mcp_group.command(name="get")
-@click.option("--path", default=None,
-              help="Output directory (default: current directory). "
-                   "With --format standard: writes .mcp.json. "
-                   "With --format openclaw: writes openclaw.json.")
 @click.option(
-    "--format", "-f",
+    "--path",
+    default=None,
+    help="Output directory (default: current directory). "
+    "With --format standard: writes .mcp.json. "
+    "With --format openclaw: writes openclaw.json.",
+)
+@click.option(
+    "--format",
+    "-f",
     type=click.Choice(["standard", "openclaw"]),
     default="standard",
     help="Output format (standard=.mcp.json, openclaw=openclaw.json)",

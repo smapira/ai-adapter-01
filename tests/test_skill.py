@@ -19,10 +19,12 @@ class TestSkillCommands(unittest.TestCase):
         self.runner = CliRunner()
 
         import pathlib
+
         self._original_home = pathlib.Path.home
         pathlib.Path.home = staticmethod(lambda: self.patch_home)
 
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
 
         init()
@@ -44,8 +46,10 @@ class TestSkillCommands(unittest.TestCase):
 
     def tearDown(self):
         import pathlib
+
         pathlib.Path.home = staticmethod(self._original_home)
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         self.temp_dir.cleanup()
 
@@ -84,6 +88,7 @@ class TestSkillCommands(unittest.TestCase):
         self.assertTrue((github_skills / "test-skill" / "SKILL.md").exists())
 
         import shutil
+
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_skill_get_not_found(self):
@@ -99,11 +104,17 @@ class TestSkillCommands(unittest.TestCase):
         project_dir = Path(self.temp_dir.name) / "my-project"
         project_dir.mkdir(parents=True)
 
-        result = self.runner.invoke(main, [
-            "skill", "get", "test-skill",
-            "--project-dir", str(project_dir),
-            "--force",
-        ])
+        result = self.runner.invoke(
+            main,
+            [
+                "skill",
+                "get",
+                "test-skill",
+                "--project-dir",
+                str(project_dir),
+                "--force",
+            ],
+        )
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((project_dir / ".github" / "skills" / "test-skill" / "SKILL.md").exists())
 
@@ -137,7 +148,7 @@ class TestSkillCommands(unittest.TestCase):
         # First add the agent
         agent_file = Path(self.temp_dir.name) / "test-agent.md"
         agent_file.write_text("# Test Agent")
-        self.runner.invoke(main, ["agent", "add", str(agent_file)])
+        self.runner.invoke(main, ["sub-agent", "add", str(agent_file)])
         self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
 
         result = self.runner.invoke(main, ["skill", "link-agent", "test-skill", "test-agent"])
@@ -158,6 +169,7 @@ class TestSkillCommands(unittest.TestCase):
         self.assertTrue((github_skills / "test-skill" / "SKILL.md").exists())
 
         import shutil
+
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_skill_remove_all(self):
@@ -182,18 +194,22 @@ class TestSkillAddRecCommand(unittest.TestCase):
         self.runner = CliRunner()
 
         import pathlib
+
         self._original_home = pathlib.Path.home
         pathlib.Path.home = staticmethod(lambda: self.patch_home)
 
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
 
         init()
 
     def tearDown(self):
         import pathlib
+
         pathlib.Path.home = staticmethod(self._original_home)
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         self.temp_dir.cleanup()
 
@@ -203,14 +219,10 @@ class TestSkillAddRecCommand(unittest.TestCase):
         src_dir.mkdir()
         skill1 = src_dir / "skill1"
         skill1.mkdir()
-        (skill1 / "SKILL.md").write_text(
-            "---\nname: skill1\ntags: [test]\n---\n# Skill 1\n"
-        )
+        (skill1 / "SKILL.md").write_text("---\nname: skill1\ntags: [test]\n---\n# Skill 1\n")
         skill2 = src_dir / "skill2"
         skill2.mkdir()
-        (skill2 / "SKILL.md").write_text(
-            "---\nname: skill2\ntags: [test]\n---\n# Skill 2\n"
-        )
+        (skill2 / "SKILL.md").write_text("---\nname: skill2\ntags: [test]\n---\n# Skill 2\n")
 
         result = self.runner.invoke(main, ["skill", "add-rec", str(src_dir)])
         self.assertEqual(result.exit_code, 0)
@@ -230,10 +242,12 @@ class TestSkillOpenClawExport(unittest.TestCase):
         self.runner = CliRunner()
 
         import pathlib
+
         self._original_home = pathlib.Path.home
         pathlib.Path.home = staticmethod(lambda: self.patch_home)
 
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
 
         init()
@@ -245,9 +259,7 @@ class TestSkillOpenClawExport(unittest.TestCase):
         # Create and register test skill
         self.skill_dir = Path(self.temp_dir.name) / "my-skill"
         self.skill_dir.mkdir(parents=True)
-        (self.skill_dir / "SKILL.md").write_text(
-            "---\nname: my-skill\ndescription: My Test Skill\n---\n# My Skill\n"
-        )
+        (self.skill_dir / "SKILL.md").write_text("---\nname: my-skill\ndescription: My Test Skill\n---\n# My Skill\n")
         self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
 
         # Create a second skill to verify multiple
@@ -267,16 +279,25 @@ class TestSkillOpenClawExport(unittest.TestCase):
 
     def tearDown(self):
         import pathlib
+
         pathlib.Path.home = staticmethod(self._original_home)
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         self.temp_dir.cleanup()
 
     def test_get_all_openclaw_basic(self):
         """Skills deployed to ~/.openclaw/skills/."""
-        result = self.runner.invoke(main, [
-            "skill", "get-all", "--format", "openclaw", "--force",
-        ])
+        result = self.runner.invoke(
+            main,
+            [
+                "skill",
+                "get-all",
+                "--format",
+                "openclaw",
+                "--force",
+            ],
+        )
         self.assertEqual(result.exit_code, 0)
         self.assertIn("(2) copied to", result.output)
 
@@ -286,9 +307,16 @@ class TestSkillOpenClawExport(unittest.TestCase):
 
     def test_get_all_openclaw_preserves_existing(self):
         """Non-ai-adapter skills in OpenClaw are preserved."""
-        self.runner.invoke(main, [
-            "skill", "get-all", "--format", "openclaw", "--force",
-        ])
+        self.runner.invoke(
+            main,
+            [
+                "skill",
+                "get-all",
+                "--format",
+                "openclaw",
+                "--force",
+            ],
+        )
         # existing-skill was placed before the deploy and should still be there
         oc_skills = self.openclaw_dir / "skills"
         self.assertTrue((oc_skills / "existing-skill" / "SKILL.md").exists())
@@ -300,9 +328,16 @@ class TestSkillOpenClawExport(unittest.TestCase):
         preplaced.mkdir(parents=True, exist_ok=True)
         (preplaced / "SKILL.md").write_text("---\nname: old\n---\nOld content\n")
 
-        self.runner.invoke(main, [
-            "skill", "get-all", "--format", "openclaw", "--force",
-        ])
+        self.runner.invoke(
+            main,
+            [
+                "skill",
+                "get-all",
+                "--format",
+                "openclaw",
+                "--force",
+            ],
+        )
         # Should be overwritten with our version
         content = (self.openclaw_dir / "skills" / "my-skill" / "SKILL.md").read_text()
         self.assertIn("My Test Skill", content)
@@ -311,11 +346,19 @@ class TestSkillOpenClawExport(unittest.TestCase):
     def test_get_all_openclaw_not_installed(self):
         """Warning when ~/.openclaw/ doesn't exist."""
         import shutil
+
         shutil.rmtree(self.openclaw_dir)
 
-        result = self.runner.invoke(main, [
-            "skill", "get-all", "--format", "openclaw", "--force",
-        ])
+        result = self.runner.invoke(
+            main,
+            [
+                "skill",
+                "get-all",
+                "--format",
+                "openclaw",
+                "--force",
+            ],
+        )
         # Should show warning but not error
         self.assertEqual(result.exit_code, 0)
         self.assertIn("No OpenClaw install detected", result.output)
@@ -323,13 +366,19 @@ class TestSkillOpenClawExport(unittest.TestCase):
 
     def test_get_all_standard_still_works(self):
         """--format standard (default) still deploys to .github/skills/."""
-        result = self.runner.invoke(main, [
-            "skill", "get-all", "--force",
-        ])
+        result = self.runner.invoke(
+            main,
+            [
+                "skill",
+                "get-all",
+                "--force",
+            ],
+        )
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((Path.cwd() / ".github" / "skills" / "my-skill" / "SKILL.md").exists())
 
         import shutil
+
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_get_all_openclaw_no_skills(self):
@@ -337,9 +386,15 @@ class TestSkillOpenClawExport(unittest.TestCase):
         # Remove all skills
         self.runner.invoke(main, ["skill", "remove-all", "--force", "--purge"])
 
-        result = self.runner.invoke(main, [
-            "skill", "get-all", "--format", "openclaw",
-        ])
+        result = self.runner.invoke(
+            main,
+            [
+                "skill",
+                "get-all",
+                "--format",
+                "openclaw",
+            ],
+        )
         self.assertEqual(result.exit_code, 0)
         self.assertIn("No skills registered", result.output)
 

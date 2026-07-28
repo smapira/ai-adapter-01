@@ -19,10 +19,12 @@ class TestCommandCommands(unittest.TestCase):
         self.runner = CliRunner()
 
         import pathlib
+
         self._original_home = pathlib.Path.home
         pathlib.Path.home = staticmethod(lambda: self.patch_home)
 
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
 
         init()
@@ -32,8 +34,10 @@ class TestCommandCommands(unittest.TestCase):
 
     def tearDown(self):
         import pathlib
+
         pathlib.Path.home = staticmethod(self._original_home)
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         self.temp_dir.cleanup()
 
@@ -61,6 +65,7 @@ class TestCommandCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((github_dir / "deploy.sh").exists())
         import shutil
+
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_command_remove(self):
@@ -101,6 +106,7 @@ class TestCommandCommands(unittest.TestCase):
         self.assertTrue((github_dir / "build.sh").exists())
 
         import shutil
+
         shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
 
     def test_command_remove_all(self):

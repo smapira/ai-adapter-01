@@ -156,7 +156,8 @@ def bin_add_rec(dir_path: str, env: str | None, agent: str | None) -> None:
 @click.option("--env", "-e", default=None, help="Environment name (auto-resolved when omitted)")
 @click.option("--agent", help="Agent name (for env resolution)")
 @click.option(
-    "--project-dir", "-d",
+    "--project-dir",
+    "-d",
     type=click.Path(exists=True, file_okay=False, readable=True),
     default=None,
     help="Target project directory (default: current directory)",
@@ -205,7 +206,8 @@ def bin_get(name: str, env: str | None, agent: str | None, project_dir: str | No
 @bin_group.command(name="get-all")
 @click.option("--env", "-e", default=None, help="Environment name (default: show all)")
 @click.option(
-    "--project-dir", "-d",
+    "--project-dir",
+    "-d",
     type=click.Path(exists=True, file_okay=False, readable=True),
     default=None,
     help="Target project directory (default: current directory)",
@@ -302,9 +304,12 @@ def bin_remove_all(force: bool) -> None:
 
 
 @bin_group.command(name="add-path")
-@click.option("--shell", default=None,
-              type=click.Choice(["zshrc", "bash_profile", "bashrc"], case_sensitive=False),
-              help="Shell config file (interactive selection when omitted)")
+@click.option(
+    "--shell",
+    default=None,
+    type=click.Choice(["zshrc", "bash_profile", "bashrc"], case_sensitive=False),
+    help="Shell config file (interactive selection when omitted)",
+)
 def bin_add_path(shell: str | None) -> None:
     """Add current project .github/bin to PATH."""
     github_bin = Path.cwd() / ".github" / "bin"

@@ -19,20 +19,25 @@ class TestSyncCommand(unittest.TestCase):
         self.runner = CliRunner()
 
         import pathlib
+
         self._original_home = pathlib.Path.home
         pathlib.Path.home = staticmethod(lambda: self.patch_home)
 
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
 
         # init
         from ai_adapter.config import init
+
         init()
 
     def tearDown(self):
         import pathlib
+
         pathlib.Path.home = staticmethod(self._original_home)
         import ai_adapter.config as cfg
+
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         self.temp_dir.cleanup()
 
@@ -81,6 +86,7 @@ class TestSyncCommand(unittest.TestCase):
         """Verify sync command shows init required message."""
         # Remove temp init directory to create uninitialized status
         import shutil
+
         shutil.rmtree(self.patch_home / ".ai-adapter")
 
         result = self.runner.invoke(main, ["sync"])
@@ -91,10 +97,14 @@ class TestSyncCommand(unittest.TestCase):
     @patch("ai_adapter.sync.is_repo")
     @patch("ai_adapter.sync.has_remote")
     def test_sync_no_remote_skip(
-        self, mock_has_remote, mock_is_repo, mock_load_config,
+        self,
+        mock_has_remote,
+        mock_is_repo,
+        mock_load_config,
     ):
         """Verify sync can be skipped when no remote is configured."""
         from ai_adapter.models import Config
+
         mock_is_repo.return_value = True
         mock_has_remote.return_value = False
         mock_load_config.return_value = Config()

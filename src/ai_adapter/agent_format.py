@@ -37,6 +37,7 @@ def parse_frontmatter(path: Path) -> dict:
 # tools  field conversion
 # ---------------------------------------------------------------------------
 
+
 def convert_tools_to_object(tools_value: Any) -> tuple[dict[str, bool], bool]:
     """Convert a raw YAML ``tools`` value to object format.
 
@@ -73,7 +74,7 @@ def _convert_tools_in_frontmatter(frontmatter_text: str) -> tuple[str, bool]:
     # Capture group 1 = leading whitespace (indentation)
     # Capture group 2 = content inside the brackets
     pattern = re.compile(
-        r'^(\s*)tools:\s*\[(.*?)\]\s*(?:#.*)?$',
+        r"^(\s*)tools:\s*\[(.*?)\]\s*(?:#.*)?$",
         re.MULTILINE,
     )
 
@@ -103,6 +104,7 @@ def _convert_tools_in_frontmatter(frontmatter_text: str) -> tuple[str, bool]:
 # File-level operations
 # ---------------------------------------------------------------------------
 
+
 def convert_agent_file(path: Path) -> bool:
     """Read an ``.agent.md`` file, convert its ``tools`` field, and write
     back if the content changed.
@@ -129,7 +131,7 @@ def convert_agent_file(path: Path) -> bool:
         return False
 
     new_frontmatter = f"---\n{converted_yaml}\n---"
-    modified = new_frontmatter + original[match.end():]
+    modified = new_frontmatter + original[match.end() :]
     path.write_text(modified, encoding="utf-8")
     return True
 

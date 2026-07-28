@@ -79,7 +79,7 @@ def _copy_with_tools_conversion(src: Path, dest: Path, fix: bool = False) -> Non
                     if fix:
                         # Destructive write: convert and save
                         new_frontmatter = f"---\n{converted_yaml}\n---"
-                        modified = new_frontmatter + content[match.end():]
+                        modified = new_frontmatter + content[match.end() :]
                         dest.write_text(modified, encoding="utf-8")
                         shutil.copystat(src, dest)
                         click.echo(
@@ -90,17 +90,16 @@ def _copy_with_tools_conversion(src: Path, dest: Path, fix: bool = False) -> Non
                     else:
                         # Validate-only: warn but copy as-is
                         click.echo(
-                            f"  Warning: {dest.name} has array-format tools "
-                            f"(expected object). Use --fix to convert.",
+                            f"  Warning: {dest.name} has array-format tools (expected object). Use --fix to convert.",
                             err=True,
                         )
     # Default: plain copy (also covers non-.agent.md files)
     shutil.copy2(src, dest)
 
 
-@click.group(name="agent")
+@click.group(name="sub-agent")
 def agent_group() -> None:
-    """Manage AI agent instruction files."""
+    """Manage AI agent instruction files (`.agent.md`)."""
 
 
 @agent_group.command(name="list")
@@ -143,14 +142,10 @@ def agent_add(path: str, fix: bool) -> None:
     if str(src).endswith(".agent.md"):
         frontmatter = _parse_frontmatter(src)
         if not frontmatter:
-            raise click.ClickException(
-                ".agent.md files require YAML frontmatter."
-            )
+            raise click.ClickException(".agent.md files require YAML frontmatter.")
         name_from_fm = frontmatter.get("name", "").strip()
         if not name_from_fm:
-            raise click.ClickException(
-                ".agent.md files require a name property in frontmatter."
-            )
+            raise click.ClickException(".agent.md files require a name property in frontmatter.")
 
     name = _get_agent_name_from_path(src)
     dest = agents_dir / src.name
@@ -247,8 +242,7 @@ def agent_add_rec(dir_path: str, fix: bool) -> None:
         )
     if warned:
         click.echo(
-            f"  Warning: {warned} file(s) have array-format tools. "
-            f"Use --fix to convert.",
+            f"  Warning: {warned} file(s) have array-format tools. Use --fix to convert.",
             err=True,
         )
 
@@ -263,7 +257,8 @@ def agent_add_rec(dir_path: str, fix: bool) -> None:
     help="Convert array-format tools to object format (destructive).",
 )
 @click.option(
-    "--project-dir", "-d",
+    "--project-dir",
+    "-d",
     type=click.Path(exists=True, file_okay=False, readable=True),
     default=None,
     help="Target project directory (default: current directory)",
@@ -335,7 +330,8 @@ def agent_get(name: str, force: bool, fix: bool, project_dir: str | None) -> Non
 
 @agent_group.command(name="get-all")
 @click.option(
-    "--project-dir", "-d",
+    "--project-dir",
+    "-d",
     type=click.Path(exists=True, file_okay=False, readable=True),
     default=None,
     help="Target project directory (default: current directory)",

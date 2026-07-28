@@ -105,12 +105,14 @@ def skill_add(path: str) -> None:
             save_config(config)
             return
 
-    config.skills.append(Skill(
-        name=name,
-        description=metadata.get("description", ""),
-        path=f"skills/{name}",
-        tags=metadata.get("tags", []),
-    ))
+    config.skills.append(
+        Skill(
+            name=name,
+            description=metadata.get("description", ""),
+            path=f"skills/{name}",
+            tags=metadata.get("tags", []),
+        )
+    )
     save_config(config)
 
 
@@ -146,12 +148,14 @@ def skill_add_rec(dir_path: str) -> None:
             shutil.rmtree(dest)
         config.skills = [s for s in config.skills if s.name != name]
         shutil.copytree(d, dest)
-        config.skills.append(Skill(
-            name=name,
-            description=metadata.get("description", ""),
-            path=f"skills/{name}",
-            tags=metadata.get("tags", []),
-        ))
+        config.skills.append(
+            Skill(
+                name=name,
+                description=metadata.get("description", ""),
+                path=f"skills/{name}",
+                tags=metadata.get("tags", []),
+            )
+        )
         added += 1
 
     save_config(config)
@@ -162,7 +166,8 @@ def skill_add_rec(dir_path: str) -> None:
 @click.argument("name")
 @click.option("--force", is_flag=True, help="Overwrite existing skills")
 @click.option(
-    "--project-dir", "-d",
+    "--project-dir",
+    "-d",
     type=click.Path(exists=True, file_okay=False, readable=True),
     default=None,
     help="Target project directory (default: current directory)",
@@ -269,9 +274,7 @@ def skill_search(keyword: str) -> None:
     kw = keyword.lower()
     results = []
     for s in config.skills:
-        if (kw in s.name.lower()
-                or kw in s.description.lower()
-                or any(kw in t.lower() for t in s.tags)):
+        if kw in s.name.lower() or kw in s.description.lower() or any(kw in t.lower() for t in s.tags):
             results.append(s)
 
     if not results:
@@ -326,13 +329,16 @@ def skill_link_agent(skill: str, agent: str) -> None:
 @skill_group.command(name="get-all")
 @click.option("--force", is_flag=True, help="Overwrite existing skills")
 @click.option(
-    "--project-dir", "-d",
+    "--project-dir",
+    "-d",
     type=click.Path(exists=True, file_okay=False, readable=True),
     default=None,
     help="Target project directory (default: current directory)",
 )
 @click.option(
-    "--format", "-f", "format_name",
+    "--format",
+    "-f",
+    "format_name",
     type=click.Choice(["standard", "openclaw"]),
     default="standard",
     help="Output format (standard=.github/skills/, openclaw=~/.openclaw/skills/)",
@@ -357,7 +363,9 @@ def skill_get_all(force: bool, project_dir: str | None, format_name: str) -> Non
 
 
 def _deploy_skills_standard(
-    skills: list[Skill], skills_store_dir: Path, force: bool,
+    skills: list[Skill],
+    skills_store_dir: Path,
+    force: bool,
     project_dir: str | None,
 ) -> None:
     """Deploy skills to .github/skills/ (standard format)."""
@@ -383,9 +391,6 @@ def _deploy_skills_standard(
         copied += 1
 
     click.echo(f"All skills ({copied}) copied to {claude_dir}.")
-
-
-
 
 
 @skill_group.command(name="remove-all")

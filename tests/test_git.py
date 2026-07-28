@@ -13,8 +13,6 @@ from ai_adapter.git import (
     has_remote,
     init_repo,
     is_repo,
-    pull_rebase,
-    push,
 )
 
 
@@ -34,9 +32,7 @@ class TestGitFunctions(unittest.TestCase):
         mock_run_git.return_value.returncode = 0
         result = is_repo(self.test_path)
         self.assertTrue(result)
-        mock_run_git.assert_called_once_with(
-            ["rev-parse", "--git-dir"], cwd=self.test_path
-        )
+        mock_run_git.assert_called_once_with(["rev-parse", "--git-dir"], cwd=self.test_path)
 
     @patch("ai_adapter.git._run_git")
     def test_is_repo_false(self, mock_run_git):
@@ -50,9 +46,7 @@ class TestGitFunctions(unittest.TestCase):
         """Verify init_repo calls git init."""
         mock_run_git.return_value.returncode = 0
         init_repo(self.test_path)
-        mock_run_git.assert_called_once_with(
-            ["init"], cwd=self.test_path
-        )
+        mock_run_git.assert_called_once_with(["init"], cwd=self.test_path)
 
     @patch("ai_adapter.git._run_git")
     def test_has_remote_true(self, mock_run_git):
@@ -96,9 +90,7 @@ class TestGitFunctions(unittest.TestCase):
         """Verify commit calls git commit."""
         mock_run_git.return_value.returncode = 0
         commit(self.test_path, "test commit")
-        mock_run_git.assert_called_once_with(
-            ["commit", "-m", "test commit"], cwd=self.test_path
-        )
+        mock_run_git.assert_called_once_with(["commit", "-m", "test commit"], cwd=self.test_path)
 
     @patch("ai_adapter.git._run_git")
     def test_get_remotes(self, mock_run_git):
@@ -123,6 +115,7 @@ class TestGitRebaseDetection(unittest.TestCase):
     def test_is_rebasing_true(self, mock_run_git):
         """Verify returns True when rebase-apply exists."""
         from ai_adapter.git import is_rebasing
+
         git_dir = self.test_path / ".git"
         git_dir.mkdir()
         (git_dir / "rebase-apply").mkdir()
@@ -134,6 +127,7 @@ class TestGitRebaseDetection(unittest.TestCase):
     def test_is_rebasing_false(self, mock_run_git):
         """Verify returns False for a normal repository."""
         from ai_adapter.git import is_rebasing
+
         git_dir = self.test_path / ".git"
         git_dir.mkdir()
         mock_run_git.return_value = type("R", (), {"stdout": str(git_dir), "returncode": 0})()
@@ -143,9 +137,8 @@ class TestGitRebaseDetection(unittest.TestCase):
     def test_get_conflicted_files(self, mock_run_git):
         """Verify conflicted files list retrieval."""
         from ai_adapter.git import get_conflicted_files
-        mock_run_git.return_value = type("R", (), {
-            "stdout": "config.json\nagents/reviewer.md\n", "returncode": 0
-        })()
+
+        mock_run_git.return_value = type("R", (), {"stdout": "config.json\nagents/reviewer.md\n", "returncode": 0})()
         files = get_conflicted_files(self.test_path)
         self.assertEqual(files, ["config.json", "agents/reviewer.md"])
 
@@ -153,6 +146,7 @@ class TestGitRebaseDetection(unittest.TestCase):
     def test_get_conflicted_files_empty(self, mock_run_git):
         """Verify returns empty list when no conflicts."""
         from ai_adapter.git import get_conflicted_files
+
         # diff-filter=U outputs nothing
         mock_run_git.side_effect = GitError("no output")
         files = get_conflicted_files(self.test_path)

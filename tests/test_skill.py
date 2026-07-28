@@ -120,8 +120,6 @@ class TestSkillCommands(unittest.TestCase):
         self.assertIn("test-skill", result.output)
         self.assertTrue((github_skills / "test-skill" / "SKILL.md").exists())
 
-        _safe_github_cleanup(Path.cwd())
-
     def test_skill_get_not_found(self):
         """Verify get fails for non-existent skill."""
         result = self.runner.invoke(main, ["skill", "get", "nonexistent"])
@@ -198,8 +196,6 @@ class TestSkillCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("1", result.output)
         self.assertTrue((github_skills / "test-skill" / "SKILL.md").exists())
-
-        _safe_github_cleanup(Path.cwd())
 
     def test_skill_remove_all(self):
         """Verify skill remove-all removes all skills."""
@@ -422,8 +418,6 @@ class TestSkillOpenClawExport(unittest.TestCase):
         )
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((Path.cwd() / ".github" / "skills" / "my-skill" / "SKILL.md").exists())
-
-        _safe_github_cleanup(Path.cwd())
 
     def test_get_all_openclaw_no_skills(self):
         """Message when no skills registered."""

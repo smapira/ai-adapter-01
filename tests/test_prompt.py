@@ -98,8 +98,6 @@ class TestPromptCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((github_dir / "review.md").exists())
 
-        _safe_github_cleanup(Path.cwd())
-
     def test_prompt_remove(self):
         self.runner.invoke(main, ["prompt", "add", str(self.prompt_file)])
         result = self.runner.invoke(main, ["prompt", "remove", "review"])
@@ -136,8 +134,6 @@ class TestPromptCommands(unittest.TestCase):
         self.assertIn("2", result.output)
         self.assertTrue((github_dir / "review.md").exists())
         self.assertTrue((github_dir / "summary.md").exists())
-
-        _safe_github_cleanup(Path.cwd())
 
     def test_prompt_remove_all(self):
         """Verify remove-all --force removes all prompts."""

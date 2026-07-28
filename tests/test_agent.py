@@ -92,6 +92,13 @@ class TestAgentCommands(unittest.TestCase):
         # init
         init()
 
+        # Ensure .github/agents/ is empty for test isolation
+        github_agents = Path.cwd() / ".github" / "agents"
+        if github_agents.exists():
+            for f in github_agents.iterdir():
+                if f.is_file():
+                    f.unlink()
+
         # Create test agent file
         self.agent_file = Path(self.temp_dir.name) / "test-agent.md"
         self.agent_file.write_text("# Test Agent\nThis is a test agent.")
@@ -151,8 +158,6 @@ class TestAgentCommands(unittest.TestCase):
 
         # Cleanup
 
-        _safe_github_cleanup(Path.cwd())
-
     def test_agent_get_not_found(self):
         """Verify get fails for non-existent agent."""
         result = self.runner.invoke(main, ["sub-agent", "get", "nonexistent"])
@@ -174,8 +179,6 @@ class TestAgentCommands(unittest.TestCase):
         result = self.runner.invoke(main, ["sub-agent", "get", "test-agent", "--force"])
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((github_dir / "test-agent.md").exists())
-
-        _safe_github_cleanup(Path.cwd())
 
     def test_agent_get_with_project_dir(self):
         """Verify agent get --project-dir copies to the specified directory."""
@@ -216,8 +219,6 @@ class TestAgentCommands(unittest.TestCase):
         self.assertIn("2", result.output)
         self.assertTrue((github_agents / "agent1.md").exists())
         self.assertTrue((github_agents / "agent2.md").exists())
-
-        _safe_github_cleanup(Path.cwd())
 
     def test_agent_remove(self):
         """Verify agent remove removes an agent."""
@@ -297,8 +298,6 @@ class TestAgentCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((github_agents / "reviewer.agent.md").exists())
 
-        _safe_github_cleanup(Path.cwd())
-
     def test_agent_get_with_dot_agent_suffix(self):
         """Verify backward compatibility: agents can be retrieved with .agent suffix."""
         agent_md_file = Path(self.temp_dir.name) / "reviewer.agent.md"
@@ -312,8 +311,6 @@ class TestAgentCommands(unittest.TestCase):
         result = self.runner.invoke(main, ["sub-agent", "get", "reviewer.agent"])
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((github_agents / "reviewer.agent.md").exists())
-
-        _safe_github_cleanup(Path.cwd())
 
 
 class TestAgentToolsConversion(unittest.TestCase):

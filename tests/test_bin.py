@@ -176,8 +176,6 @@ class TestBinCommands(unittest.TestCase):
         self.assertIn("deploy-test.sh", result.output)
         self.assertTrue((github_bin / "deploy-test.sh").exists())
 
-        _safe_github_cleanup(Path.cwd())
-
     def test_bin_get_not_found(self):
         """Verify get fails for non-existent script."""
         result = self.runner.invoke(main, ["bin", "get", "--env", "default", "nonexistent.sh"])
@@ -222,8 +220,6 @@ class TestBinCommands(unittest.TestCase):
         self.assertIn("2", result.output)
         self.assertTrue((github_bin / "test1.sh").exists())
         self.assertTrue((github_bin / "test2.sh").exists())
-
-        _safe_github_cleanup(Path.cwd())
 
     def test_bin_remove(self):
         """Verify bin remove unregisters a script."""

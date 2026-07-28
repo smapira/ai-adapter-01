@@ -98,8 +98,6 @@ class TestCommandCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((github_dir / "deploy.sh").exists())
 
-        _safe_github_cleanup(Path.cwd())
-
     def test_command_remove(self):
         self.runner.invoke(main, ["command", "add", str(self.cmd_file)])
         result = self.runner.invoke(main, ["command", "remove", "deploy"])
@@ -136,8 +134,6 @@ class TestCommandCommands(unittest.TestCase):
         self.assertIn("2", result.output)
         self.assertTrue((github_dir / "deploy.sh").exists())
         self.assertTrue((github_dir / "build.sh").exists())
-
-        _safe_github_cleanup(Path.cwd())
 
     def test_command_remove_all(self):
         """Verify remove-all --force removes all commands."""

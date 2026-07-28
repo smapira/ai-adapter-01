@@ -349,24 +349,18 @@ class TestBinAddPathCommand(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.runner = CliRunner()
 
-        # Backup real .github/ to protect from test cleanup
-        self._github_bak = None
-        github_dir = Path.cwd() / ".github"
-        if github_dir.exists():
-            import shutil
+        # Isolate CWD to temp directory
+        import os
 
-            self._github_bak = Path(self.temp_dir.name) / "github.bak"
-            shutil.copytree(github_dir, self._github_bak)
+        self.orig_cwd = Path.cwd()
+        self.isolated_dir = Path(self.temp_dir.name) / "project"
+        self.isolated_dir.mkdir(parents=True)
+        os.chdir(self.isolated_dir)
 
     def tearDown(self):
-        # Restore .github/ from backup
-        if hasattr(self, "_github_bak") and self._github_bak and Path(self._github_bak).exists():
-            import shutil
+        import os
 
-            github_dir = Path.cwd() / ".github"
-            if github_dir.exists():
-                shutil.rmtree(github_dir)
-            shutil.copytree(self._github_bak, github_dir)
+        os.chdir(self.orig_cwd)
         self.temp_dir.cleanup()
 
     def test_bin_add_path_no_github_bin(self):
@@ -384,8 +378,6 @@ class TestBinAddPathCommand(unittest.TestCase):
         result = self.runner.invoke(main, ["bin", "add-path"], input="4\n")
         self.assertEqual(result.exit_code, 0)
         self.assertIn("export PATH", result.output)
-
-        _safe_github_cleanup(Path.cwd())
 
     def test_bin_add_path_to_zshrc(self):
         """Verify bin add-path appends to zshrc."""
@@ -409,7 +401,6 @@ class TestBinAddPathCommand(unittest.TestCase):
         self.assertIn(".github/bin", content)
 
         pathlib.Path.home = staticmethod(orig_home)
-        _safe_github_cleanup(Path.cwd())
 
 
 class TestAddAllRecCommand(unittest.TestCase):
@@ -476,8 +467,6 @@ class TestAddAllRecCommand(unittest.TestCase):
         self.assertIn("reviewer", result.output)
         self.assertIn("implementer", result.output)
 
-        _safe_github_cleanup(Path.cwd())
-
     def test_add_all_rec_bins(self):
         """Verify scripts are registered from .github/bin."""
         github_bin = Path.cwd() / ".github" / "bin"
@@ -488,8 +477,6 @@ class TestAddAllRecCommand(unittest.TestCase):
         result = self.runner.invoke(main, ["add-all-rec"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("bin", result.output)
-
-        _safe_github_cleanup(Path.cwd())
 
     def test_add_all_rec_skills(self):
         """Verify skills are registered from .github/skills."""
@@ -502,8 +489,6 @@ class TestAddAllRecCommand(unittest.TestCase):
         result = self.runner.invoke(main, ["add-all-rec"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("skills", result.output)
-
-        _safe_github_cleanup(Path.cwd())
 
     def test_add_all_rec_mcp(self):
         """Verify MCP servers are registered from .mcp.json."""
@@ -683,7 +668,6 @@ class TestGetAllRecCommand(unittest.TestCase):
 
         # Cleanup
 
-        _safe_github_cleanup(Path.cwd())
         (Path.cwd() / ".mcp.json").unlink(missing_ok=True)
 
     def test_get_all_rec_with_project_dir(self):
@@ -731,5 +715,4 @@ class TestGetAllRecCommand(unittest.TestCase):
 
         # Cleanup
 
-        _safe_github_cleanup(Path.cwd())
         (Path.cwd() / ".mcp.json").unlink(missing_ok=True)

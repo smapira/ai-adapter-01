@@ -190,7 +190,6 @@ class TestBinCommands(unittest.TestCase):
         self.assertIn("deploy-test.sh", result.output)
         self.assertTrue((github_bin / "deploy-test.sh").exists())
 
-
         _safe_github_cleanup(Path.cwd())
 
     def test_bin_get_not_found(self):
@@ -237,7 +236,6 @@ class TestBinCommands(unittest.TestCase):
         self.assertIn("2", result.output)
         self.assertTrue((github_bin / "test1.sh").exists())
         self.assertTrue((github_bin / "test2.sh").exists())
-
 
         _safe_github_cleanup(Path.cwd())
 

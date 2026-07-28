@@ -429,7 +429,6 @@ class TestBinAddPathCommand(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("export PATH", result.output)
 
-
         _safe_github_cleanup(Path.cwd())
 
     def test_bin_add_path_to_zshrc(self):
@@ -452,7 +451,6 @@ class TestBinAddPathCommand(unittest.TestCase):
         content = zshrc.read_text()
         self.assertIn("export PATH", content)
         self.assertIn(".github/bin", content)
-
 
         pathlib.Path.home = staticmethod(orig_home)
         _safe_github_cleanup(Path.cwd())
@@ -537,7 +535,6 @@ class TestAddAllRecCommand(unittest.TestCase):
         self.assertIn("reviewer", result.output)
         self.assertIn("implementer", result.output)
 
-
         _safe_github_cleanup(Path.cwd())
 
     def test_add_all_rec_bins(self):
@@ -550,7 +547,6 @@ class TestAddAllRecCommand(unittest.TestCase):
         result = self.runner.invoke(main, ["add-all-rec"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("bin", result.output)
-
 
         _safe_github_cleanup(Path.cwd())
 
@@ -565,7 +561,6 @@ class TestAddAllRecCommand(unittest.TestCase):
         result = self.runner.invoke(main, ["add-all-rec"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("skills", result.output)
-
 
         _safe_github_cleanup(Path.cwd())
 

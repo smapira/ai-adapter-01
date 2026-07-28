@@ -119,7 +119,6 @@ class TestSkillCommands(unittest.TestCase):
         self.assertIn("test-skill", result.output)
         self.assertTrue((github_skills / "test-skill" / "SKILL.md").exists())
 
-
         _safe_github_cleanup(Path.cwd())
 
     def test_skill_get_not_found(self):
@@ -198,7 +197,6 @@ class TestSkillCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("1", result.output)
         self.assertTrue((github_skills / "test-skill" / "SKILL.md").exists())
-
 
         _safe_github_cleanup(Path.cwd())
 
@@ -453,7 +451,6 @@ class TestSkillOpenClawExport(unittest.TestCase):
         )
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((Path.cwd() / ".github" / "skills" / "my-skill" / "SKILL.md").exists())
-
 
         _safe_github_cleanup(Path.cwd())
 

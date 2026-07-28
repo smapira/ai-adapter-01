@@ -136,7 +136,6 @@ class TestCommandCommands(unittest.TestCase):
         self.assertTrue((github_dir / "deploy.sh").exists())
         self.assertTrue((github_dir / "build.sh").exists())
 
-
         _safe_github_cleanup(Path.cwd())
 
     def test_command_remove_all(self):

@@ -189,7 +189,6 @@ class TestAgentCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((github_dir / "test-agent.md").exists())
 
-
         _safe_github_cleanup(Path.cwd())
 
     def test_agent_get_with_project_dir(self):
@@ -231,7 +230,6 @@ class TestAgentCommands(unittest.TestCase):
         self.assertIn("2", result.output)
         self.assertTrue((github_agents / "agent1.md").exists())
         self.assertTrue((github_agents / "agent2.md").exists())
-
 
         _safe_github_cleanup(Path.cwd())
 
@@ -313,7 +311,6 @@ class TestAgentCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((github_agents / "reviewer.agent.md").exists())
 
-
         _safe_github_cleanup(Path.cwd())
 
     def test_agent_get_with_dot_agent_suffix(self):
@@ -329,7 +326,6 @@ class TestAgentCommands(unittest.TestCase):
         result = self.runner.invoke(main, ["sub-agent", "get", "reviewer.agent"])
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((github_agents / "reviewer.agent.md").exists())
-
 
         _safe_github_cleanup(Path.cwd())
 

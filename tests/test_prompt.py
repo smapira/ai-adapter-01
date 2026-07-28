@@ -136,7 +136,6 @@ class TestPromptCommands(unittest.TestCase):
         self.assertTrue((github_dir / "review.md").exists())
         self.assertTrue((github_dir / "summary.md").exists())
 
-
         _safe_github_cleanup(Path.cwd())
 
     def test_prompt_remove_all(self):

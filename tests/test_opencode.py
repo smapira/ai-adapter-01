@@ -174,6 +174,15 @@ class TestOpencodeValidateCommand(unittest.TestCase):
 
         init()
 
+        # Backup real .github/ to protect from test cleanup
+        self._github_bak = None
+        github_dir = Path.cwd() / ".github"
+        if github_dir.exists():
+            import shutil
+
+            self._github_bak = Path(self.temp_dir.name) / "github.bak"
+            shutil.copytree(github_dir, self._github_bak)
+
     def tearDown(self):
         import pathlib
 
@@ -181,10 +190,15 @@ class TestOpencodeValidateCommand(unittest.TestCase):
         import ai_adapter.config as cfg
 
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
-        self.temp_dir.cleanup()
-        import shutil
+        # Restore .github/ from backup
+        if hasattr(self, '_github_bak') and self._github_bak and Path(self._github_bak).exists():
+            import shutil
 
-        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+            github_dir = Path.cwd() / ".github"
+            if github_dir.exists():
+                shutil.rmtree(github_dir)
+            shutil.copytree(self._github_bak, github_dir)
+        self.temp_dir.cleanup()
 
     def _create_github_agents(self) -> Path:
         """Create .github/agents/ in temp dir and return the path."""
@@ -231,6 +245,11 @@ class TestOpencodeValidateCommand(unittest.TestCase):
 
     def test_opencode_validate_no_agents_dir(self):
         """No ``.github/agents/`` → exit 0 with message."""
+        # Ensure agents/ doesn't exist for this test
+        agents_dir = Path.cwd() / ".github" / "agents"
+        if agents_dir.exists():
+            import shutil
+            shutil.rmtree(agents_dir)
         result = self.runner.invoke(main, ["opencode", "validate"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("No .github/agents/ directory found", result.output)

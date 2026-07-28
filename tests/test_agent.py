@@ -87,6 +87,14 @@ class TestAgentCommands(unittest.TestCase):
         import ai_adapter.config as cfg
 
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        # Restore .github/ from backup
+        if hasattr(self, '_github_bak') and self._github_bak and Path(self._github_bak).exists():
+            import shutil
+
+            github_dir = Path.cwd() / ".github"
+            if github_dir.exists():
+                shutil.rmtree(github_dir)
+            shutil.copytree(self._github_bak, github_dir)
         self.temp_dir.cleanup()
 
     def test_agent_list_empty(self):
@@ -320,6 +328,15 @@ class TestAgentToolsConversion(unittest.TestCase):
 
         init()
 
+        # Backup real .github/ to protect from test cleanup
+        self._github_bak = None
+        github_dir = Path.cwd() / ".github"
+        if github_dir.exists():
+            import shutil
+
+            self._github_bak = Path(self.temp_dir.name) / "github.bak"
+            shutil.copytree(github_dir, self._github_bak)
+
     def tearDown(self):
         import pathlib
 
@@ -327,11 +344,16 @@ class TestAgentToolsConversion(unittest.TestCase):
         import ai_adapter.config as cfg
 
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
-        self.temp_dir.cleanup()
-        # Cleanup .github/agents/ if created in CWD
-        import shutil
+        # Restore .github/ from backup
+        if hasattr(self, '_github_bak') and self._github_bak and Path(self._github_bak).exists():
+            import shutil
 
-        shutil.rmtree(Path.cwd() / ".github", ignore_errors=True)
+            github_dir = Path.cwd() / ".github"
+            if github_dir.exists():
+                shutil.rmtree(github_dir)
+            shutil.copytree(self._github_bak, github_dir)
+        self.temp_dir.cleanup()
+
 
     def test_agent_get_converts_tools_with_fix(self):
         """``agent get --fix`` converts array-format tools to object format."""

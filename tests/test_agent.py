@@ -92,6 +92,15 @@ class TestAgentCommands(unittest.TestCase):
         # init
         init()
 
+        # Backup real .github/ to protect from test cleanup
+        self._github_bak = None
+        github_dir = Path.cwd() / ".github"
+        if github_dir.exists():
+            import shutil
+
+            self._github_bak = Path(self.temp_dir.name) / "github.bak"
+            shutil.copytree(github_dir, self._github_bak)
+
         # Ensure .github/agents/ is empty for test isolation
         github_agents = Path.cwd() / ".github" / "agents"
         if github_agents.exists():

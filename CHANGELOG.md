@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.18.0] - 2026-07-29
+
+### Added
+
+- **Codex CLI integration** (`ai-adapter codex install`): Generate `AGENTS.md` in plain Markdown
+  for OpenAI Codex CLI from registered agents, instructions, and skills
+  - Reads `.agent.md` files, root-level instructions, and SKILL.md files
+  - Outputs sections separated by `---` dividers (no YAML frontmatter)
+  - Commands: `codex install`, `codex uninstall`
+  - 9 test cases in `tests/test_codex.py`
+
+### Fixed
+
+- **`opencode alias` gitignore bug**: Fixed `add_to_gitignore(opencode_path.resolve())` which
+  resolved the `.opencode` → `.github` symlink, causing `/.github/` to be appended to
+  `.gitignore`. Now correctly writes the symlink path itself.
+- **Test isolation**: Added `.github/` backup/restore in all test setUp/tearDown to prevent
+  test cleanup from deleting the project's `.github/` directory (including CI workflow).
+  Fixed `TestOpencodeAliasValidation` CWD restoration. Fixed `TestBinAddPathCommand`
+  CWD isolation. Removed unused imports in `test_opencode.py`.
+- **Test formatting**: Applied `ruff format` across all test files.
+
 ## [0.17.0] - 2026-07-29
 
 ### Added

@@ -13,7 +13,7 @@ This page compares how different AI coding tools handle the configuration catego
 | **Config format** | Markdown + YAML frontmatter | Markdown (`CLAUDE.md`) | JSON (`opencode.json`) | Markdown (`AGENTS.md`) + YAML | Markdown (`*.mdc`) with YAML frontmatter | JSON (`.continuerc.json`) | JSON |
 | **Tool type** | VS Code extension | CLI tool (Anthropic) | Terminal AI agent | Terminal AI agent | AI-first IDE | VS Code + JetBrains extension | Desktop app (AI orchestrator) |
 | **Instruction files** | `.github/instructions/*.md`, `.github/agents/*.agent.md` | `CLAUDE.md` | `opencode.json` → `instructions` | `AGENTS.md` (hierarchical) | `.cursor/rules/*.mdc` | `.continuerc.json` → `rules` array | Hook-based orchestration / agent delegation |
-| **ai-adapter support** | ✅ Full | ✅ Via `.github/` Fallback | ✅ Full (opencode subcommand) | ✅ Partial (root-level agent via `ai-adapter agent`) | ❌ Planned | ❌ Planned | ✅ Partial (skills + MCP export via `--format openclaw`) |
+| **ai-adapter support** | ✅ Full | ✅ Via `.github/` Fallback | ✅ Full (opencode subcommand) | ✅ Full (codex subcommand + agent) | ❌ Planned | ❌ Planned | ✅ Partial (skills + MCP export via `--format openclaw`) |
 
 ---
 

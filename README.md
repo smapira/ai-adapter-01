@@ -20,6 +20,7 @@ A CLI tool for managing AI agent instruction files (`.github/instructions` etc.)
 - **MCP Server Management**: Centrally manage MCP server settings and output in each tool format
 - **OpenCode Integration**: Generate `opencode.json` and symlink `.opencode` → `.github`
 - **OpenClaw Integration**: Export MCP servers and skills to OpenClaw format (`--format openclaw`)
+- **Codex CLI Integration**: Generate `AGENTS.md` for OpenAI Codex CLI (`ai-adapter codex install`)
 - **Root-Level Agent Management**: Manage `AGENTS.md`, `CLAUDE.md`, etc. as first-class artifacts, deployable to project root
 
 ---
@@ -402,6 +403,27 @@ ai-adapter opencode validate
 ai-adapter opencode validate --fix
 ```
 
+### `ai-adapter codex`
+
+Manages Codex CLI integration. Generates `AGENTS.md` in plain Markdown for OpenAI Codex CLI.
+
+| Command | Description |
+|---------|------|
+| `codex install` | Generate `AGENTS.md` in the current directory from registered agents, instructions, and skills |
+| `codex install --force` | Overwrite existing `AGENTS.md` without prompting |
+| `codex uninstall` | Remove `AGENTS.md` from the current directory |
+
+```bash
+# Generate AGENTS.md for Codex CLI
+ai-adapter codex install
+
+# Force overwrite
+ai-adapter codex install --force
+
+# Remove
+ai-adapter codex uninstall
+```
+
 ### OpenClaw Integration
 
 `ai-adapter` can export configurations to OpenClaw (a personal AI assistant with multi-channel gateway) using the `--format openclaw` option on existing commands.
@@ -663,7 +685,8 @@ ai-adapter/
 │       │   └── skill.py        # skill subcommand
 │       └── providers/          # External tool integrations
 │           ├── opencode.py     # OpenCode integration (install/alias/uninstall)
-│           └── openclaw.py     # OpenClaw integration (MCP + skills export)
+│           ├── openclaw.py     # OpenClaw integration (MCP + skills export)
+│           └── codex.py        # Codex CLI integration (AGENTS.md generation)
 ├── tests/
 │   ├── __init__.py
 │   ├── test_config.py
@@ -674,7 +697,8 @@ ai-adapter/
 │   ├── test_mcp.py
 │   ├── test_sync.py
 │   ├── test_git.py
-│   └── test_cli.py
+│   ├── test_cli.py
+│   └── test_instruction.py
 └── examples/
     └── sample-config.json      # Sample configuration file
 ```

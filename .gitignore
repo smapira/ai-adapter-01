@@ -27,7 +27,6 @@ Thumbs.db
 .github/commands/
 .github/prompts/
 .github/skills/
-.github/workflows/
 opencode.json
 .mcp.json
 /.github/agents/test-agent.md
@@ -191,7 +190,6 @@ opencode.json
 /.github/commands/list-files.md
 /.github/prompts/code-review.md
 /.github/prompts/summarize.md
-/.github/
 /.github/skills/another-skill/
 .mypy_cache
 /AGENTS.md

@@ -10,6 +10,7 @@ from click.testing import CliRunner
 
 from ai_adapter.cli import main
 from ai_adapter.config import init
+from ai_adapter.models import Agent, Instruction
 
 
 class TestOpencodeCommands(unittest.TestCase):
@@ -40,8 +41,8 @@ class TestOpencodeCommands(unittest.TestCase):
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         self.temp_dir.cleanup()
 
-    def test_opencode_install(self):
-        """Verify opencode install generates opencode.json template."""
+    def test_opencode_install_default(self):
+        """Verify opencode install generates opencode.json with default instructions when nothing registered."""
         result = self.runner.invoke(main, ["opencode", "install"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("opencode.json", result.output)
@@ -53,8 +54,60 @@ class TestOpencodeCommands(unittest.TestCase):
         self.assertIn("$schema", data)
         self.assertIn("instructions", data)
         self.assertIn("permission", data)
-        self.assertIn(".github/agents/*.agent.md", data["instructions"])
+        # No agents/instructions registered → only the fallback
+        self.assertIn(".github/copilot-instructions.md", data["instructions"])
+        self.assertNotIn(".github/agents/*.agent.md", data["instructions"])
 
+        output_path.unlink()
+
+    def test_opencode_install_with_agents(self):
+        """Registered agents → .github/agents/*.agent.md appears."""
+        agent_file = Path(self.temp_dir.name) / "reviewer.md"
+        agent_file.write_text("# Reviewer")
+        self.runner.invoke(main, ["sub-agent", "add", str(agent_file)])
+
+        result = self.runner.invoke(main, ["opencode", "install"])
+        self.assertEqual(result.exit_code, 0)
+
+        output_path = Path.cwd() / "opencode.json"
+        with open(output_path) as f:
+            data = json.load(f)
+        self.assertIn(".github/agents/*.agent.md", data["instructions"])
+        output_path.unlink()
+
+    def test_opencode_install_with_instructions(self):
+        """Registered root-level instructions → file name appears."""
+        inst_file = Path(self.temp_dir.name) / "AGENTS.md"
+        inst_file.write_text("# Root Agent")
+        self.runner.invoke(main, ["agent", "add", str(inst_file)])
+
+        result = self.runner.invoke(main, ["opencode", "install"])
+        self.assertEqual(result.exit_code, 0)
+
+        output_path = Path.cwd() / "opencode.json"
+        with open(output_path) as f:
+            data = json.load(f)
+        self.assertIn("AGENTS.md", data["instructions"])
+        self.assertNotIn(".github/agents/*.agent.md", data["instructions"])
+        output_path.unlink()
+
+    def test_opencode_install_with_both(self):
+        """Both agents and instructions registered → both appear."""
+        inst_file = Path(self.temp_dir.name) / "AGENTS.md"
+        inst_file.write_text("# Root Agent")
+        self.runner.invoke(main, ["agent", "add", str(inst_file)])
+        agent_file = Path(self.temp_dir.name) / "reviewer.md"
+        agent_file.write_text("# Reviewer")
+        self.runner.invoke(main, ["sub-agent", "add", str(agent_file)])
+
+        result = self.runner.invoke(main, ["opencode", "install"])
+        self.assertEqual(result.exit_code, 0)
+
+        output_path = Path.cwd() / "opencode.json"
+        with open(output_path) as f:
+            data = json.load(f)
+        self.assertIn("AGENTS.md", data["instructions"])
+        self.assertIn(".github/agents/*.agent.md", data["instructions"])
         output_path.unlink()
 
     def test_opencode_uninstall(self):
@@ -80,8 +133,8 @@ class TestOpencodeCommands(unittest.TestCase):
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn(".github", result.output)
 
-    def test_opencode_install_template_structure(self):
-        """Verify generated opencode.json has correct template structure."""
+    def test_opencode_install_template_structure_default(self):
+        """Verify default opencode.json structure when nothing registered."""
         result = self.runner.invoke(main, ["opencode", "install"])
         self.assertEqual(result.exit_code, 0)
 
@@ -95,8 +148,10 @@ class TestOpencodeCommands(unittest.TestCase):
         for key in ["execute", "read", "edit", "search", "agent", "browser", "web", "todo"]:
             self.assertEqual(perm.get(key), "ask", f"permission.{key} is not ask")
 
-        # instructions includes .agent.md
-        self.assertIn(".github/agents/*.agent.md", data.get("instructions", []))
+        # instructions includes copilot-instructions.md
+        self.assertIn(".github/copilot-instructions.md", data.get("instructions", []))
+        # No agents registered, so .agent.md glob should NOT appear
+        self.assertNotIn(".github/agents/*.agent.md", data.get("instructions", []))
 
         output_path.unlink()
 

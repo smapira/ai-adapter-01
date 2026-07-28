@@ -75,13 +75,47 @@ def opencode_alias() -> None:
 
 @opencode_group.command(name="install")
 def opencode_install() -> None:
-    """Generate opencode.json in the current directory."""
+    """Generate opencode.json in the current directory.
+
+    Dynamically builds the ``instructions`` array based on what is registered
+    in ``~/.ai-adapter/config.json``:
+
+    - Root-level agent files (``AGENTS.md``, ``CLAUDE.md``, etc.) → project root
+    - ``.agent.md`` files → ``.github/agents/*.agent.md`` glob
+    - ``.github/copilot-instructions.md`` → always included as fallback
+    """
+    cfg = _config.load_config()
+
+    instructions: list[str] = []
+
+    # Always include copilot-instructions.md as a standard fallback
+    instructions.append(".github/copilot-instructions.md")
+
+    if cfg:
+        # Root-level instruction files (e.g., AGENTS.md, CLAUDE.md)
+        if cfg.instructions:
+            instructions_dir = _config.get_instructions_dir()
+            for inst in cfg.instructions:
+                # Find the actual filename in the store
+                for f in sorted(instructions_dir.iterdir()):
+                    if f.is_file() and f.stem == inst.name:
+                        instructions.append(f.name)
+                        break
+                else:
+                    # Fallback: assume name + .md
+                    instructions.append(f"{inst.name}.md")
+
+        # .agent.md files in .github/agents/
+        if cfg.agents:
+            instructions.append(".github/agents/*.agent.md")
+
+        # SKILL.md files in .github/skills/
+        if cfg.skills:
+            instructions.append(".github/skills/*/SKILL.md")
+
     config = {
         "$schema": "https://opencode.ai/config.json",
-        "instructions": [
-            ".github/copilot-instructions.md",
-            ".github/agents/*.agent.md",
-        ],
+        "instructions": instructions,
         "permission": {
             "execute": "ask",
             "read": "ask",

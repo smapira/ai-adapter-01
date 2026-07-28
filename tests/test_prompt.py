@@ -49,7 +49,7 @@ class TestPromptCommands(unittest.TestCase):
 
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         # Restore .github/ from backup
-        if hasattr(self, '_github_bak') and self._github_bak and Path(self._github_bak).exists():
+        if hasattr(self, "_github_bak") and self._github_bak and Path(self._github_bak).exists():
             import shutil
 
             github_dir = Path.cwd() / ".github"

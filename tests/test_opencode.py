@@ -191,7 +191,7 @@ class TestOpencodeValidateCommand(unittest.TestCase):
 
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         # Restore .github/ from backup
-        if hasattr(self, '_github_bak') and self._github_bak and Path(self._github_bak).exists():
+        if hasattr(self, "_github_bak") and self._github_bak and Path(self._github_bak).exists():
             import shutil
 
             github_dir = Path.cwd() / ".github"
@@ -249,6 +249,7 @@ class TestOpencodeValidateCommand(unittest.TestCase):
         agents_dir = Path.cwd() / ".github" / "agents"
         if agents_dir.exists():
             import shutil
+
             shutil.rmtree(agents_dir)
         result = self.runner.invoke(main, ["opencode", "validate"])
         self.assertEqual(result.exit_code, 0)

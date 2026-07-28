@@ -88,7 +88,7 @@ class TestAgentCommands(unittest.TestCase):
 
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         # Restore .github/ from backup
-        if hasattr(self, '_github_bak') and self._github_bak and Path(self._github_bak).exists():
+        if hasattr(self, "_github_bak") and self._github_bak and Path(self._github_bak).exists():
             import shutil
 
             github_dir = Path.cwd() / ".github"
@@ -345,7 +345,7 @@ class TestAgentToolsConversion(unittest.TestCase):
 
         cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
         # Restore .github/ from backup
-        if hasattr(self, '_github_bak') and self._github_bak and Path(self._github_bak).exists():
+        if hasattr(self, "_github_bak") and self._github_bak and Path(self._github_bak).exists():
             import shutil
 
             github_dir = Path.cwd() / ".github"
@@ -353,7 +353,6 @@ class TestAgentToolsConversion(unittest.TestCase):
                 shutil.rmtree(github_dir)
             shutil.copytree(self._github_bak, github_dir)
         self.temp_dir.cleanup()
-
 
     def test_agent_get_converts_tools_with_fix(self):
         """``agent get --fix`` converts array-format tools to object format."""

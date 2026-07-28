@@ -63,9 +63,7 @@ class TestCodexInstallCommand(unittest.TestCase):
     def test_codex_install_with_agent_md(self):
         """Registered .agent.md → AGENTS.md contains frontmatter name."""
         agent_md = Path(self.temp_dir.name) / "reviewer.agent.md"
-        agent_md.write_text(
-            "---\nname: Reviewer\n---\n\n# Reviewer\nReview code.\n"
-        )
+        agent_md.write_text("---\nname: Reviewer\n---\n\n# Reviewer\nReview code.\n")
         self.runner.invoke(main, ["sub-agent", "add", str(agent_md)])
 
         result = self.runner.invoke(main, ["codex", "install"])

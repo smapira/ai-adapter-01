@@ -150,14 +150,300 @@ class TestOpencodeCommands(unittest.TestCase):
 
         # Verify all permissions are "ask"
         perm = data.get("permission", {})
-        for key in ["execute", "read", "edit", "search", "agent", "browser", "web", "todo"]:
+        for key in ["read", "edit", "glob", "grep", "list", "bash", "task", "webfetch", "websearch", "todowrite"]:
             self.assertEqual(perm.get(key), "ask", f"permission.{key} is not ask")
 
         # instructions includes copilot-instructions.md
         self.assertIn(".github/copilot-instructions.md", data.get("instructions", []))
         # No agents registered, so .agent.md glob should NOT appear
         self.assertNotIn(".github/agents/*.agent.md", data.get("instructions", []))
+        # No MCP or skills registered
+        self.assertNotIn("mcp", data)
+        self.assertNotIn("skills", data)
 
+        output_path.unlink()
+
+    def test_opencode_install_with_mcp_single(self):
+        """Single MCP server → mcp section with correct format."""
+        self.runner.invoke(
+            main,
+            [
+                "mcp",
+                "add",
+                "github",
+                "--command",
+                "npx",
+                "--args",
+                "@modelcontextprotocol/server-github",
+            ],
+        )
+
+        result = self.runner.invoke(main, ["opencode", "install"])
+        self.assertEqual(result.exit_code, 0)
+
+        output_path = Path.cwd() / "opencode.json"
+        with open(output_path) as f:
+            data = json.load(f)
+        self.assertIn("mcp", data)
+        self.assertIn("github", data["mcp"])
+        self.assertEqual(data["mcp"]["github"]["type"], "local")
+        self.assertEqual(data["mcp"]["github"]["command"], ["npx", "@modelcontextprotocol/server-github"])
+        self.assertTrue(data["mcp"]["github"]["enabled"])
+        output_path.unlink()
+
+    def test_opencode_install_with_mcp_multiple(self):
+        """Multiple MCP servers → all appear in mcp section."""
+        self.runner.invoke(
+            main,
+            ["mcp", "add", "github", "--command", "npx", "--args", "pkg1"],
+        )
+        self.runner.invoke(
+            main,
+            ["mcp", "add", "playwright", "--command", "npx", "--args", "pkg2"],
+        )
+
+        result = self.runner.invoke(main, ["opencode", "install"])
+        self.assertEqual(result.exit_code, 0)
+
+        output_path = Path.cwd() / "opencode.json"
+        with open(output_path) as f:
+            data = json.load(f)
+        self.assertIn("github", data["mcp"])
+        self.assertIn("playwright", data["mcp"])
+        self.assertEqual(data["mcp"]["github"]["command"], ["npx", "pkg1"])
+        self.assertEqual(data["mcp"]["playwright"]["command"], ["npx", "pkg2"])
+        output_path.unlink()
+
+    def test_opencode_install_with_mcp_env_keys(self):
+        """MCP server with env_keys → environment section with ${VAR} format."""
+        self.runner.invoke(
+            main,
+            [
+                "mcp",
+                "add",
+                "github",
+                "--command",
+                "npx",
+                "--args",
+                "pkg",
+                "--env-key",
+                "GITHUB_TOKEN",
+            ],
+        )
+
+        result = self.runner.invoke(main, ["opencode", "install"])
+        self.assertEqual(result.exit_code, 0)
+
+        output_path = Path.cwd() / "opencode.json"
+        with open(output_path) as f:
+            data = json.load(f)
+        self.assertIn("environment", data["mcp"]["github"])
+        self.assertEqual(data["mcp"]["github"]["environment"]["GITHUB_TOKEN"], "${GITHUB_TOKEN}")
+        output_path.unlink()
+
+    def test_opencode_install_with_mcp_disabled(self):
+        """Disabled MCP server → enabled: false in output."""
+        self.runner.invoke(
+            main,
+            ["mcp", "add", "test-srv", "--command", "npx", "--args", "pkg"],
+        )
+        # Manually disable the server via config
+        from ai_adapter.config import load_config, save_config
+
+        cfg = load_config()
+        for s in cfg.mcp_servers:
+            if s.name == "test-srv":
+                s.enabled = False
+        save_config(cfg)
+
+        result = self.runner.invoke(main, ["opencode", "install"])
+        self.assertEqual(result.exit_code, 0)
+
+        output_path = Path.cwd() / "opencode.json"
+        with open(output_path) as f:
+            data = json.load(f)
+        self.assertFalse(data["mcp"]["test-srv"]["enabled"])
+        output_path.unlink()
+
+    def test_opencode_install_with_mcp_no_args(self):
+        """MCP server with no args → command array has single element."""
+        self.runner.invoke(
+            main,
+            ["mcp", "add", "simple", "--command", "my-server"],
+        )
+
+        result = self.runner.invoke(main, ["opencode", "install"])
+        self.assertEqual(result.exit_code, 0)
+
+        output_path = Path.cwd() / "opencode.json"
+        with open(output_path) as f:
+            data = json.load(f)
+        self.assertEqual(data["mcp"]["simple"]["command"], ["my-server"])
+        output_path.unlink()
+
+    def test_opencode_install_with_skills(self):
+        """Registered skills → skills.paths section added."""
+        skill_dir = Path(self.temp_dir.name) / "my-skill"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text("---\nname: my-skill\n---\n# Skill\n")
+        self.runner.invoke(main, ["skill", "add", str(skill_dir)])
+
+        result = self.runner.invoke(main, ["opencode", "install"])
+        self.assertEqual(result.exit_code, 0)
+
+        output_path = Path.cwd() / "opencode.json"
+        with open(output_path) as f:
+            data = json.load(f)
+        self.assertIn("skills", data)
+        self.assertIn(".github/skills", data["skills"]["paths"])
+        # instructions also includes SKILL.md glob
+        self.assertIn(".github/skills/*/SKILL.md", data["instructions"])
+        output_path.unlink()
+
+    def test_opencode_install_with_mcp_and_skills(self):
+        """Both MCP and skills registered → both sections present."""
+        self.runner.invoke(
+            main,
+            ["mcp", "add", "github", "--command", "npx", "--args", "pkg"],
+        )
+        skill_dir = Path(self.temp_dir.name) / "my-skill"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text("---\nname: my-skill\n---\n# Skill\n")
+        self.runner.invoke(main, ["skill", "add", str(skill_dir)])
+
+        result = self.runner.invoke(main, ["opencode", "install"])
+        self.assertEqual(result.exit_code, 0)
+
+        output_path = Path.cwd() / "opencode.json"
+        with open(output_path) as f:
+            data = json.load(f)
+        self.assertIn("mcp", data)
+        self.assertIn("skills", data)
+        self.assertIn("instructions", data)
+        output_path.unlink()
+
+    def test_opencode_install_with_prompts(self):
+        """Registered prompts → command section with template and description."""
+        prompt_file = Path(self.temp_dir.name) / "code-review.md"
+        prompt_file.write_text("Review this code for bugs and improvements.")
+        self.runner.invoke(main, ["prompt", "add", str(prompt_file)])
+
+        result = self.runner.invoke(main, ["opencode", "install"])
+        self.assertEqual(result.exit_code, 0)
+
+        output_path = Path.cwd() / "opencode.json"
+        with open(output_path) as f:
+            data = json.load(f)
+        self.assertIn("command", data)
+        self.assertIn("code-review", data["command"])
+        self.assertEqual(
+            data["command"]["code-review"]["template"],
+            "Review this code for bugs and improvements.",
+        )
+        output_path.unlink()
+
+    def test_opencode_install_with_prompts_multiple(self):
+        """Multiple prompts → all appear in command section."""
+        prompt1 = Path(self.temp_dir.name) / "review.md"
+        prompt1.write_text("Review prompt content")
+        self.runner.invoke(main, ["prompt", "add", str(prompt1)])
+
+        prompt2 = Path(self.temp_dir.name) / "refactor.md"
+        prompt2.write_text("Refactor prompt content")
+        self.runner.invoke(main, ["prompt", "add", str(prompt2)])
+
+        result = self.runner.invoke(main, ["opencode", "install"])
+        self.assertEqual(result.exit_code, 0)
+
+        output_path = Path.cwd() / "opencode.json"
+        with open(output_path) as f:
+            data = json.load(f)
+        self.assertIn("review", data["command"])
+        self.assertIn("refactor", data["command"])
+        self.assertEqual(data["command"]["review"]["template"], "Review prompt content")
+        self.assertEqual(data["command"]["refactor"]["template"], "Refactor prompt content")
+        output_path.unlink()
+
+    def test_opencode_install_with_all_features(self):
+        """All features registered → all sections present."""
+        # MCP
+        self.runner.invoke(
+            main,
+            ["mcp", "add", "github", "--command", "npx", "--args", "pkg"],
+        )
+        # Skills
+        skill_dir = Path(self.temp_dir.name) / "my-skill"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text("---\nname: my-skill\n---\n# Skill\n")
+        self.runner.invoke(main, ["skill", "add", str(skill_dir)])
+        # Prompts
+        prompt_file = Path(self.temp_dir.name) / "review.md"
+        prompt_file.write_text("Review content")
+        self.runner.invoke(main, ["prompt", "add", str(prompt_file)])
+        # Agents
+        agent_file = Path(self.temp_dir.name) / "reviewer.md"
+        agent_file.write_text("# Reviewer")
+        self.runner.invoke(main, ["sub-agent", "add", str(agent_file)])
+
+        result = self.runner.invoke(main, ["opencode", "install"])
+        self.assertEqual(result.exit_code, 0)
+
+        output_path = Path.cwd() / "opencode.json"
+        with open(output_path) as f:
+            data = json.load(f)
+        self.assertIn("mcp", data)
+        self.assertIn("skills", data)
+        self.assertIn("command", data)
+        self.assertIn(".github/agents/*.agent.md", data["instructions"])
+        self.assertIn(".github/skills/*/SKILL.md", data["instructions"])
+        output_path.unlink()
+
+    def test_opencode_install_prompt_file_not_found(self):
+        """Prompt file deleted after registration → warning and skipped."""
+        prompt_file = Path(self.temp_dir.name) / "review.md"
+        prompt_file.write_text("Review content")
+        self.runner.invoke(main, ["prompt", "add", str(prompt_file)])
+        # Delete the file after registration
+        prompts_dir = Path.home() / ".ai-adapter" / "prompts"
+        (prompts_dir / "review.md").unlink()
+
+        result = self.runner.invoke(main, ["opencode", "install"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("not found", result.output)
+
+        output_path = Path.cwd() / "opencode.json"
+        with open(output_path) as f:
+            data = json.load(f)
+        # command section should not exist since prompt was skipped
+        self.assertNotIn("command", data)
+        output_path.unlink()
+
+    def test_opencode_install_prompt_txt_extension(self):
+        """Prompt with .txt extension → found and included."""
+        prompt_file = Path(self.temp_dir.name) / "review.txt"
+        prompt_file.write_text("Review content from txt")
+        self.runner.invoke(main, ["prompt", "add", str(prompt_file)])
+
+        result = self.runner.invoke(main, ["opencode", "install"])
+        self.assertEqual(result.exit_code, 0)
+
+        output_path = Path.cwd() / "opencode.json"
+        with open(output_path) as f:
+            data = json.load(f)
+        self.assertIn("command", data)
+        self.assertIn("review", data["command"])
+        self.assertEqual(data["command"]["review"]["template"], "Review content from txt")
+        output_path.unlink()
+
+    def test_opencode_install_no_command_when_no_prompts(self):
+        """No prompts registered → command section absent."""
+        result = self.runner.invoke(main, ["opencode", "install"])
+        self.assertEqual(result.exit_code, 0)
+
+        output_path = Path.cwd() / "opencode.json"
+        with open(output_path) as f:
+            data = json.load(f)
+        self.assertNotIn("command", data)
         output_path.unlink()
 
 

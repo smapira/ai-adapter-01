@@ -13,11 +13,28 @@ import click
 
 from ai_adapter import config as _config
 from ai_adapter.agent_format import batch_validate_and_fix, convert_agent_file
+from ai_adapter.models import MCPServer
 
 
 @click.group(name="opencode")
 def opencode_group() -> None:
     """Manage OpenCode integration settings."""
+
+
+def _mcp_server_to_opencode(server: MCPServer) -> dict:
+    """Convert ai-adapter MCPServer to opencode.json MCP format.
+
+    ``MCPServer.command`` must be a single token (no spaces).
+    ``MCPServer.tools`` field is ignored (opencode has its own tool system).
+    """
+    entry: dict = {
+        "type": "local",
+        "command": [server.command] + server.args,
+        "enabled": server.enabled,
+    }
+    if server.env_keys:
+        entry["environment"] = {k: f"${{{k}}}" for k in server.env_keys}
+    return entry
 
 
 @opencode_group.command(name="alias")
@@ -77,56 +94,29 @@ def opencode_alias() -> None:
 def opencode_install() -> None:
     """Generate opencode.json in the current directory.
 
-    Dynamically builds the ``instructions`` array based on what is registered
+    Dynamically builds the configuration based on what is registered
     in ``~/.ai-adapter/config.json``:
 
     - Root-level agent files (``AGENTS.md``, ``CLAUDE.md``, etc.) → project root
     - ``.agent.md`` files → ``.github/agents/*.agent.md`` glob
     - ``.github/copilot-instructions.md`` → always included as fallback
+    - MCP servers → ``mcp`` section with opencode format
+    - Skills → ``skills.paths`` section
+    - Prompts → ``command`` section with template + description
     """
     cfg = _config.load_config()
-
-    instructions: list[str] = []
-
-    # Always include copilot-instructions.md as a standard fallback
-    instructions.append(".github/copilot-instructions.md")
-
-    if cfg:
-        # Root-level instruction files (e.g., AGENTS.md, CLAUDE.md)
-        if cfg.instructions:
-            instructions_dir = _config.get_instructions_dir()
-            for inst in cfg.instructions:
-                # Find the actual filename in the store
-                for f in sorted(instructions_dir.iterdir()):
-                    if f.is_file() and f.stem == inst.name:
-                        instructions.append(f.name)
-                        break
-                else:
-                    # Fallback: assume name + .md
-                    instructions.append(f"{inst.name}.md")
-
-        # .agent.md files in .github/agents/
-        if cfg.agents:
-            instructions.append(".github/agents/*.agent.md")
-
-        # SKILL.md files in .github/skills/
-        if cfg.skills:
-            instructions.append(".github/skills/*/SKILL.md")
-
-    config = {
+    instructions = _build_instructions(cfg)
+    config: dict = {
         "$schema": "https://opencode.ai/config.json",
         "instructions": instructions,
-        "permission": {
-            "execute": "ask",
-            "read": "ask",
-            "edit": "ask",
-            "search": "ask",
-            "agent": "ask",
-            "browser": "ask",
-            "web": "ask",
-            "todo": "ask",
-        },
+        "permission": _DEFAULT_PERMISSION,
     }
+
+    if cfg:
+        _add_mcp_section(config, cfg)
+        _add_skills_section(config, cfg)
+        _add_prompts_section(config, cfg)
+
     output_path = Path.cwd() / "opencode.json"
 
     with open(output_path, "w") as f:
@@ -134,6 +124,111 @@ def opencode_install() -> None:
 
     _config.add_to_gitignore(output_path)
     click.echo(f"opencode.json generated: {output_path}")
+
+
+_DEFAULT_PERMISSION: dict[str, str] = {
+    "read": "ask",
+    "edit": "ask",
+    "glob": "ask",
+    "grep": "ask",
+    "list": "ask",
+    "bash": "ask",
+    "task": "ask",
+    "webfetch": "ask",
+    "websearch": "ask",
+    "todowrite": "ask",
+}
+
+
+def _build_instructions(cfg: _config.Config | None) -> list[str]:
+    """Build the instructions array from config."""
+    instructions: list[str] = [".github/copilot-instructions.md"]
+
+    if not cfg:
+        return instructions
+
+    if cfg.instructions:
+        instructions_dir = _config.get_instructions_dir()
+        for inst in cfg.instructions:
+            found = False
+            for f in sorted(instructions_dir.iterdir()):
+                if f.is_file() and f.stem == inst.name:
+                    instructions.append(f.name)
+                    found = True
+                    break
+            if not found:
+                instructions.append(f"{inst.name}.md")
+
+    if cfg.agents:
+        instructions.append(".github/agents/*.agent.md")
+
+    if cfg.skills:
+        instructions.append(".github/skills/*/SKILL.md")
+
+    return instructions
+
+
+def _add_mcp_section(config: dict, cfg: _config.Config) -> None:
+    """Add MCP servers to the config dict."""
+    if not cfg.mcp_servers:
+        return
+    config["mcp"] = {s.name: _mcp_server_to_opencode(s) for s in cfg.mcp_servers}
+
+
+def _add_skills_section(config: dict, cfg: _config.Config) -> None:
+    """Add skills paths to the config dict."""
+    if cfg.skills:
+        config["skills"] = {"paths": [".github/skills"]}
+
+
+def _add_prompts_section(config: dict, cfg: _config.Config) -> None:
+    """Add prompts as opencode commands to the config dict."""
+    if not cfg.prompts:
+        return
+
+    prompts_dir = _config.get_prompts_dir()
+    command_section: dict[str, dict] = {}
+    for prompt in cfg.prompts:
+        entry = _read_prompt_entry(prompts_dir, prompt)
+        if entry is not None:
+            command_section[prompt.name] = entry
+
+    if command_section:
+        config["command"] = command_section
+
+
+def _read_prompt_entry(prompts_dir: Path, prompt: object) -> dict[str, str] | None:
+    """Read a single prompt file and return an opencode command entry."""
+    prompt_file = _find_prompt_file(prompts_dir, prompt.name)
+    if prompt_file is None:
+        click.echo(
+            f"Warning: prompt file '{prompt.name}' not found in {prompts_dir}, skipping.",
+            err=True,
+        )
+        return None
+
+    try:
+        content = prompt_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        click.echo(
+            f"Warning: failed to read prompt file '{prompt_file.name}': {e}, skipping.",
+            err=True,
+        )
+        return None
+
+    entry: dict[str, str] = {"template": content}
+    if prompt.description:
+        entry["description"] = prompt.description
+    return entry
+
+
+def _find_prompt_file(prompts_dir: Path, name: str) -> Path | None:
+    """Find a prompt file by name, trying multiple extensions."""
+    for ext in (".md", ".txt", ".prompt", ""):
+        candidate = prompts_dir / f"{name}{ext}"
+        if candidate.exists():
+            return candidate
+    return None
 
 
 @opencode_group.command(name="uninstall")

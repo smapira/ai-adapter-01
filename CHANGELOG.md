@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.19.0] - 2026-08-09
+
+### Added
+
+- **`opencode install` MCP support**: Generated `opencode.json` now includes registered MCP
+  servers in opencode format (`type: "local"`, `command` array, `environment` with `${VAR}`)
+  - Disabled servers are included with `enabled: false`
+  - `MCPServer.tools` field is ignored (opencode has its own tool system)
+  - 6 test cases added
+
+- **`opencode install` Skills support**: Registered skills are included via `skills.paths`
+  pointing to `.github/skills`
+  - `instructions` array also includes `.github/skills/*/SKILL.md` for backward compatibility
+  - 3 test cases added
+
+- **`opencode install` Prompts support**: Registered prompts are included as opencode custom
+  commands (`command` section with `template` + `description`)
+  - Supports multiple file extensions (`.md`, `.txt`, `.prompt`)
+  - Missing files produce a warning and are skipped (no silent fallback)
+  - IO errors during file reading are caught and reported
+  - 5 test cases added
+
+### Fixed
+
+- **`opencode install` permission keys**: Fixed permission key names to match opencode schema
+  (`execute` → `bash`, `search` → `glob`/`grep`/`list`, `web` → `webfetch`/`websearch`, etc.)
+  Previous keys were silently ignored by opencode, making all permission settings ineffective.
+
 ## [0.18.0] - 2026-07-29
 
 ### Added

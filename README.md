@@ -18,7 +18,7 @@ A CLI tool for managing AI agent instruction files (`.github/instructions` etc.)
 - **Command Management**: Manage and deploy VS Code custom command definitions (`.github/commands/`)
 - **Prompt Management**: Manage and deploy prompt templates for AI agents (`.github/prompts/`)
 - **MCP Server Management**: Centrally manage MCP server settings and output in each tool format
-- **OpenCode Integration**: Generate `opencode.json` and symlink `.opencode` → `.github`
+- **OpenCode Integration**: Generate `opencode.json` with MCP, skills, prompts, and agents; symlink `.opencode` → `.github`
 - **OpenClaw Integration**: Export MCP servers and skills to OpenClaw format (`--format openclaw`)
 - **Codex CLI Integration**: Generate `AGENTS.md` for OpenAI Codex CLI (`ai-adapter codex install`)
 - **Root-Level Agent Management**: Manage `AGENTS.md`, `CLAUDE.md`, etc. as first-class artifacts, deployable to project root
@@ -383,7 +383,7 @@ Manages OpenCode integration settings.
 | Command | Description |
 |---------|------|
 | `opencode alias` | Create a symbolic link `.opencode` → `.github` |
-| `opencode install` | Generate `opencode.json` in the current directory |
+| `opencode install` | Generate `opencode.json` in the current directory (includes MCP, skills, prompts, and agents) |
 | `opencode uninstall` | Remove `opencode.json` |
 | `opencode validate` | Validate agent file formats in `.github/agents/` |
 | `opencode validate --fix` | Automatically fix array-format tools to object format |
@@ -392,7 +392,7 @@ Manages OpenCode integration settings.
 # Create an alias from .opencode to .github
 ai-adapter opencode alias
 
-# Generate an opencode.json template
+# Generate an opencode.json with MCP servers, skills, and agents
 ai-adapter opencode install
 
 # Remove

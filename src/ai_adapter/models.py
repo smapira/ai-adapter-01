@@ -96,6 +96,7 @@ class Skill:
     path: str = ""
     tags: list[str] = field(default_factory=list)
     agent: str | None = None
+    env: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"name": self.name}
@@ -107,6 +108,8 @@ class Skill:
             d["tags"] = self.tags
         if self.agent:
             d["agent"] = self.agent
+        if self.env:
+            d["env"] = self.env
         return d
 
     @classmethod
@@ -117,6 +120,7 @@ class Skill:
             path=data.get("path", ""),
             tags=data.get("tags", []),
             agent=data.get("agent"),
+            env=data.get("env"),
         )
 
 
@@ -125,6 +129,7 @@ class Command:
     name: str
     description: str = ""
     content: str = ""
+    env: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"name": self.name}
@@ -132,6 +137,8 @@ class Command:
             d["description"] = self.description
         if self.content:
             d["content"] = self.content
+        if self.env:
+            d["env"] = self.env
         return d
 
     @classmethod
@@ -140,6 +147,7 @@ class Command:
             name=data["name"],
             description=data.get("description", ""),
             content=data.get("content", ""),
+            env=data.get("env"),
         )
 
 
@@ -148,6 +156,7 @@ class Prompt:
     name: str
     description: str = ""
     content: str = ""
+    env: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"name": self.name}
@@ -155,6 +164,8 @@ class Prompt:
             d["description"] = self.description
         if self.content:
             d["content"] = self.content
+        if self.env:
+            d["env"] = self.env
         return d
 
     @classmethod
@@ -163,6 +174,7 @@ class Prompt:
             name=data["name"],
             description=data.get("description", ""),
             content=data.get("content", ""),
+            env=data.get("env"),
         )
 
 
@@ -171,6 +183,7 @@ class Instruction:
     name: str
     description: str = ""
     content: str = ""
+    env: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"name": self.name}
@@ -178,6 +191,8 @@ class Instruction:
             d["description"] = self.description
         if self.content:
             d["content"] = self.content
+        if self.env:
+            d["env"] = self.env
         return d
 
     @classmethod
@@ -186,6 +201,7 @@ class Instruction:
             name=data["name"],
             description=data.get("description", ""),
             content=data.get("content", ""),
+            env=data.get("env"),
         )
 
 

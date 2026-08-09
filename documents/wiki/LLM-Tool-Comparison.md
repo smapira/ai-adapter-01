@@ -23,12 +23,12 @@ This page compares how different AI coding tools handle the configuration catego
 |--------|---------------|-------------|----------|-----------------|--------|----------|------|
 | **Directory** | `.github/skills/` | N/A (uses `CLAUDE.md`) | `.opencode/rules/` | `~/.codex/skills/` or project-local | `.cursor/rules/` | N/A | `~/.claude/skills/` (shared with Claude Code) |
 | **File format** | `SKILL.md` with YAML frontmatter | Single `CLAUDE.md` | Markdown files in `rules/` | `SKILL.md` with YAML frontmatter | `*.mdc` with YAML frontmatter | `.continuerc.json` → `rules` array | `SKILL.md` with YAML frontmatter |
-| **Metadata** | ✅ `name`, `description`, `tags`, `agent` | No structured metadata | File-name based | ✅ `agents/openai.yaml` | ✅ `description`, `globs` in frontmatter | Plain text rules | ✅ `name`, `description`, `tags` |
+| **Metadata** | ✅ `name`, `description`, `tags`, `agent`, `env` | No structured metadata | File-name based | ✅ `agents/openai.yaml` | ✅ `description`, `globs` in frontmatter | Plain text rules | ✅ `name`, `description`, `tags` |
 | **File globbing** | ❌ | ❌ | ❌ | ❌ | ✅ `globs` field controls which files the rule applies to | ❌ | ❌ |
 | **Agent binding** | ✅ `agent` field links skill to an agent | N/A | N/A | ✅ Via `agents/openai.yaml` | ❌ (rules auto-matched by globs) | ❌ | ✅ Via hook events (SessionStart, SubagentStart, etc.) |
 | **Bundled resources** | ❌ | ❌ | ❌ | ✅ `scripts/`, `references/`, `assets/` | ❌ | ❌ | ✅ |
 | **MCP dependencies** | ❌ | ❌ | ❌ | ✅ Declared in `agents/openai.yaml` | ❌ | ❌ | ✅ |
-| **ai-adapter commands** | `skill add/list/get/remove/search/link-agent/get-all` | — | — | — | — | — | — |
+| **ai-adapter commands** | `skill add/list/get/remove/search/link-agent/get-all` (all support `--env`) | — | — | — | — | — | — |
 
 ### Rules File Example
 
@@ -73,7 +73,7 @@ Follow React + TypeScript best practices.
 | **Scoping** | Agent-level (via `@agent` mention) | Global (root only) | Global | ✅ **Directory-scoped**: each `AGENTS.md` applies to its sub-tree | ✅ **Glob-based**: per-rule file pattern matching | Global | ✅ Worktree-level |
 | **Name resolution** | Frontmatter `name` > filename | N/A | N/A | File-path based | Filename (displayed in UI) | N/A | N/A |
 | **Override support** | N/A | N/A | N/A | ✅ `AGENTS.override.md` | ✅ Deeper rules override shallower ones | N/A | ✅ Worktree-level hooks override global hooks |
-| **ai-adapter commands** | `sub-agent add/list/get/remove/get-all/remove-all/add-all-rec` (`.github/agents/`)  `agent add/list/get/remove/get-all/remove-all` (root-level) | — | — | — | — | — | — |
+| **ai-adapter commands** | `sub-agent add/list/get/remove/get-all/remove-all/add-all-rec` (all support `--env`)  `agent add/list/get/remove/get-all/remove-all` (root-level) | — | — | — | — | — | — |
 
 ### Instructions Example
 
@@ -108,7 +108,7 @@ globs: server/**/*.ts
 | **Directory** | `.github/commands/` | N/A | N/A | N/A | N/A | N/A | N/A |
 | **File format** | Any executable/script files | N/A | N/A | N/A | N/A | N/A | N/A |
 | **Purpose** | Custom slash commands for Copilot | — | — | — | — | — | Uses agent hooks (PreToolUse, PostToolUse) |
-| **ai-adapter commands** | `command add/list/get/remove/add-rec/get-all/remove-all` | — | — | — | — | — | — |
+| **ai-adapter commands** | `command add/list/get/remove/add-rec/get-all/remove-all` (all support `--env`) | — | — | — | — | — | — |
 
 > **Note:** Custom commands are a GitHub Copilot-specific concept. None of the other tools have an equivalent feature.
 
@@ -124,7 +124,7 @@ globs: server/**/*.ts
 | **Multi-tool support** | ✅ Per-server `tools` field | ✅ Native | ✅ Via `opencode.json` | ✅ Via `agents/openai.yaml` deps | ✅ Native | ✅ Via Continue config | ✅ Via OpenCode plugin |
 | **Environment binding** | ✅ `env` field per server | N/A | N/A | N/A | N/A | N/A | N/A |
 | **Enable/disable** | ✅ `enabled` flag per server | N/A | N/A | N/A | N/A | ✅ Per-server via config | ✅ Per-worktree via Orca UI |
-| **ai-adapter commands** | `mcp add/list/remove/export load/remove-all` | — | — | — | — | — | — |
+| **ai-adapter commands** | `mcp add/list/remove/get/remove-all` (all support `--env`) | — | — | — | — | — | — |
 
 ### MCP Example
 
@@ -149,7 +149,7 @@ globs: server/**/*.ts
 | **Directory** | `.github/prompts/` | N/A | N/A | N/A | N/A | N/A | N/A |
 | **File format** | Any text/markdown files | N/A | N/A | N/A | N/A | N/A | N/A |
 | **Purpose** | Reusable prompt templates | — | — | — | — | — | Delegates to the spawned agent's prompt system |
-| **ai-adapter commands** | `prompt add/list/get/remove/add-rec/get-all/remove-all` | — | — | — | — | — | — |
+| **ai-adapter commands** | `prompt add/list/get/remove/add-rec/get-all/remove-all` (all support `--env`) | — | — | — | — | — | — |
 
 > **Note:** Prompts are an ai-adapter managed concept for storing reusable prompt templates. They are not a native feature of any LLM tool.
 
@@ -218,7 +218,7 @@ The `opencode` subcommand bridges `ai-adapter` with OpenCode:
 - **Cursor** uses `.cursor/rules/*.mdc` with YAML frontmatter and `globs` for file-scoped rules, plus `.cursor/mcp.json` for MCP. Legacy `.cursorrules` format is also supported.
 - **Continue** uses `.continuerc.json` with a `rules` array for project instructions and model configuration.
 - **Orca** is a desktop app (multi-agent orchestrator) from Anomaly that manages AI agent sessions with worktree-scoped hooks, shared `~/.claude/skills/` support, and standard `.mcp.json` MCP configuration. It delegates instruction/agent management to the underlying spawned agent (OpenCode, Claude Code, etc.).
-- **ai-adapter** unifies these tools by managing `.github/` as the single source of truth and providing bridging commands (e.g., `opencode install`) for tool-specific formats.
+- **ai-adapter** unifies these tools by managing `.github/` as the single source of truth and providing bridging commands (e.g., `opencode install`) for tool-specific formats. All entity types (skill, command, prompt, sub-agent, bin, mcp) support `--env` for environment-scoped registration and filtering.
 
 ---
 

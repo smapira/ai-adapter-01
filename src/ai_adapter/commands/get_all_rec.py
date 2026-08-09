@@ -44,16 +44,24 @@ def _copy_with_confirm(src: Path, dest: Path, force: bool) -> None:
     _config.add_to_gitignore(dest)
 
 
-def _deploy_agents(config: _config.Config, project_path: Path | None, force: bool) -> int:
+def _deploy_agents(config: _config.Config, project_path: Path | None, force: bool, env: str | None = None) -> int:
     """Deploy registered agents to .github/agents/."""
     agents_dir = _config.get_agents_dir()
     if not agents_dir.exists() or not config.agents:
         click.echo("  agents/: skip (no registered agents)")
         return 0
+    # Filter by env binding if specified
+    agents = config.agents
+    if env:
+        binding_names = {b.agent for b in config.agent_bindings if b.env == env}
+        agents = [a for a in agents if a.name in binding_names]
+        if not agents:
+            click.echo(f"  agents/: skip (no agents bound to env '{env}')")
+            return 0
     github_agents_dir = _config.get_github_agents_dir(project_path)
     github_agents_dir.mkdir(parents=True, exist_ok=True)
     deployed = 0
-    for agent_cfg in config.agents:
+    for agent_cfg in agents:
         src = _find_agent_source(agents_dir, agent_cfg.name)
         if src is None:
             click.echo(f"   Skip agent: '{agent_cfg.name}' file not found.")
@@ -89,16 +97,23 @@ def _deploy_bins(config: _config.Config, project_path: Path | None, force: bool,
     return deployed
 
 
-def _deploy_skills(config: _config.Config, project_path: Path | None, force: bool) -> int:
+def _deploy_skills(config: _config.Config, project_path: Path | None, force: bool, env: str | None = None) -> int:
     """Deploy registered skills to .github/skills/."""
     skills_dir = _config.get_skills_dir()
     if not skills_dir.exists() or not config.skills:
         click.echo("  skills/: skip (no registered skills)")
         return 0
+    # Filter by env if specified
+    skills = config.skills
+    if env:
+        skills = [s for s in skills if s.env is None or s.env == env]
+        if not skills:
+            click.echo(f"  skills/: skip (no skills for env '{env}')")
+            return 0
     github_skills_dir = _config.get_github_skills_dir(project_path)
     github_skills_dir.mkdir(parents=True, exist_ok=True)
     deployed = 0
-    for skill_entry in config.skills:
+    for skill_entry in skills:
         src = skills_dir / skill_entry.name
         if not src.exists():
             click.echo(f"   Skip skill: '{skill_entry.name}' directory not found.")
@@ -117,16 +132,23 @@ def _deploy_skills(config: _config.Config, project_path: Path | None, force: boo
     return deployed
 
 
-def _deploy_commands(config: _config.Config, project_path: Path | None, force: bool) -> int:
+def _deploy_commands(config: _config.Config, project_path: Path | None, force: bool, env: str | None = None) -> int:
     """Deploy registered commands to .github/commands/."""
     commands_dir = _config.get_commands_dir()
     if not commands_dir.exists() or not config.commands:
         click.echo("  commands/: skip (no registered commands)")
         return 0
+    # Filter by env if specified
+    commands = config.commands
+    if env:
+        commands = [c for c in commands if c.env is None or c.env == env]
+        if not commands:
+            click.echo(f"  commands/: skip (no commands for env '{env}')")
+            return 0
     github_commands_dir = _config.get_github_commands_dir(project_path)
     github_commands_dir.mkdir(parents=True, exist_ok=True)
     deployed = 0
-    for cmd_entry in config.commands:
+    for cmd_entry in commands:
         src = _find_command_file(commands_dir, cmd_entry.name)
         if src is None:
             click.echo(f"   Skip command: '{cmd_entry.name}' file not found.")
@@ -138,16 +160,23 @@ def _deploy_commands(config: _config.Config, project_path: Path | None, force: b
     return deployed
 
 
-def _deploy_prompts(config: _config.Config, project_path: Path | None, force: bool) -> int:
+def _deploy_prompts(config: _config.Config, project_path: Path | None, force: bool, env: str | None = None) -> int:
     """Deploy registered prompts to .github/prompts/."""
     prompts_dir = _config.get_prompts_dir()
     if not prompts_dir.exists() or not config.prompts:
         click.echo("  prompts/: skip (no registered prompts)")
         return 0
+    # Filter by env if specified
+    prompts = config.prompts
+    if env:
+        prompts = [p for p in prompts if p.env is None or p.env == env]
+        if not prompts:
+            click.echo(f"  prompts/: skip (no prompts for env '{env}')")
+            return 0
     github_prompts_dir = _config.get_github_prompts_dir(project_path)
     github_prompts_dir.mkdir(parents=True, exist_ok=True)
     deployed = 0
-    for prompt_entry in config.prompts:
+    for prompt_entry in prompts:
         src = _find_prompt_file(prompts_dir, prompt_entry.name)
         if src is None:
             click.echo(f"   Skip prompt: '{prompt_entry.name}' file not found.")
@@ -192,15 +221,22 @@ def _deploy_mcp(config: _config.Config, project_path: Path | None, force: bool, 
     return 1
 
 
-def _deploy_instructions(config: _config.Config, project_path: Path | None, force: bool) -> int:
+def _deploy_instructions(config: _config.Config, project_path: Path | None, force: bool, env: str | None = None) -> int:
     """Deploy registered instructions to .github/ root."""
     instructions_dir = _config.get_instructions_dir()
     if not instructions_dir.exists() or not config.instructions:
         click.echo("  instructions/: skip (no registered instructions)")
         return 0
+    # Filter by env if specified
+    instructions = config.instructions
+    if env:
+        instructions = [i for i in instructions if i.env is None or i.env == env]
+        if not instructions:
+            click.echo(f"  instructions/: skip (no instructions for env '{env}')")
+            return 0
     root_dir = _config.get_github_instructions_dir(project_path)
     deployed = 0
-    for inst_entry in config.instructions:
+    for inst_entry in instructions:
         src = _find_instruction_file(instructions_dir, inst_entry.name)
         if src is None:
             click.echo(f"   Skip instruction: '{inst_entry.name}' file not found.")
@@ -231,13 +267,13 @@ def cmd_get_all_rec(force: bool, env: str | None, project_dir: str | None) -> No
 
     project_path = Path(project_dir).resolve() if project_dir else None
     total = 0
-    total += _deploy_agents(config, project_path, force)
+    total += _deploy_agents(config, project_path, force, env)
     total += _deploy_bins(config, project_path, force, env)
-    total += _deploy_skills(config, project_path, force)
-    total += _deploy_commands(config, project_path, force)
-    total += _deploy_prompts(config, project_path, force)
+    total += _deploy_skills(config, project_path, force, env)
+    total += _deploy_commands(config, project_path, force, env)
+    total += _deploy_prompts(config, project_path, force, env)
     total += _deploy_mcp(config, project_path, force, env)
-    total += _deploy_instructions(config, project_path, force)
+    total += _deploy_instructions(config, project_path, force, env)
     click.echo(f"All deployments completed: Total: {total}")
 
 

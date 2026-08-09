@@ -198,3 +198,5 @@ opencode.json
 /.github/node_modules
 /.github/bin/ai_adapter_sync.sh
 /.github/bin/ocr_extract.swift
+/.github/skills/skill-a/
+/.github/agents/reviewer.md

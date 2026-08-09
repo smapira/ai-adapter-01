@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.20.0] - 2026-08-10
+
+### Added
+
+- **`--env` support for `skill`, `command`, `prompt`, `sub-agent`**: All entity types now support environment-scoped registration and filtering
+  - `--env <env>` option on `add`, `add-rec`, `get`, `get-all`, `list`, `remove`, `remove-all`
+  - `--agent <agent>` option on `add` / `add-rec` for environment resolution
+  - Environment resolution logic (previously `bin`-only) now shared via `resolve_env()` in `config.py`
+  - Items with no env set are treated as "universal" (always included regardless of filter)
+  - `sub-agent add --env` creates an `AgentBinding`; `sub-agent remove --env` removes only the binding
+  - `sub-agent remove-all --env` removes all bindings for that env without deleting agents
+
+- **`get-all-rec --env` extended**: Now filters all entity types (not just `bin` and `mcp`)
+  - `skills`, `commands`, `prompts`, `agents`, `instructions` all respect `--env` filtering
+
+- **Model `env` field**: `Skill`, `Command`, `Prompt`, `Instruction` dataclasses now include `env: str | None`
+  - Backward compatible: existing config files without `env` fields load correctly
+
+- **`list` display enhancement**: `--env` filter shows header like `Skills (env: production):`
+  - `sub-agent list` shows agent bindings: `(env: production, staging)`
+
+### Changed
+
+- **`resolve_env()` extracted**: Moved from `commands/bin.py` to `config.py` for shared use
+- **Test**: Added 22 new tests in `tests/test_env_support.py`
+
 ## [0.19.2] - 2026-08-10
 
 ### Added

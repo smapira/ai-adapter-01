@@ -2,6 +2,7 @@
 
 Manages skill directories under ~/.ai-adapter/skills/.
 Parses metadata from SKILL.md YAML frontmatter.
+Supports --env for environment-scoped registration and filtering.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from ai_adapter.config import (
     get_github_skills_dir,
     get_skills_dir,
     load_config,
+    resolve_env,
     save_config,
 )
 from ai_adapter.models import Skill
@@ -45,7 +47,8 @@ def skill_group() -> None:
 
 @skill_group.command(name="list")
 @click.option("--tag", help="Filter by tag")
-def skill_list(tag: str | None) -> None:
+@click.option("--env", "-e", default=None, help="Filter by environment name")
+def skill_list(tag: str | None, env: str | None) -> None:
     """List registered skills."""
     config = load_config()
     if config is None:
@@ -53,6 +56,8 @@ def skill_list(tag: str | None) -> None:
         return
 
     skills = config.skills
+    if env:
+        skills = [s for s in skills if s.env is None or s.env == env]
     if tag:
         skills = [s for s in skills if tag in s.tags]
 
@@ -60,21 +65,29 @@ def skill_list(tag: str | None) -> None:
         click.echo("No skills registered.")
         return
 
-    click.echo("Skills:")
+    if env:
+        click.echo(f"Skills (env: {env}):")
+    else:
+        click.echo("Skills:")
     click.echo("-" * 60)
     for skill in skills:
+        env_info = f" [{skill.env}]" if skill.env else ""
         agent_info = f" [agent: {skill.agent}]" if skill.agent else ""
         tags_str = f" ({', '.join(skill.tags)})" if skill.tags else ""
         desc = f" - {skill.description}" if skill.description else ""
-        click.echo(f"  {skill.name}{tags_str}{agent_info}{desc}")
+        click.echo(f"  {skill.name}{env_info}{tags_str}{agent_info}{desc}")
 
 
 @skill_group.command(name="add")
 @click.argument("path", type=click.Path(exists=True, file_okay=False, readable=True))
-def skill_add(path: str) -> None:
+@click.option("--env", "-e", default=None, help="Environment name (auto-resolved when omitted)")
+@click.option("--agent", help="Agent name (for env resolution)")
+def skill_add(path: str, env: str | None, agent: str | None) -> None:
     """Add a skill directory to ~/.ai-adapter/skills/.
 
     PATH: Path to the skill directory containing SKILL.md.
+
+    When --env is omitted, auto-resolves via environment resolution logic.
     """
     src = Path(path).resolve()
     metadata = _parse_skill_metadata(src)
@@ -89,16 +102,18 @@ def skill_add(path: str) -> None:
         shutil.rmtree(dest)
 
     shutil.copytree(src, dest)
-    click.echo(f"Skill '{name}' added: {dest}")
 
     config = load_config()
     if config is None:
         click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
+    resolved_env = resolve_env(config, env, agent)
+    click.echo(f"Skill '{name}' added (env: {resolved_env}): {dest}")
+
     # Duplicate check
     for existing in config.skills:
-        if existing.name == name:
+        if existing.name == name and existing.env == resolved_env:
             existing.description = metadata.get("description", "")
             existing.tags = metadata.get("tags", [])
             existing.path = f"skills/{name}"
@@ -111,6 +126,7 @@ def skill_add(path: str) -> None:
             description=metadata.get("description", ""),
             path=f"skills/{name}",
             tags=metadata.get("tags", []),
+            env=resolved_env,
         )
     )
     save_config(config)
@@ -118,7 +134,9 @@ def skill_add(path: str) -> None:
 
 @skill_group.command(name="add-rec")
 @click.argument("dir_path", type=click.Path(exists=True, file_okay=False, readable=True))
-def skill_add_rec(dir_path: str) -> None:
+@click.option("--env", "-e", default=None, help="Environment name (auto-resolved when omitted)")
+@click.option("--agent", help="Agent name (for env resolution)")
+def skill_add_rec(dir_path: str, env: str | None, agent: str | None) -> None:
     """Recursively register all skill directories in a directory."""
     src_dir = Path(dir_path).resolve()
     skills_dir = get_skills_dir()
@@ -129,6 +147,7 @@ def skill_add_rec(dir_path: str) -> None:
         click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
+    resolved_env = resolve_env(config, env, agent)
     added = 0
     for d in sorted(src_dir.iterdir()):
         if not d.is_dir():
@@ -146,7 +165,7 @@ def skill_add_rec(dir_path: str) -> None:
         dest = skills_dir / name
         if dest.exists():
             shutil.rmtree(dest)
-        config.skills = [s for s in config.skills if s.name != name]
+        config.skills = [s for s in config.skills if s.name != name or s.env != resolved_env]
         shutil.copytree(d, dest)
         config.skills.append(
             Skill(
@@ -154,6 +173,7 @@ def skill_add_rec(dir_path: str) -> None:
                 description=metadata.get("description", ""),
                 path=f"skills/{name}",
                 tags=metadata.get("tags", []),
+                env=resolved_env,
             )
         )
         added += 1
@@ -164,6 +184,8 @@ def skill_add_rec(dir_path: str) -> None:
 
 @skill_group.command(name="get")
 @click.argument("name")
+@click.option("--env", "-e", default=None, help="Environment name (auto-resolved when omitted)")
+@click.option("--agent", help="Agent name (for env resolution)")
 @click.option("--force", is_flag=True, help="Overwrite existing skills")
 @click.option(
     "--project-dir",
@@ -172,25 +194,29 @@ def skill_add_rec(dir_path: str) -> None:
     default=None,
     help="Target project directory (default: current directory)",
 )
-def skill_get(name: str, force: bool, project_dir: str | None) -> None:
+def skill_get(name: str, env: str | None, agent: str | None, force: bool, project_dir: str | None) -> None:
     """Copy skill to .github/skills/.
 
     NAME: Name of the skill to retrieve.
+
+    When --env is omitted, auto-resolves via environment resolution logic.
     """
     config = load_config()
     if config is None:
         click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
+    resolved_env = resolve_env(config, env, agent)
+
     # Search
     skill_entry = None
     for s in config.skills:
-        if s.name == name:
+        if s.name == name and (s.env is None or s.env == resolved_env):
             skill_entry = s
             break
 
     if skill_entry is None:
-        click.echo(f"Skill '{name}' is not registered.", err=True)
+        click.echo(f"Skill '{name}' (env: {resolved_env}) is not registered.", err=True)
         raise click.ClickException(f"Skill '{name}' not found.")
 
     skills_dir = get_skills_dir()
@@ -218,25 +244,31 @@ def skill_get(name: str, force: bool, project_dir: str | None) -> None:
 
 @skill_group.command(name="remove")
 @click.argument("name")
+@click.option("--env", "-e", default=None, help="Environment name (auto-resolved when omitted)")
+@click.option("--agent", help="Agent name (for env resolution)")
 @click.option("--purge", is_flag=True, help="Also delete skill files")
-def skill_remove(name: str, purge: bool) -> None:
+def skill_remove(name: str, env: str | None, agent: str | None, purge: bool) -> None:
     """Remove a skill.
 
     NAME: Name of the skill to remove.
+
+    When --env is omitted, auto-resolves via environment resolution logic.
     """
     config = load_config()
     if config is None:
         click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
+    resolved_env = resolve_env(config, env, agent)
+
     found = None
     for s in config.skills:
-        if s.name == name:
+        if s.name == name and (s.env is None or s.env == resolved_env):
             found = s
             break
 
     if found is None:
-        click.echo(f"Skill '{name}' is not registered.", err=True)
+        click.echo(f"Skill '{name}' (env: {resolved_env}) is not registered.", err=True)
         raise click.ClickException(f"Skill '{name}' not found.")
 
     config.skills.remove(found)
@@ -261,7 +293,8 @@ def skill_remove(name: str, purge: bool) -> None:
 
 @skill_group.command(name="search")
 @click.argument("keyword")
-def skill_search(keyword: str) -> None:
+@click.option("--env", "-e", default=None, help="Filter by environment name")
+def skill_search(keyword: str, env: str | None) -> None:
     """Search skills by keyword.
 
     KEYWORD: Keyword to match against skill name, description, and tags.
@@ -274,6 +307,8 @@ def skill_search(keyword: str) -> None:
     kw = keyword.lower()
     results = []
     for s in config.skills:
+        if env and s.env is not None and s.env != env:
+            continue
         if kw in s.name.lower() or kw in s.description.lower() or any(kw in t.lower() for t in s.tags):
             results.append(s)
 
@@ -284,10 +319,11 @@ def skill_search(keyword: str) -> None:
     click.echo(f"Search results: '{keyword}'")
     click.echo("-" * 60)
     for s in results:
+        env_info = f" [{s.env}]" if s.env else ""
         tags_str = f" ({', '.join(s.tags)})" if s.tags else ""
         agent_info = f" [agent: {s.agent}]" if s.agent else ""
         desc = f" - {s.description}" if s.description else ""
-        click.echo(f"  {s.name}{tags_str}{agent_info}{desc}")
+        click.echo(f"  {s.name}{env_info}{tags_str}{agent_info}{desc}")
 
 
 @skill_group.command(name="link-agent")
@@ -327,6 +363,7 @@ def skill_link_agent(skill: str, agent: str) -> None:
 
 
 @skill_group.command(name="get-all")
+@click.option("--env", "-e", default=None, help="Filter by environment name")
 @click.option("--force", is_flag=True, help="Overwrite existing skills")
 @click.option(
     "--project-dir",
@@ -343,11 +380,12 @@ def skill_link_agent(skill: str, agent: str) -> None:
     default="standard",
     help="Output format (standard=.github/skills/, openclaw=~/.openclaw/skills/)",
 )
-def skill_get_all(force: bool, project_dir: str | None, format_name: str) -> None:
+def skill_get_all(env: str | None, force: bool, project_dir: str | None, format_name: str) -> None:
     """Copy all registered skills to project .github/skills/ or OpenClaw skills dir.
 
     With --format openclaw, deploys to ~/.openclaw/skills/ (OpenClaw user skills).
     Existing non-ai-adapter skills in the target directory are preserved.
+    Use --env to filter by environment.
     """
     config = load_config()
     if config is None or not config.skills:
@@ -355,11 +393,14 @@ def skill_get_all(force: bool, project_dir: str | None, format_name: str) -> Non
         return
 
     skills_dir = get_skills_dir()
+    targets = config.skills
+    if env:
+        targets = [s for s in targets if s.env is None or s.env == env]
 
     if format_name == "openclaw":
-        _openclaw_deploy_skills(config.skills, skills_dir, force)
+        _openclaw_deploy_skills(targets, skills_dir, force)
     else:
-        _deploy_skills_standard(config.skills, skills_dir, force, project_dir)
+        _deploy_skills_standard(targets, skills_dir, force, project_dir)
 
 
 def _deploy_skills_standard(
@@ -394,26 +435,37 @@ def _deploy_skills_standard(
 
 
 @skill_group.command(name="remove-all")
+@click.option("--env", "-e", default=None, help="Remove only skills for this environment")
 @click.option("--force", is_flag=True, help="Delete without confirmation prompt")
 @click.option("--purge", is_flag=True, help="Also delete skill files")
-def skill_remove_all(force: bool, purge: bool) -> None:
-    """Remove all skills."""
+def skill_remove_all(env: str | None, force: bool, purge: bool) -> None:
+    """Remove all skills (or only skills matching --env)."""
     config = load_config()
     if config is None or not config.skills:
         click.echo("No skills registered.")
         return
 
-    count = len(config.skills)
+    targets = config.skills
+    if env:
+        targets = [s for s in targets if s.env == env]
+        if not targets:
+            click.echo(f"No skills registered for environment '{env}'.")
+            return
+
+    count = len(targets)
     if not force:
-        click.confirm(f"All skills ({count})?", abort=True)
+        click.confirm(f"Remove {count} skill(s)?", abort=True)
 
     if purge:
         skills_dir = get_skills_dir()
-        for s in config.skills:
+        for s in targets:
             target = skills_dir / s.name
             if target.exists():
                 shutil.rmtree(target)
 
-    config.skills.clear()
+    if env:
+        config.skills = [s for s in config.skills if s.env != env]
+    else:
+        config.skills.clear()
     save_config(config)
-    click.echo(f"All skills ({count}) removed.")
+    click.echo(f"Removed {count} skill(s).")

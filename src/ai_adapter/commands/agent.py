@@ -24,7 +24,7 @@ from ai_adapter.config import (
     load_config,
     save_config,
 )
-from ai_adapter.models import Agent
+from ai_adapter.models import Agent, AgentBinding
 
 
 def _get_agent_name_from_path(path: Path) -> str:
@@ -50,6 +50,49 @@ def _get_agent_name_from_path(path: Path) -> str:
     while p.suffix:
         p = p.with_suffix("")
     return p.name
+
+
+def _is_agent_bound_to_env(agent_name: str, env_name: str, bindings: list[AgentBinding]) -> bool:
+    """Check if an agent has a binding to the specified env."""
+    for b in bindings:
+        if b.agent == agent_name and b.env == env_name:
+            return True
+    return False
+
+
+def _get_agents_for_env(config, env: str | None) -> list:
+    """Get agents filtered by env binding.
+
+    If env is None, returns all agents.
+    If env is specified, returns agents that have a binding to that env.
+    """
+    if env is None:
+        return config.agents
+    return [a for a in config.agents if _is_agent_bound_to_env(a.name, env, config.agent_bindings)]
+
+
+def _find_agent_file(agents_dir: Path, name: str) -> Path | None:
+    """Find an agent file by name (frontmatter or filename)."""
+    # Search by frontmatter name
+    for f in agents_dir.iterdir():
+        if not f.is_file():
+            continue
+        try:
+            fm = _parse_frontmatter(f)
+            if fm.get("name", "").strip() == name:
+                return f
+        except Exception:
+            continue
+    # Search by filename
+    candidates = [
+        agents_dir / f"{name}.agent.md",
+        agents_dir / f"{name}.md",
+        agents_dir / name,
+    ]
+    for c in candidates:
+        if c.exists() and c.is_file():
+            return c
+    return None
 
 
 def _copy_with_tools_conversion(src: Path, dest: Path, fix: bool = False) -> None:
@@ -103,7 +146,8 @@ def agent_group() -> None:
 
 
 @agent_group.command(name="list")
-def agent_list() -> None:
+@click.option("--env", "-e", default=None, help="Filter by environment binding")
+def agent_list(env: str | None) -> None:
     """List registered agents."""
     config = load_config()
     if config is None:
@@ -111,28 +155,42 @@ def agent_list() -> None:
         return
 
     if not config.agents:
-        click.echo("No agents registered.。")
+        click.echo("No agents registered.")
         return
 
-    click.echo("Agents:")
+    agents = _get_agents_for_env(config, env)
+
+    if not agents:
+        click.echo(f"No agents registered for environment '{env}'.")
+        return
+
+    if env:
+        click.echo(f"Agents (env: {env}):")
+    else:
+        click.echo("Agents:")
     click.echo("-" * 40)
-    for agent in config.agents:
+    for agent in agents:
+        bindings = [b.env for b in config.agent_bindings if b.agent == agent.name]
+        binding_info = f" (env: {', '.join(bindings)})" if bindings else ""
         desc = f" - {agent.description}" if agent.description else ""
-        click.echo(f"  {agent.name}{desc}")
+        click.echo(f"  {agent.name}{binding_info}{desc}")
 
 
 @agent_group.command(name="add")
 @click.argument("path", type=click.Path(exists=True, readable=True))
+@click.option("--env", "-e", default=None, help="Environment name (creates binding when specified)")
 @click.option(
     "--fix",
     is_flag=True,
     default=False,
     help="Convert array-format tools to object format (destructive).",
 )
-def agent_add(path: str, fix: bool) -> None:
+def agent_add(path: str, env: str | None, fix: bool) -> None:
     """Add an agent file to ~/.ai-adapter/agents/.
 
     PATH: Path to the agent file to add.
+
+    When --env is specified, also creates an agent-env binding.
     """
     src = Path(path).resolve()
     agents_dir = get_agents_dir()
@@ -181,23 +239,36 @@ def agent_add(path: str, fix: bool) -> None:
     for existing in config.agents:
         if existing.name == name:
             # On overwrite, do not update description (file-based anyway)
+            # Add env binding if specified
+            if env:
+                if not _is_agent_bound_to_env(name, env, config.agent_bindings):
+                    config.agent_bindings.append(AgentBinding(agent=name, env=env))
+                    click.echo(f"Agent '{name}' bound to env '{env}'.")
             save_config(config)
             return
 
     config.agents.append(Agent(name=name))
+    # Add env binding if specified
+    if env:
+        config.agent_bindings.append(AgentBinding(agent=name, env=env))
+        click.echo(f"Agent '{name}' bound to env '{env}'.")
     save_config(config)
 
 
 @agent_group.command(name="add-rec")
 @click.argument("dir_path", type=click.Path(exists=True, file_okay=False, readable=True))
+@click.option("--env", "-e", default=None, help="Environment name (creates bindings when specified)")
 @click.option(
     "--fix",
     is_flag=True,
     default=False,
     help="Convert array-format tools to object format (destructive).",
 )
-def agent_add_rec(dir_path: str, fix: bool) -> None:
-    """Recursively register all agent files in a directory."""
+def agent_add_rec(dir_path: str, env: str | None, fix: bool) -> None:
+    """Recursively register all agent files in a directory.
+
+    When --env is specified, also creates agent-env bindings.
+    """
     src_dir = Path(dir_path).resolve()
     agents_dir = get_agents_dir()
     agents_dir.mkdir(parents=True, exist_ok=True)
@@ -231,6 +302,10 @@ def agent_add_rec(dir_path: str, fix: bool) -> None:
                 else:
                     warned += 1
         config.agents.append(Agent(name=name))
+        # Add env binding if specified
+        if env:
+            if not _is_agent_bound_to_env(name, env, config.agent_bindings):
+                config.agent_bindings.append(AgentBinding(agent=name, env=env))
         added += 1
 
     save_config(config)
@@ -249,6 +324,7 @@ def agent_add_rec(dir_path: str, fix: bool) -> None:
 
 @agent_group.command(name="get")
 @click.argument("name")
+@click.option("--env", "-e", default=None, help="Filter by environment binding")
 @click.option("--force", is_flag=True, help="Overwrite existing files without prompting")
 @click.option(
     "--fix",
@@ -263,52 +339,23 @@ def agent_add_rec(dir_path: str, fix: bool) -> None:
     default=None,
     help="Target project directory (default: current directory)",
 )
-def agent_get(name: str, force: bool, fix: bool, project_dir: str | None) -> None:
+def agent_get(name: str, env: str | None, force: bool, fix: bool, project_dir: str | None) -> None:
     """Copy agent file to .github/agents/.
 
     NAME: Agent name to retrieve (no extension needed).
+
+    Use --env to only get agents bound to a specific environment.
     """
     config = load_config()
     agents_dir = get_agents_dir()
 
-    src = None
+    # If --env is specified, check that the agent is bound to that env
+    if env and config:
+        if not _is_agent_bound_to_env(name, env, config.agent_bindings):
+            click.echo(f"Agent '{name}' is not bound to environment '{env}'.", err=True)
+            raise click.ClickException(f"Agent '{name}' not found for env '{env}'.")
 
-    # Step 1: If the name is in config, look for the agent file
-    if config:
-        for agent_cfg in config.agents:
-            if agent_cfg.name == name:
-                # Name matches config: search all files in agents_dir for matching frontmatter name
-                for f in agents_dir.iterdir():
-                    if not f.is_file():
-                        continue
-                    try:
-                        fm = _parse_frontmatter(f)
-                        if fm.get("name", "").strip() == name:
-                            src = f
-                            break
-                    except Exception:
-                        continue
-                if src is None:
-                    # If no frontmatter found, check by filename
-                    if (agents_dir / f"{name}.agent.md").exists():
-                        src = agents_dir / f"{name}.agent.md"
-                    elif (agents_dir / f"{name}.md").exists():
-                        src = agents_dir / f"{name}.md"
-                    elif (agents_dir / name).exists():
-                        src = agents_dir / name
-                break
-
-    # Step 2: If not in config, search by filename (backward compatibility)
-    if src is None:
-        candidates = [
-            agents_dir / f"{name}.agent.md",
-            agents_dir / f"{name}.md",
-            agents_dir / name,
-        ]
-        for c in candidates:
-            if c.exists() and c.is_file():
-                src = c
-                break
+    src = _find_agent_file(agents_dir, name)
 
     if src is None:
         click.echo(f"Agent '{name}' not found.", err=True)
@@ -329,6 +376,7 @@ def agent_get(name: str, force: bool, fix: bool, project_dir: str | None) -> Non
 
 
 @agent_group.command(name="get-all")
+@click.option("--env", "-e", default=None, help="Filter by environment binding")
 @click.option(
     "--project-dir",
     "-d",
@@ -342,11 +390,14 @@ def agent_get(name: str, force: bool, fix: bool, project_dir: str | None) -> Non
     default=False,
     help="Convert array-format tools to object format (destructive).",
 )
-def agent_get_all(project_dir: str | None, fix: bool) -> None:
-    """Copy all registered agents to .github/agents/."""
+def agent_get_all(env: str | None, project_dir: str | None, fix: bool) -> None:
+    """Copy all registered agents to .github/agents/.
+
+    Use --env to only deploy agents bound to a specific environment.
+    """
     config = load_config()
     if config is None or not config.agents:
-        click.echo("No agents registered.。")
+        click.echo("No agents registered.")
         return
 
     agents_dir = get_agents_dir()
@@ -354,31 +405,12 @@ def agent_get_all(project_dir: str | None, fix: bool) -> None:
     github_dir = get_github_agents_dir(project_path)
     github_dir.mkdir(parents=True, exist_ok=True)
 
+    targets = _get_agents_for_env(config, env)
+
     copied = 0
-    for agent_cfg in config.agents:
+    for agent_cfg in targets:
         name = agent_cfg.name
-        src = None
-        # Search for file
-        for f in agents_dir.iterdir():
-            if not f.is_file():
-                continue
-            try:
-                fm = _parse_frontmatter(f)
-                if fm.get("name", "").strip() == name:
-                    src = f
-                    break
-            except Exception:
-                continue
-        if src is None:
-            candidates = [
-                agents_dir / f"{name}.agent.md",
-                agents_dir / f"{name}.md",
-                agents_dir / name,
-            ]
-            for c in candidates:
-                if c.exists() and c.is_file():
-                    src = c
-                    break
+        src = _find_agent_file(agents_dir, name)
         if src is None:
             click.echo(f"  Skip: '{name}' file not found.")
             continue
@@ -393,22 +425,41 @@ def agent_get_all(project_dir: str | None, fix: bool) -> None:
 
 @agent_group.command(name="remove")
 @click.argument("name")
+@click.option("--env", "-e", default=None, help="Remove only the env binding (not the agent)")
 @click.option(
     "--keep-file/--no-keep-file",
     default=False,
     help="Keep physical files (default: also delete files)",
 )
-def agent_remove(name: str, keep_file: bool) -> None:
-    """Remove an agent.
+def agent_remove(name: str, env: str | None, keep_file: bool) -> None:
+    """Remove an agent (or only its env binding when --env is specified).
 
     NAME: Name of the agent to remove.
+
+    With --env, only removes the binding to that env (agent remains).
+    Without --env, removes the agent entirely.
     """
     config = load_config()
     if config is None:
         click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
-    # Remove from config
+    # If --env is specified, only remove the binding
+    if env:
+        found_binding = None
+        for b in config.agent_bindings:
+            if b.agent == name and b.env == env:
+                found_binding = b
+                break
+        if found_binding is None:
+            click.echo(f"Agent '{name}' is not bound to environment '{env}'.", err=True)
+            raise click.ClickException(f"Binding '{name}' -> '{env}' not found.")
+        config.agent_bindings.remove(found_binding)
+        save_config(config)
+        click.echo(f"Agent '{name}' unbound from env '{env}'.")
+        return
+
+    # Remove from config (full removal)
     found = False
     for agent in list(config.agents):
         if agent.name == name:
@@ -419,6 +470,9 @@ def agent_remove(name: str, keep_file: bool) -> None:
     if not found:
         click.echo(f"Agent '{name}' is not registered.", err=True)
         raise click.ClickException(f"Agent '{name}' not found.")
+
+    # Also remove all bindings for this agent
+    config.agent_bindings = [b for b in config.agent_bindings if b.agent != name]
 
     save_config(config)
 
@@ -456,19 +510,40 @@ def agent_remove(name: str, keep_file: bool) -> None:
 
 
 @agent_group.command(name="remove-all")
+@click.option("--env", "-e", default=None, help="Remove only env bindings for this environment")
 @click.option(
     "--keep-file/--no-keep-file",
     default=False,
     help="Keep physical files (default: also delete files)",
 )
 @click.option("--force", is_flag=True, help="Delete without confirmation prompt")
-def agent_remove_all(keep_file: bool, force: bool) -> None:
-    """Remove all agents."""
+def agent_remove_all(env: str | None, keep_file: bool, force: bool) -> None:
+    """Remove all agents (or only env bindings when --env is specified).
+
+    With --env, only removes bindings to that env (agents remain).
+    Without --env, removes all agents entirely.
+    """
     config = load_config()
     if config is None or not config.agents:
-        click.echo("No agents registered.。")
+        click.echo("No agents registered.")
         return
 
+    # If --env is specified, only remove bindings
+    if env:
+        bindings_to_remove = [b for b in config.agent_bindings if b.env == env]
+        if not bindings_to_remove:
+            click.echo(f"No agent bindings found for environment '{env}'.")
+            return
+        count = len(bindings_to_remove)
+        if not force:
+            click.confirm(f"Remove {count} agent binding(s) for env '{env}'?", abort=True)
+        for b in bindings_to_remove:
+            config.agent_bindings.remove(b)
+        save_config(config)
+        click.echo(f"Removed {count} agent binding(s) for env '{env}'.")
+        return
+
+    # Full removal
     count = len(config.agents)
     if not force:
         click.confirm(f"Remove all agents ({count})?", abort=True)
@@ -482,5 +557,6 @@ def agent_remove_all(keep_file: bool, force: bool) -> None:
                 f.unlink()
 
     config.agents.clear()
+    config.agent_bindings.clear()
     save_config(config)
     click.echo(f"All agents ({count}) removed.")

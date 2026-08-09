@@ -231,3 +231,28 @@ def _find_gitignore_path(path: Path) -> Path | None:
         if (parent / ".git").exists() or (parent / ".git").is_dir():
             return parent / ".gitignore"
     return None
+
+
+def resolve_env(config: Config, env_arg: str | None, agent_name: str | None = None) -> str:
+    """Resolve env when the --env argument is omitted.
+
+    Resolution order:
+    1. Explicitly specified --env value
+    2. Agent binding (if agent_name is given)
+    3. Default environment (config.default_env)
+
+    Args:
+        config: Config object.
+        env_arg: Explicitly specified env name (None means resolution needed).
+        agent_name: Current agent name (optional).
+
+    Returns:
+        Resolved environment name.
+    """
+    if env_arg:
+        return env_arg
+    if agent_name:
+        for binding in config.agent_bindings:
+            if binding.agent == agent_name:
+                return binding.env
+    return config.default_env

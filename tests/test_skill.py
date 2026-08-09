@@ -203,7 +203,7 @@ class TestSkillCommands(unittest.TestCase):
 
         result = self.runner.invoke(main, ["skill", "remove-all", "--force"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("All skills", result.output)
+        self.assertIn("Removed", result.output)
 
         # remove-all only clears config (directory is preserved, but list reads from config)
         result = self.runner.invoke(main, ["skill", "list"])

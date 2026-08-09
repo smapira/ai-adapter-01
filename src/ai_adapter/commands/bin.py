@@ -16,30 +16,10 @@ from ai_adapter.config import (
     get_bins_dir,
     get_github_bins_dir,
     load_config,
+    resolve_env,
     save_config,
 )
-from ai_adapter.models import Bin, Config
-
-
-def resolve_env(config: Config, env_arg: str | None, agent_name: str | None = None) -> str:
-    """Resolve env when the argument is omitted.
-    Order: agent binding -> default environment.
-
-    Args:
-        config: Config object.
-        env_arg: Explicitly specified env name (None means resolution needed).
-        agent_name: Current agent name (optional).
-
-    Returns:
-        Resolved environment name.
-    """
-    if env_arg:
-        return env_arg
-    if agent_name:
-        for binding in config.agent_bindings:
-            if binding.agent == agent_name:
-                return binding.env
-    return config.default_env
+from ai_adapter.models import Bin
 
 
 @click.group(name="bin")

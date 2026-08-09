@@ -75,7 +75,7 @@ ai-adapter --version
 
 ```bash
 # 1. Initialize
-ai-adapter init
+ai-adapter start https://github.com/YOUR-REPO/YOUR-CONFIG.git
 
 # 2. Add an agent file (for .github/agents/, e.g. individual .agent.md files)
 ai-adapter sub-agent add ~/my-agents/reviewer.md
@@ -89,8 +89,9 @@ ai-adapter env add myhome
 # 4. Add a script
 ai-adapter bin add --env myhome ~/scripts/deploy.sh
 
-# 5. Add a skill
+# 5. Add a skill (optionally with --env)
 ai-adapter skill add ~/my-skills/database-schema
+ai-adapter skill add --env myhome ~/my-skills/database-schema
 
 # 6. Add an MCP server
 ai-adapter mcp add github --command npx --args @modelcontextprotocol/server-github
@@ -101,6 +102,7 @@ ai-adapter sub-agent get reviewer      # → .github/agents/reviewer.md
 ai-adapter agent get AGENTS            # → ./AGENTS.md (project root)
 ai-adapter bin get --env myhome deploy   # → .github/bin/deploy.sh
 ai-adapter skill get database-schema  # → .github/skills/database-schema/
+ai-adapter skill get-all --env myhome # → deploy only myhome skills
 ai-adapter mcp get                     # → .mcp.json
 
 # 8. Deploy to OpenClaw (optional, requires OpenClaw installed)
@@ -220,12 +222,14 @@ Deploys to `.github/agents/`.
 | `sub-agent remove <name>` | Remove an agent (use `--keep-file` to keep the file) |
 | `sub-agent remove-all` | Remove all agents (supports `--keep-file`, `--force`) |
 
+All commands above accept `--env <env>` to filter or scope by environment (e.g. `sub-agent add --env production reviewer.md`, `sub-agent list --env production`). When adding with `--env`, an agent-env binding is created. When removing with `--env`, only the binding is removed (not the agent itself).
+
 ```bash
 ai-adapter sub-agent add ~/dotfiles/agents/reviewer.md
-ai-adapter sub-agent list
+ai-adapter sub-agent add --env production ~/dotfiles/agents/reviewer.md
+ai-adapter sub-agent list --env production
 ai-adapter sub-agent get reviewer
-ai-adapter sub-agent remove reviewer
-ai-adapter sub-agent remove-all --force
+ai-adapter sub-agent remove reviewer --env production
 ```
 
 ### `ai-adapter env`
@@ -286,19 +290,22 @@ Manages skills (directories containing SKILL.md).
 | `skill add-rec <dir>` | Recursively register all skills in a directory |
 | `skill get <name>` | Copy a skill to `.github/skills/` |
 | `skill get-all` | Copy all registered skills to `.github/skills/` |
-| `skill get-all --format openclaw` | Copy all registered skills to `~/.openclaw/skills/` (preserves existing skills) |
+| `skill get-all --format openclaw` | Copy all registered skills to `~/.openclaw/skills/` |
 | `skill list` | List registered skills (filter with `--tag`) |
 | `skill remove <name>` | Remove a skill (use `--purge` to also delete files) |
 | `skill remove-all` | Remove all skills (supports `--purge`, `--force`) |
 | `skill search <keyword>` | Search skills by keyword |
 | `skill link-agent <skill> <agent>` | Bind a skill to an agent |
 
+All commands above accept `--env <env>` to filter or scope by environment, and `--agent <agent>` on add commands for env resolution (e.g. `skill add --env production ~/skills/db/`, `skill get-all --env staging`).
+
 ```bash
 ai-adapter skill add ~/skills/database-schema/
-ai-adapter skill list
+ai-adapter skill add --env production ~/skills/database-schema/
+ai-adapter skill list --env production
 ai-adapter skill get database-schema
+ai-adapter skill get-all --env staging --force
 ai-adapter skill search prisma
-ai-adapter skill link-agent database-schema reviewer
 ```
 
 ### `ai-adapter mcp`
@@ -353,12 +360,14 @@ Manages VS Code custom command definitions (`.sh`, `.py`, `.js`, etc.).
 | `command remove <name>` | Remove a command |
 | `command remove-all` | Remove all commands (supports `--force`) |
 
+All commands above accept `--env <env>` to filter or scope by environment, and `--agent <agent>` on add commands for env resolution.
+
 ```bash
 ai-adapter command add ~/scripts/deploy.sh
-ai-adapter command list
+ai-adapter command add --env production ~/scripts/deploy.sh
+ai-adapter command list --env production
 ai-adapter command get deploy
 ai-adapter command remove deploy
-ai-adapter command remove-all --force
 ```
 
 ### `ai-adapter prompt`
@@ -375,12 +384,14 @@ Manages prompt templates for AI agents.
 | `prompt remove <name>` | Remove a prompt |
 | `prompt remove-all` | Remove all prompts (supports `--force`) |
 
+All commands above accept `--env <env>` to filter or scope by environment, and `--agent <agent>` on add commands for env resolution.
+
 ```bash
 ai-adapter prompt add ~/prompts/code-review.md
-ai-adapter prompt list
+ai-adapter prompt add --env production ~/prompts/code-review.md
+ai-adapter prompt list --env production
 ai-adapter prompt get code-review
 ai-adapter prompt remove code-review
-ai-adapter prompt remove-all --force
 ```
 
 ### `ai-adapter opencode`
@@ -535,11 +546,14 @@ This directory can be turned into a Git repository and synced across multiple PC
 
 ### Environment Resolution Priority
 
-When `[env]` is omitted in `bin` commands:
+When `--env` is omitted in `add` / `add-rec` commands (for `bin`, `skill`, `command`, `prompt`):
 
 1. If the `--agent` option is explicitly specified, the bound environment of that agent is used
 2. If the relevant agent exists in `agent_bindings`, its bound environment is used
 3. If neither applies, `default_env` (default: `"default"`) is used
+
+For `list`, `get`, `get-all`, `remove`, `remove-all` commands, `--env` acts as a filter.
+Items with no env set (universal) are always included regardless of the filter.
 
 ---
 
@@ -574,8 +588,15 @@ All settings are stored in `~/.ai-adapter/config.json`.
       "description": "Database schema design and review knowledge",
       "path": "skills/database-schema",
       "tags": ["database", "prisma", "schema"],
-      "agent": "reviewer"
+      "agent": "reviewer",
+      "env": "production"
     }
+  ],
+  "commands": [
+    { "name": "deploy", "content": "#!/bin/bash\necho deploy", "env": "production" }
+  ],
+  "prompts": [
+    { "name": "code-review", "content": "Review checklist...", "env": "staging" }
   ],
   "mcp_servers": [
     {

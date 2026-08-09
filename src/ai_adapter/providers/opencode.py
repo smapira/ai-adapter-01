@@ -108,6 +108,7 @@ def opencode_install() -> None:
     instructions = _build_instructions(cfg)
     config: dict = {
         "$schema": "https://opencode.ai/config.json",
+        "lsp": False,
         "instructions": instructions,
         "permission": _DEFAULT_PERMISSION,
     }

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.19.1] - 2026-08-09
+
+### Fixed
+
+- Add `publish.yml` workflow with `workflow_dispatch` trigger for manual releases
+
 ## [0.19.0] - 2026-08-09
 
 ### Added

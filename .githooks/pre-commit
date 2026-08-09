@@ -19,7 +19,7 @@ echo "✅ Lint passed"
 echo
 
 echo "=== 🧪 Pytest ==="
-uv run pytest
+uv run python -m pytest -n auto
 if [ $? -ne 0 ]; then
     echo "❌ Tests failed. Commit aborted."
     exit 1

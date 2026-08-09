@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.19.2] - 2026-08-10
+
+### Added
+
+- **`get-all-rec --env`**: Filter deployment by environment name
+  - Only deploys items (bins, MCP servers) matching the specified environment
+  - Items with no env set are always included (universal)
+
+- **`mcp get --env`**: Filter MCP server export by environment name
+  - Only exports servers matching the specified environment
+  - Servers with no env set are always included (universal)
+
+- **`opencode install` lsp option**: Generated `opencode.json` now includes `"lsp": false`
+
 ## [0.19.1] - 2026-08-09
 
 ### Fixed

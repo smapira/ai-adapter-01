@@ -195,3 +195,6 @@ opencode.json
 /AGENTS.md
 /CLAUDE.md
 /.opencode/
+/.github/node_modules
+/.github/bin/ai_adapter_sync.sh
+/.github/bin/ocr_extract.swift

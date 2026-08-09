@@ -167,11 +167,15 @@ The reverse of `add-all-rec` — runs `sub-agent get-all` + `bin get-all` + `ski
 | Option | Description |
 |--------|-------------|
 | `--force` | Overwrite existing files without prompting |
+| `--env` | Filter by environment name (only deploy items for this env) |
 | `--project-dir`, `-d` | Target project directory (default: current directory) |
 
 ```bash
 # Deploy everything from ~/.ai-adapter/ to the current project
 ai-adapter get-all-rec
+
+# Deploy only items for a specific environment
+ai-adapter get-all-rec --env remote
 
 # Force overwrite to a specific project
 ai-adapter get-all-rec --force --project-dir /path/to/project
@@ -308,6 +312,7 @@ Manages MCP server settings.
 | `mcp remove <name>` | Remove an MCP server setting |
 | `mcp list` | List MCP servers (filter with `--tool`, `--env`) |
 | `mcp get --path <dir>` | Export MCP settings to `.mcp.json` (default: current directory) |
+| `mcp get --env <env>` | Export MCP settings filtered by environment |
 | `mcp get --format openclaw` | Export MCP settings to `~/.openclaw/openclaw.json` (server-name-based merge) |
 | `mcp remove-all` | Remove all MCP server settings (supports `--force`) |
 
@@ -324,6 +329,8 @@ ai-adapter mcp list
 
 # Export to current directory (standard format)
 ai-adapter mcp get
+# Export only servers for a specific environment
+ai-adapter mcp get --env remote
 # Export to a specified directory
 ai-adapter mcp get --path /path/to/project
 # Export to OpenClaw format (~/.openclaw/openclaw.json)

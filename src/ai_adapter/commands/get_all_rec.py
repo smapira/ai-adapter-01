@@ -65,16 +65,19 @@ def _deploy_agents(config: _config.Config, project_path: Path | None, force: boo
     return deployed
 
 
-def _deploy_bins(config: _config.Config, project_path: Path | None, force: bool) -> int:
+def _deploy_bins(config: _config.Config, project_path: Path | None, force: bool, env: str | None = None) -> int:
     """Deploy registered scripts to .github/bin/."""
     bins_dir = _config.get_bins_dir()
     if not bins_dir.exists() or not config.bins:
         click.echo("  bin/: skip (no registered scripts)")
         return 0
+    bins = config.bins
+    if env:
+        bins = [b for b in bins if b.env is None or b.env == env]
     github_bins_dir = _config.get_github_bins_dir(project_path)
     github_bins_dir.mkdir(parents=True, exist_ok=True)
     deployed = 0
-    for bin_entry in config.bins:
+    for bin_entry in bins:
         src = bins_dir / bin_entry.name
         if not src.exists():
             click.echo(f"   Skip script: '{bin_entry.name}' file not found.")
@@ -156,11 +159,13 @@ def _deploy_prompts(config: _config.Config, project_path: Path | None, force: bo
     return deployed
 
 
-def _deploy_mcp(config: _config.Config, project_path: Path | None, force: bool) -> int:
+def _deploy_mcp(config: _config.Config, project_path: Path | None, force: bool, env: str | None = None) -> int:
     """Deploy enabled MCP servers to .mcp.json."""
     import json
 
     enabled_servers = [s for s in config.mcp_servers if s.enabled]
+    if env:
+        enabled_servers = [s for s in enabled_servers if s.env is None or s.env == env]
     if not enabled_servers:
         click.echo("  .mcp.json: skip (no enabled MCP servers)")
         return 0
@@ -209,6 +214,7 @@ def _deploy_instructions(config: _config.Config, project_path: Path | None, forc
 
 @click.command(name="get-all-rec")
 @click.option("--force", is_flag=True, help="Overwrite existing files without prompting")
+@click.option("--env", help="Filter by environment name (only deploy items for this env)")
 @click.option(
     "--project-dir",
     "-d",
@@ -216,7 +222,7 @@ def _deploy_instructions(config: _config.Config, project_path: Path | None, forc
     default=None,
     help="Target project directory (default: current directory)",
 )
-def cmd_get_all_rec(force: bool, project_dir: str | None) -> None:
+def cmd_get_all_rec(force: bool, env: str | None, project_dir: str | None) -> None:
     """Deploy all registered items to .github/ (reverse of add-all-rec)."""
     config = _config.load_config()
     if config is None:
@@ -226,11 +232,11 @@ def cmd_get_all_rec(force: bool, project_dir: str | None) -> None:
     project_path = Path(project_dir).resolve() if project_dir else None
     total = 0
     total += _deploy_agents(config, project_path, force)
-    total += _deploy_bins(config, project_path, force)
+    total += _deploy_bins(config, project_path, force, env)
     total += _deploy_skills(config, project_path, force)
     total += _deploy_commands(config, project_path, force)
     total += _deploy_prompts(config, project_path, force)
-    total += _deploy_mcp(config, project_path, force)
+    total += _deploy_mcp(config, project_path, force, env)
     total += _deploy_instructions(config, project_path, force)
     click.echo(f"All deployments completed: Total: {total}")
 

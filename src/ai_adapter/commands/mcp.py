@@ -202,12 +202,13 @@ def _mcp_get_openclaw(servers: list[MCPServer], path: str | None, force: bool = 
     default="standard",
     help="Output format (standard=.mcp.json, openclaw=openclaw.json)",
 )
+@click.option("--env", help="Filter by environment name (only export servers for this env)")
 @click.option(
     "--force",
     is_flag=True,
     help="Overwrite output file without confirmation",
 )
-def mcp_get(path: str | None, format: str, force: bool) -> None:
+def mcp_get(path: str | None, format: str, env: str | None, force: bool) -> None:
     """Export MCP configuration to .mcp.json or openclaw.json."""
     config = _config.load_config()
     if config is None:
@@ -215,6 +216,8 @@ def mcp_get(path: str | None, format: str, force: bool) -> None:
         return
 
     enabled_servers = [s for s in config.mcp_servers if s.enabled]
+    if env:
+        enabled_servers = [s for s in enabled_servers if s.env is None or s.env == env]
     if not enabled_servers:
         click.echo("No enabled MCP servers registered.")
         return

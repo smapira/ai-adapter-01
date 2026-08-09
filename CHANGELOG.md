@@ -4,6 +4,15 @@
 
 ### Added
 
+- **`opencode validate` config validation**: `opencode.json` schema validation now checks:
+  - `instructions` array structure
+  - `permission` key names (validates against opencode schema)
+  - `mcp` server configuration (type, command, enabled, environment)
+  - `skills.paths` array structure
+  - `command` entries (template required)
+  - New `--config-only` option to validate only `opencode.json`
+  - 13 test cases added
+
 - **`opencode install` MCP support**: Generated `opencode.json` now includes registered MCP
   servers in opencode format (`type: "local"`, `command` array, `environment` with `${VAR}`)
   - Disabled servers are included with `enabled: false`

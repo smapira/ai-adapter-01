@@ -244,6 +244,181 @@ def opencode_uninstall() -> None:
     click.echo(f"opencode.json removed: {output_path}")
 
 
+# Valid permission keys per opencode.json schema
+_VALID_PERMISSION_KEYS = frozenset(
+    {
+        "read",
+        "edit",
+        "glob",
+        "grep",
+        "list",
+        "bash",
+        "task",
+        "external_directory",
+        "todowrite",
+        "question",
+        "webfetch",
+        "websearch",
+        "lsp",
+        "doom_loop",
+        "skill",
+    }
+)
+
+
+def _validate_opencode_config(config_path: Path) -> list[str]:
+    """Validate opencode.json against expected schema.
+
+    Returns a list of error messages (empty = valid).
+    """
+    data = _load_json_file(config_path)
+    if isinstance(data, list) and len(data) == 1:
+        return data  # error list from _load_json_file
+
+    errors: list[str] = []
+    errors.extend(_validate_instructions(data))
+    errors.extend(_validate_permission(data))
+    errors.extend(_validate_mcp_section(data))
+    errors.extend(_validate_skills_section(data))
+    errors.extend(_validate_command_section(data))
+    return errors
+
+
+def _load_json_file(path: Path) -> dict | list[str]:
+    """Load and parse a JSON file. Returns dict or single-element error list."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        return [f"Invalid JSON: {e}"]
+    except OSError as e:
+        return [f"Cannot read file: {e}"]
+
+    if not isinstance(data, dict):
+        return ["opencode.json must be a JSON object"]
+    return data
+
+
+def _validate_instructions(data: dict) -> list[str]:
+    """Validate the instructions section."""
+    if "instructions" not in data:
+        return []
+    val = data["instructions"]
+    if not isinstance(val, list):
+        return ["'instructions' must be an array"]
+    if not all(isinstance(s, str) for s in val):
+        return ["'instructions' items must be strings"]
+    return []
+
+
+def _validate_permission(data: dict) -> list[str]:
+    """Validate the permission section."""
+    if "permission" not in data:
+        return []
+    perm = data["permission"]
+    if not isinstance(perm, dict):
+        return ["'permission' must be an object"]
+
+    errors: list[str] = []
+    for key in perm:
+        if key not in _VALID_PERMISSION_KEYS:
+            errors.append(f"Unknown permission key: '{key}'")
+    for key, val in perm.items():
+        if key in _VALID_PERMISSION_KEYS and val not in ("ask", "allow", "deny"):
+            errors.append(f"permission.{key}: invalid value '{val}' (expected ask/allow/deny)")
+    return errors
+
+
+def _validate_mcp_section(data: dict) -> list[str]:
+    """Validate the mcp section."""
+    if "mcp" not in data:
+        return []
+    mcp = data["mcp"]
+    if not isinstance(mcp, dict):
+        return ["'mcp' must be an object"]
+
+    errors: list[str] = []
+    for name, server in mcp.items():
+        errors.extend(_validate_mcp_server(name, server))
+    return errors
+
+
+def _validate_skills_section(data: dict) -> list[str]:
+    """Validate the skills section."""
+    if "skills" not in data:
+        return []
+    skills = data["skills"]
+    if not isinstance(skills, dict):
+        return ["'skills' must be an object"]
+    if "paths" not in skills:
+        return []
+    if not isinstance(skills["paths"], list):
+        return ["'skills.paths' must be an array"]
+    if not all(isinstance(p, str) for p in skills["paths"]):
+        return ["'skills.paths' items must be strings"]
+    return []
+
+
+def _validate_command_section(data: dict) -> list[str]:
+    """Validate the command section."""
+    if "command" not in data:
+        return []
+    cmd_section = data["command"]
+    if not isinstance(cmd_section, dict):
+        return ["'command' must be an object"]
+
+    errors: list[str] = []
+    for name, cmd in cmd_section.items():
+        errors.extend(_validate_command_entry(name, cmd))
+    return errors
+
+
+def _validate_mcp_server(name: str, server: object) -> list[str]:
+    """Validate a single MCP server entry."""
+    prefix = f"mcp.{name}"
+    if not isinstance(server, dict):
+        return [f"{prefix} must be an object"]
+
+    errors: list[str] = []
+
+    if "type" not in server:
+        errors.append(f"{prefix}: missing 'type'")
+    elif server["type"] not in ("local", "remote"):
+        errors.append(f"{prefix}: invalid type '{server['type']}' (expected local/remote)")
+
+    if "command" not in server:
+        errors.append(f"{prefix}: missing 'command'")
+    elif not isinstance(server["command"], list):
+        errors.append(f"{prefix}: 'command' must be an array")
+    elif not all(isinstance(c, str) for c in server["command"]):
+        errors.append(f"{prefix}: 'command' items must be strings")
+
+    if "enabled" in server and not isinstance(server["enabled"], bool):
+        errors.append(f"{prefix}: 'enabled' must be a boolean")
+
+    if "environment" in server:
+        if not isinstance(server["environment"], dict):
+            errors.append(f"{prefix}: 'environment' must be an object")
+        elif not all(isinstance(v, str) for v in server["environment"].values()):
+            errors.append(f"{prefix}: 'environment' values must be strings")
+
+    return errors
+
+
+def _validate_command_entry(name: str, cmd: object) -> list[str]:
+    """Validate a single command entry."""
+    prefix = f"command.{name}"
+    if not isinstance(cmd, dict):
+        return [f"{prefix} must be an object"]
+
+    if "template" not in cmd:
+        return [f"{prefix}: missing required 'template'"]
+    if not isinstance(cmd["template"], str):
+        return [f"{prefix}: 'template' must be a string"]
+
+    return []
+
+
 @opencode_group.command(name="validate")
 @click.option(
     "--fix",
@@ -262,31 +437,46 @@ def opencode_uninstall() -> None:
     default=None,
     help="Target project directory (default: current directory)",
 )
-def opencode_validate(fix: bool, quiet: bool, project_dir: str | None) -> None:
-    """Validate agent file formats in ``.github/agents/``.
+@click.option(
+    "--config-only",
+    is_flag=True,
+    help="Validate only opencode.json (skip agent file validation).",
+)
+def opencode_validate(fix: bool, quiet: bool, project_dir: str | None, config_only: bool) -> None:
+    """Validate opencode.json and agent file formats.
 
-    Checks that all ``.agent.md`` files have ``tools`` in object format
-    (``tools:\n  execute: true\n  read: true``) rather than array format
-    (``tools: [execute, read]``).
+    By default, validates both:
+    - ``opencode.json`` schema (instructions, permission, mcp, skills, command)
+    - ``.github/agents/*.agent.md`` tools format (object vs array)
 
     Exit code: 0 if all valid, 1 if any issues found.
     """
     base_dir = Path(project_dir).resolve() if project_dir else Path.cwd()
-    agents_dir = base_dir / ".github" / "agents"
+    all_errors: list[str] = []
 
-    if not agents_dir.exists():
+    # Validate opencode.json
+    config_path = base_dir / "opencode.json"
+    if config_path.exists():
+        config_errors = _validate_opencode_config(config_path)
+        all_errors.extend(config_errors)
+    else:
         if not quiet:
-            click.echo("No .github/agents/ directory found.")
-        return
+            click.echo("opencode.json not found.")
+        all_errors.append("opencode.json not found")
 
-    errors = batch_validate_and_fix(agents_dir, fix=fix)
+    # Validate agent files (unless --config-only)
+    if not config_only:
+        agents_dir = base_dir / ".github" / "agents"
+        if agents_dir.exists():
+            agent_errors = batch_validate_and_fix(agents_dir, fix=fix)
+            all_errors.extend(agent_errors)
 
-    if errors:
+    if all_errors:
         if not quiet:
-            for err in errors:
+            for err in all_errors:
                 click.echo(err, err=True)
             if fix:
-                click.echo(f"Fixed {len(errors)} file(s).")
+                click.echo(f"Fixed {len(all_errors)} issue(s).")
             else:
                 click.echo(
                     "Run with --fix to automatically correct format.",
@@ -295,4 +485,4 @@ def opencode_validate(fix: bool, quiet: bool, project_dir: str | None) -> None:
         raise SystemExit(1)
 
     if not quiet:
-        click.echo("All agent files are valid.")
+        click.echo("All validations passed.")

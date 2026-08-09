@@ -385,8 +385,9 @@ Manages OpenCode integration settings.
 | `opencode alias` | Create a symbolic link `.opencode` → `.github` |
 | `opencode install` | Generate `opencode.json` in the current directory (includes MCP, skills, prompts, and agents) |
 | `opencode uninstall` | Remove `opencode.json` |
-| `opencode validate` | Validate agent file formats in `.github/agents/` |
+| `opencode validate` | Validate `opencode.json` schema and agent file formats |
 | `opencode validate --fix` | Automatically fix array-format tools to object format |
+| `opencode validate --config-only` | Validate only `opencode.json` (skip agent file validation) |
 
 ```bash
 # Create an alias from .opencode to .github

@@ -500,11 +500,22 @@ class TestOpencodeValidateCommand(unittest.TestCase):
 
     def test_opencode_validate_valid(self):
         """All files valid → exit 0."""
+        # Create a valid opencode.json
+        config_path = Path.cwd() / "opencode.json"
+        config_path.write_text(
+            json.dumps(
+                {
+                    "$schema": "https://opencode.ai/config.json",
+                    "instructions": [".github/copilot-instructions.md"],
+                    "permission": {"read": "ask", "edit": "ask"},
+                }
+            )
+        )
         agents_dir = self._create_github_agents()
         (agents_dir / "good.agent.md").write_text("---\nname: good\ntools:\n  execute: true\n---\n")
         result = self.runner.invoke(main, ["opencode", "validate"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("All agent files are valid", result.output)
+        self.assertIn("All validations passed", result.output)
 
     def test_opencode_validate_invalid(self):
         """Invalid files detected → exit 1."""
@@ -536,16 +547,181 @@ class TestOpencodeValidateCommand(unittest.TestCase):
         self.assertEqual(result.output.strip(), "")
 
     def test_opencode_validate_no_agents_dir(self):
-        """No ``.github/agents/`` → exit 0 with message."""
+        """No ``.github/agents/`` and no opencode.json → exit 1 with error."""
         # Ensure agents/ doesn't exist for this test
         agents_dir = Path.cwd() / ".github" / "agents"
         if agents_dir.exists():
             import shutil
 
             shutil.rmtree(agents_dir)
+        # Also remove any existing opencode.json
+        config_path = Path.cwd() / "opencode.json"
+        if config_path.exists():
+            config_path.unlink()
         result = self.runner.invoke(main, ["opencode", "validate"])
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("opencode.json not found", result.output)
+
+    def test_opencode_validate_config_valid(self):
+        """Valid opencode.json → exit 0."""
+        config_path = Path.cwd() / "opencode.json"
+        config_path.write_text(
+            json.dumps(
+                {
+                    "$schema": "https://opencode.ai/config.json",
+                    "instructions": [".github/copilot-instructions.md"],
+                    "permission": {"read": "ask", "edit": "ask"},
+                }
+            )
+        )
+        result = self.runner.invoke(main, ["opencode", "validate", "--config-only"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("No .github/agents/ directory found", result.output)
+        self.assertIn("All validations passed", result.output)
+
+    def test_opencode_validate_config_invalid_json(self):
+        """Invalid JSON → exit 1 with error."""
+        config_path = Path.cwd() / "opencode.json"
+        config_path.write_text("{invalid json}}")
+        result = self.runner.invoke(main, ["opencode", "validate", "--config-only"])
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("Invalid JSON", result.output)
+
+    def test_opencode_validate_config_not_object(self):
+        """JSON not an object → exit 1."""
+        config_path = Path.cwd() / "opencode.json"
+        config_path.write_text('"just a string"')
+        result = self.runner.invoke(main, ["opencode", "validate", "--config-only"])
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("must be a JSON object", result.output)
+
+    def test_opencode_validate_config_invalid_permission_key(self):
+        """Unknown permission key → exit 1."""
+        config_path = Path.cwd() / "opencode.json"
+        config_path.write_text(
+            json.dumps(
+                {
+                    "permission": {"invalid_key": "ask"},
+                }
+            )
+        )
+        result = self.runner.invoke(main, ["opencode", "validate", "--config-only"])
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("Unknown permission key", result.output)
+
+    def test_opencode_validate_config_invalid_permission_value(self):
+        """Invalid permission value → exit 1."""
+        config_path = Path.cwd() / "opencode.json"
+        config_path.write_text(
+            json.dumps(
+                {
+                    "permission": {"read": "invalid"},
+                }
+            )
+        )
+        result = self.runner.invoke(main, ["opencode", "validate", "--config-only"])
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("invalid value", result.output)
+
+    def test_opencode_validate_config_mcp_missing_type(self):
+        """MCP server missing type → exit 1."""
+        config_path = Path.cwd() / "opencode.json"
+        config_path.write_text(
+            json.dumps(
+                {
+                    "mcp": {"github": {"command": ["npx", "pkg"]}},
+                }
+            )
+        )
+        result = self.runner.invoke(main, ["opencode", "validate", "--config-only"])
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("missing 'type'", result.output)
+
+    def test_opencode_validate_config_mcp_invalid_type(self):
+        """MCP server with invalid type → exit 1."""
+        config_path = Path.cwd() / "opencode.json"
+        config_path.write_text(
+            json.dumps(
+                {
+                    "mcp": {"github": {"type": "invalid", "command": ["npx"]}},
+                }
+            )
+        )
+        result = self.runner.invoke(main, ["opencode", "validate", "--config-only"])
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("invalid type", result.output)
+
+    def test_opencode_validate_config_mcp_missing_command(self):
+        """MCP server missing command → exit 1."""
+        config_path = Path.cwd() / "opencode.json"
+        config_path.write_text(
+            json.dumps(
+                {
+                    "mcp": {"github": {"type": "local"}},
+                }
+            )
+        )
+        result = self.runner.invoke(main, ["opencode", "validate", "--config-only"])
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("missing 'command'", result.output)
+
+    def test_opencode_validate_config_command_missing_template(self):
+        """Command missing template → exit 1."""
+        config_path = Path.cwd() / "opencode.json"
+        config_path.write_text(
+            json.dumps(
+                {
+                    "command": {"review": {"description": "Review code"}},
+                }
+            )
+        )
+        result = self.runner.invoke(main, ["opencode", "validate", "--config-only"])
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("missing required 'template'", result.output)
+
+    def test_opencode_validate_config_skills_not_array(self):
+        """skills.paths not an array → exit 1."""
+        config_path = Path.cwd() / "opencode.json"
+        config_path.write_text(
+            json.dumps(
+                {
+                    "skills": {"paths": "not-an-array"},
+                }
+            )
+        )
+        result = self.runner.invoke(main, ["opencode", "validate", "--config-only"])
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("'skills.paths' must be an array", result.output)
+
+    def test_opencode_validate_config_instructions_not_array(self):
+        """instructions not an array → exit 1."""
+        config_path = Path.cwd() / "opencode.json"
+        config_path.write_text(
+            json.dumps(
+                {
+                    "instructions": "not-an-array",
+                }
+            )
+        )
+        result = self.runner.invoke(main, ["opencode", "validate", "--config-only"])
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("'instructions' must be an array", result.output)
+
+    def test_opencode_validate_config_no_file(self):
+        """No opencode.json → exit 1 with error."""
+        # Remove any existing opencode.json
+        config_path = Path.cwd() / "opencode.json"
+        if config_path.exists():
+            config_path.unlink()
+        result = self.runner.invoke(main, ["opencode", "validate", "--config-only"])
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("opencode.json not found", result.output)
+
+    def test_opencode_validate_generated_config_is_valid(self):
+        """Config generated by opencode install → passes validation."""
+        self.runner.invoke(main, ["opencode", "install"])
+        result = self.runner.invoke(main, ["opencode", "validate", "--config-only"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("All validations passed", result.output)
 
 
 class TestOpencodeAliasValidation(unittest.TestCase):

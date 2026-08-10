@@ -714,16 +714,30 @@ uv pip install -e .
 
 ### Running Tests
 
-```bash
-# All tests
-uv run python -m unittest discover tests
+Tests must run inside the sandbox directory (`.testbox/`): the suite operates
+on `Path.cwd() / ".github"` (backup → delete → restore), and running it from the
+repo root can permanently destroy `.github/workflows` if interrupted.
 
-# Specific file
-uv run python -m unittest tests/test_env.py
+```bash
+# All tests (sandboxed — safe)
+bash scripts/run_tests.sh
 
 # Verbose output
-uv run python -m unittest discover tests -v
+bash scripts/run_tests.sh -v
+
+# Single test file / module
+bash scripts/run_tests.sh tests/test_env.py
+bash scripts/run_tests.sh tests/test_env.py -k add   # keyword filter
+
+# Pytest (optional; cwd is isolated per-test by tests/conftest.py)
+uv run pytest
 ```
+
+`run_tests.sh` uses pytest (not `unittest discover`) intentionally:
+`tests/conftest.py`, which chdirs every test into a fresh temp directory, is a
+pytest plugin. Under a bare unittest run, `add_to_gitignore()` walks up from
+`.testbox/` to the real repo's `.git` and appends test artefacts to the real
+`.gitignore`, polluting the repository.
 
 ### Linter and Type Checking
 
@@ -793,7 +807,7 @@ ai-adapter/
 | Language | Python 3.10+ |
 | CLI Framework | Click |
 | Configuration File | JSON (standard library) |
-| Testing | unittest (standard library) |
+| Testing | pytest — sandboxed via `scripts/run_tests.sh` into `.testbox/`, with per-test cwd isolation (`tests/conftest.py`) |
 | Package Management | uv |
 
 ---

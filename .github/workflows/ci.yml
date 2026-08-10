@@ -35,5 +35,8 @@ jobs:
       - name: Check formatting with ruff
         run: uv run ruff format --check .
 
-      - name: Test with unittest
-        run: uv run python -m unittest discover tests -v
+      - name: Test with pytest (sandboxed)
+        # Run the suite inside .testbox/ so tests never operate on the real
+        # .github/ directory (they back up / delete / restore cwd/.github —
+        # an interrupted run permanently destroyed .github/workflows before).
+        run: bash scripts/run_tests.sh -v

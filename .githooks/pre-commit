@@ -19,7 +19,11 @@ echo "✅ Lint passed"
 echo
 
 echo "=== 🧪 Pytest ==="
-uv run pytest
+# Run tests inside the .testbox sandbox so Path.cwd() never touches the real
+# .github/ directory (which tests back up / delete / restore). Running from the
+# repo root caused .github/workflows to be permanently lost on an interrupted run.
+# Note: git invokes hooks from the worktree top, so $0 points at this hook file.
+bash "$(dirname "$0")/../scripts/run_tests.sh"
 if [ $? -ne 0 ]; then
     echo "❌ Tests failed. Commit aborted."
     exit 1

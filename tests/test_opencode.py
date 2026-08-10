@@ -530,6 +530,18 @@ class TestOpencodeValidateCommand(unittest.TestCase):
         agents_dir = self._create_github_agents()
         bad_file = agents_dir / "bad.agent.md"
         bad_file.write_text("---\nname: bad\ntools: [execute]\n---\n")
+        # Provide a valid opencode.json so the run is self-contained: without it,
+        # validate --fix reports "opencode.json not found" as an error (rc=1).
+        config_path = Path.cwd() / "opencode.json"
+        config_path.write_text(
+            json.dumps(
+                {
+                    "$schema": "https://opencode.ai/config.json",
+                    "instructions": [".github/copilot-instructions.md"],
+                    "permission": {"read": "ask", "edit": "ask"},
+                }
+            )
+        )
         result = self.runner.invoke(main, ["opencode", "validate", "--fix"])
         self.assertEqual(result.exit_code, 0)  # fixed, so no errors
 

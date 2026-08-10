@@ -6,14 +6,14 @@ This page compares how different AI coding tools handle the configuration catego
 
 ## Overview
 
-| Feature | GitHub Copilot (Codex) | Claude Code | OpenCode | OpenAI Codex CLI | Cursor | Continue | Orca |
-|---------|----------------------|-------------|----------|-----------------|--------|----------|------|
-| **Vendor** | Microsoft (GitHub) | Anthropic | Community / Anomaly | OpenAI | Anysphere | Continue.dev | Anomaly |
-| **Config directory** | `.github/` | Project root | `.opencode/` or `.github/` via symlink | `.codex/` or project root | `.cursor/` | `.continue/` | `~/.orca/` (or OS app data dir) |
-| **Config format** | Markdown + YAML frontmatter | Markdown (`CLAUDE.md`) | JSON (`opencode.json`) | Markdown (`AGENTS.md`) + YAML | Markdown (`*.mdc`) with YAML frontmatter | JSON (`.continuerc.json`) | JSON |
-| **Tool type** | VS Code extension | CLI tool (Anthropic) | Terminal AI agent | Terminal AI agent | AI-first IDE | VS Code + JetBrains extension | Desktop app (AI orchestrator) |
-| **Instruction files** | `.github/instructions/*.md`, `.github/agents/*.agent.md` | `CLAUDE.md` | `opencode.json` → `instructions` | `AGENTS.md` (hierarchical) | `.cursor/rules/*.mdc` | `.continuerc.json` → `rules` array | Hook-based orchestration / agent delegation |
-| **ai-adapter support** | ✅ Full | ✅ Via `.github/` Fallback | ✅ Full (opencode subcommand) | ✅ Full (codex subcommand + agent) | ❌ Planned | ❌ Planned | ✅ Partial (skills + MCP export via `--format openclaw`) |
+| Feature | GitHub Copilot (Codex) | Claude Code | OpenCode | OpenAI Codex CLI | Cursor | Continue | Orca | **Agent Plugins 1.0.0** |
+|---------|----------------------|-------------|----------|-----------------|--------|----------|------|--------------------------|
+| **Vendor** | Microsoft (GitHub) | Anthropic | Community / Anomaly | OpenAI | Anysphere | Continue.dev | Anomaly | AWS, Microsoft, OpenAI, Anysphere, Vercel, Google |
+| **Config directory** | `.github/` | Project root | `.opencode/` or `.github/` via symlink | `.codex/` or project root | `.cursor/` | `.continue/` | `~/.orca/` (or OS app data dir) | Plugin root (`./`) |
+| **Config format** | Markdown + YAML frontmatter | Markdown (`CLAUDE.md`) | JSON (`opencode.json`) | Markdown (`AGENTS.md`) + YAML | Markdown (`*.mdc`) with YAML frontmatter | JSON (`.continuerc.json`) | JSON | JSON (`plugin.json` + `mcp.json`) |
+| **Tool type** | VS Code extension | CLI tool (Anthropic) | Terminal AI agent | Terminal AI agent | AI-first IDE | VS Code + JetBrains extension | Desktop app (AI orchestrator) | Vendor-neutral standard |
+| **Instruction files** | `.github/instructions/*.md`, `.github/agents/*.agent.md` | `CLAUDE.md` | `opencode.json` → `instructions` | `AGENTS.md` (hierarchical) | `.cursor/rules/*.mdc` | `.continuerc.json` → `rules` array | Hook-based orchestration / agent delegation | `skills/` directory with `SKILL.md` |
+| **ai-adapter support** | ✅ Full | ✅ Via `.github/` Fallback | ✅ Full (opencode subcommand) | ✅ Full (codex subcommand + agent) | ❌ Planned | ❌ Planned | ✅ Partial (skills + MCP export via `--format openclaw`) | ✅ Full (plugin subcommand) |
 
 ---
 
@@ -191,21 +191,24 @@ The `opencode` subcommand bridges `ai-adapter` with OpenCode:
 
 ## File Type Support Matrix
 
-| Feature | GitHub Copilot | Claude Code | OpenCode | OpenAI Codex CLI | Cursor | Continue | Orca |
-|---------|---------------|-------------|----------|-----------------|--------|----------|------|
-| `AGENTS.md` | ❌ | ❌ | ❌ | ✅ **Primary** (hierarchical) | ❌ | ❌ | ❌ |
-| `CLAUDE.md` | ❌ (uses `.github/copilot-instructions.md`) | ✅ Primary | ✅ Fallback | ✅ Import compatible | ❌ | ❌ | ❌ |
-| `.github/copilot-instructions.md` | ✅ Primary | ✅ Fallback | ✅ Fallback | ❌ | ❌ | ❌ | ❌ |
-| `.github/instructions/*.md` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `.github/agents/*.agent.md` | ✅ Custom agents | ❌ | ✅ Via `opencode.json` | ❌ | ❌ | ❌ | ❌ |
-| `.github/skills/SKILL.md` | ✅ | ❌ | ❌ | ❌ (uses own SKILL.md) | ❌ | ❌ | ✅ Via shared `~/.claude/skills/` |
-| `.github/bin/*` | ✅ Executable scripts | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `.mcp.json` | ✅ MCP servers | ✅ MCP servers | ✅ MCP servers | ✅ MCP servers | ✅ `.cursor/mcp.json` | ✅ Via `config.json` | ✅ MCP servers |
-| `opencode.json` | ❌ | ❌ | ✅ Primary config | ❌ | ❌ | ❌ | ✅ Via OpenCode integration |
-| `agents/openai.yaml` | ❌ | ❌ | ❌ | ✅ Skill metadata + MCP deps | ❌ | ❌ | ❌ |
-| `.cursor/rules/*.mdc` | ❌ | ❌ | ❌ | ❌ | ✅ **Primary** (glob-scoped rules) | ❌ | ❌ |
-| `.cursorrules` | ❌ | ❌ | ❌ | ❌ | ✅ Legacy fallback | ❌ | ❌ |
-| `.continuerc.json` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ **Primary** (rules + model config) | ❌ |
+| Feature | GitHub Copilot | Claude Code | OpenCode | OpenAI Codex CLI | Cursor | Continue | Orca | Agent Plugins |
+|---------|---------------|-------------|----------|-----------------|--------|----------|------|---------------|
+| `AGENTS.md` | ❌ | ❌ | ❌ | ✅ **Primary** (hierarchical) | ❌ | ❌ | ❌ | ❌ |
+| `CLAUDE.md` | ❌ (uses `.github/copilot-instructions.md`) | ✅ Primary | ✅ Fallback | ✅ Import compatible | ❌ | ❌ | ❌ | ❌ |
+| `.github/copilot-instructions.md` | ✅ Primary | ✅ Fallback | ✅ Fallback | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `.github/instructions/*.md` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `.github/agents/*.agent.md` | ✅ Custom agents | ❌ | ✅ Via `opencode.json` | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `.github/skills/SKILL.md` | ✅ | ❌ | ❌ | ❌ (uses own SKILL.md) | ❌ | ❌ | ✅ Via shared `~/.claude/skills/` | ❌ (uses `skills/`) |
+| `.github/bin/*` | ✅ Executable scripts | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `.mcp.json` | ✅ MCP servers | ✅ MCP servers | ✅ MCP servers | ✅ MCP servers | ✅ `.cursor/mcp.json` | ✅ Via `config.json` | ✅ MCP servers | ❌ (uses `mcp.json`) |
+| `opencode.json` | ❌ | ❌ | ✅ Primary config | ❌ | ❌ | ❌ | ✅ Via OpenCode integration | ❌ |
+| `agents/openai.yaml` | ❌ | ❌ | ❌ | ✅ Skill metadata + MCP deps | ❌ | ❌ | ❌ | ❌ |
+| `.cursor/rules/*.mdc` | ❌ | ❌ | ❌ | ❌ | ✅ **Primary** (glob-scoped rules) | ❌ | ❌ | ❌ |
+| `.cursorrules` | ❌ | ❌ | ❌ | ❌ | ✅ Legacy fallback | ❌ | ❌ | ❌ |
+| `.continuerc.json` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ **Primary** (rules + model config) | ❌ | ❌ |
+| `plugin.json` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ **Required** |
+| `mcp.json` (Agent Plugins) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ **Primary** |
+| `skills/*/SKILL.md` (Agent Plugins) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ **Primary** |
 
 ---
 
@@ -219,6 +222,116 @@ The `opencode` subcommand bridges `ai-adapter` with OpenCode:
 - **Continue** uses `.continuerc.json` with a `rules` array for project instructions and model configuration.
 - **Orca** is a desktop app (multi-agent orchestrator) from Anomaly that manages AI agent sessions with worktree-scoped hooks, shared `~/.claude/skills/` support, and standard `.mcp.json` MCP configuration. It delegates instruction/agent management to the underlying spawned agent (OpenCode, Claude Code, etc.).
 - **ai-adapter** unifies these tools by managing `.github/` as the single source of truth and providing bridging commands (e.g., `opencode install`) for tool-specific formats. All entity types (skill, command, prompt, sub-agent, bin, mcp) support `--env` for environment-scoped registration and filtering.
+
+---
+
+## Agent Plugins 1.0.0 — Industry Standard
+
+[Agent Plugins 1.0.0](https://agent-plugins.org/) is an open, vendor-neutral standard for packaging reusable components (skills + MCP servers) into portable plugins that work across different AI agent clients.
+
+### Key Characteristics
+
+| Aspect | Agent Plugins 1.0.0 |
+|--------|---------------------|
+| **Purpose** | Cross-client portability for skills and MCP servers |
+| **Governance** | Technical Steering Committee (AWS, Cursor, Microsoft, OpenAI, Vercel) |
+| **Components** | Skills (`skills/`) + MCP servers (`mcp.json`) |
+| **Manifest** | `plugin.json` with `$schema` and `name` required |
+| **MCP format** | `mcp.json` with `type: "stdio"` (or `"streamable-http"`, `"sse"`) |
+| **Path variables** | `${PLUGIN_ROOT}`, `${PLUGIN_DATA}` for portable paths |
+| **Client extensions** | Reverse-domain namespace (e.g., `com.cursor.client`) |
+
+### Supported Clients (as of 2026-08-10)
+
+| Client | Status |
+|--------|--------|
+| GitHub Copilot (VS Code, CLI) | ✅ Supported |
+| Cursor | ✅ Supported |
+| ChatGPT / Codex | ✅ Supported |
+| AWS Kiro | ✅ Supported |
+| VS Code (Microsoft) | ✅ Supported |
+| Google (AI agents) | ✅ Announced |
+| Claude Code (Anthropic) | ❌ Not announced |
+
+### Package Structure
+
+```
+my-plugin/
+├── plugin.json              # Required manifest
+├── skills/                  # Agent Skills directory
+│   └── skill-name/
+│       ├── SKILL.md
+│       ├── scripts/
+│       └── references/
+├── mcp.json                 # MCP server configuration
+└── com.example.client/      # Client extension (optional)
+    └── hooks/
+```
+
+### plugin.json Example
+
+```json
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "ai-adapter-plugin",
+  "version": "1.0.0",
+  "description": "AI agent skills and MCP servers",
+  "author": {
+    "name": "smapira"
+  },
+  "license": "MIT"
+}
+```
+
+### mcp.json Example
+
+```json
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "database": {
+      "type": "stdio",
+      "command": "./bin/db-server",
+      "args": ["--config", "${PLUGIN_ROOT}/config/db.json"],
+      "cwd": "${PLUGIN_ROOT}"
+    }
+  }
+}
+```
+
+### Comparison with Existing Formats
+
+| Aspect | `.mcp.json` (Current) | Agent Plugins `mcp.json` |
+|--------|----------------------|--------------------------|
+| Schema | None | `$schema` required |
+| Server type | Implicit (stdio only) | `type: "stdio"` required |
+| Command | Array or string | Single token (string) |
+| Path variables | None | `${PLUGIN_ROOT}`, `${PLUGIN_DATA}` |
+| File name | `.mcp.json` | `mcp.json` |
+
+### ai-adapter Integration Status
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| **Phase 1** | Create `plugin.json` template, MCP conversion utility | ✅ Done (`plugin build`) |
+| **Phase 2** | Add `ai-adapter plugin build/validate` commands | ✅ Done (0.21.0) |
+| **Phase 3** | Add `--format agent-plugins` to `mcp get` and `skill get-all` | 🔄 Planned |
+| **Phase 4** | Test with Cursor, VS Code, and other supporting clients | ⏳ Pending |
+
+`ai-adapter plugin validate` checks `plugin.json` (required `$schema`/`name`, name
+rules, `author`, field types), `mcp.json` (`type` per server, single-token
+`command`, `${PLUGIN_ROOT}` refs, reserved env keys, HTTPS for non-loopback URLs),
+and `skills/` (`SKILL.md` frontmatter). Exit code reflects validity for CI use.
+
+For detailed implementation guide, see: `documents/dev/plans/20260810_agent_plugins_1.0.0_compliance.md`
 
 ---
 
@@ -247,3 +360,8 @@ All URLs below were verified as reachable (HTTP 200).
 | | Tools / MCP | <https://docs.continue.dev/customize/tools> |
 | **Orca** | GitHub repository | <https://github.com/anomalyco/orca> |
 | | Orca app | <https://anoma.ly> |
+| **Agent Plugins** | Official site | <https://agent-plugins.org/> |
+| | Specification | <https://agent-plugins.org/specification> |
+| | JSON Schemas | <https://agent-plugins.org/schemas> |
+| | GitHub repository | <https://github.com/agentplugins/agent-plugins-spec> |
+| | Agent Skills spec | <https://agentskills.io/specification> |

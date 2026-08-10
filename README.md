@@ -3,6 +3,23 @@
 **Common management infrastructure CLI tool for AI agent scripts**
 
 [![CI](https://github.com/smapira/ai-adapter-01/actions/workflows/ci.yml/badge.svg)](https://github.com/smapira/ai-adapter-01/actions/workflows/ci.yml)
+[![Agent Plugins 1.0.0](https://img.shields.io/badge/Agent%20Plugins-1.0.0-blue)](https://agent-plugins.org/)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
+
+> ## ⭐ Agent Plugins 1.0.0 Compliant
+>
+> `ai-adapter` natively supports the **Agent Plugins 1.0.0** open standard
+> ([agent-plugins.org](https://agent-plugins.org/)) — the vendor-neutral packaging
+> format for skills + MCP servers backed by AWS, Microsoft, OpenAI, Anysphere, and Vercel.
+> Build, validate, and distribute portable plugin packages with:
+>
+> ```bash
+> ai-adapter plugin build my-plugin
+> ai-adapter plugin validate ./my-plugin
+> ```
+>
+> Your skills and MCP servers become portable across Copilot, Cursor, Codex,
+> VS Code, AWS Kiro and more — with a single `plugin.json` manifest.
 
 A CLI tool for managing AI agent instruction files (`.github/instructions` etc.) and scripts in groups. Easily share and migrate settings across environments.
 
@@ -10,6 +27,7 @@ A CLI tool for managing AI agent instruction files (`.github/instructions` etc.)
 
 ## Features
 
+- **Agent Plugins 1.0.0 Compliant**: Native support for the industry-standard plugin format — `plugin build` scaffolds a portable package, `plugin validate` checks `plugin.json` / `mcp.json` / `skills/` against the spec (name rules, server types, `${PLUGIN_ROOT}` placeholders, reserved env keys, SKILL.md frontmatter)
 - **Centralized Management**: All data is consolidated under `~/.ai-adapter/`. Centrally manage settings across projects
 - **Environment Switching**: Switch agent settings and scripts per environment (e.g., work, home)
 - **GitHub Sync**: Use `ai-adapter sync` to sync `~/.ai-adapter/` with a GitHub remote. Easy team sharing and PC migration
@@ -345,6 +363,38 @@ ai-adapter mcp get --format openclaw
 # Export to OpenClaw format with custom path (no merge, new file)
 ai-adapter mcp get --format openclaw --path /path/to/output
 ```
+
+### `ai-adapter plugin`
+
+Builds and validates **Agent Plugins 1.0.0** packages (https://agent-plugins.org/).
+
+| Command | Description |
+|---------|------|
+| `plugin build <name>` | Scaffold a new 1.0.0 package layout (`plugin.json`, `mcp.json`, `skills/`) |
+| `plugin validate <path>` | Validate a plugin package against the 1.0.0 spec |
+| `plugin validate --json` | Output the validation result as JSON |
+| `plugin validate --strict` | Treat warnings (e.g. missing mcp.json) as failures too |
+
+Exit codes reflect the result: `0` on success, non-zero on failure — safe to use in CI.
+
+```bash
+# Scaffold a new portable plugin
+ai-adapter plugin build my-plugin --description "AI agent skills and MCP servers"
+
+# Validate a plugin package
+ai-adapter plugin validate ./my-plugin
+# → ✓ Plugin package is valid.
+
+# JSON output for CI
+ai-adapter plugin validate ./my-plugin --json
+```
+
+The `plugin build` name must follow the 1.0.0 rules: 1-64 chars, lowercase
+alphanumeric / hyphens / periods, no leading/trailing separator. `plugin validate`
+checks `plugin.json` manifest (`$schema`, `name`, `author`, field types),
+`mcp.json` (`type: stdio|streamable-http|sse`, single-token `command`,
+`${PLUGIN_ROOT}` paths, reserved env keys, HTTPS for non-loopback URLs),
+and `skills/` (`SKILL.md` with `name`/`description` frontmatter).
 
 ### `ai-adapter command`
 
@@ -704,12 +754,14 @@ ai-adapter/
 │       ├── git.py              # Git operation wrapper
 │       ├── sync.py             # sync command (GitHub sync)
 │       ├── agent_format.py     # Agent file YAML format utilities
+│       ├── agent_plugins.py    # Agent Plugins 1.0.0 validation (plugin.json / mcp.json / skills)
 │       ├── commands/           # Subcommand implementations
 │       │   ├── agent.py        # agent subcommand
 │       │   ├── bin.py          # bin subcommand
 │       │   ├── command.py      # command subcommand
 │       │   ├── env.py          # env subcommand
 │       │   ├── mcp.py          # mcp subcommand
+│       │   ├── plugin.py       # plugin subcommand (Agent Plugins build/validate)
 │       │   ├── prompt.py       # prompt subcommand
 │       │   └── skill.py        # skill subcommand
 │       └── providers/          # External tool integrations

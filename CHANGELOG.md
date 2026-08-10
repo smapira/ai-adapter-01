@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.21.0] - 2026-08-10
+
+### Added
+
+- **Agent Plugins 1.0.0 support**: `ai-adapter` is now compliant with the open
+  [Agent Plugins 1.0.0](https://agent-plugins.org/) standard for portable
+  skills + MCP server packages (backed by AWS, Microsoft, OpenAI, Anysphere, Vercel, Google)
+  - **`plugin build <name>`**: Scaffolds a new 1.0.0 package layout (`plugin.json`,
+    `mcp.json`, `skills/`) with spec-compliant name validation
+  - **`plugin validate <path>`**: Validates a plugin package against the 1.0.0 spec
+    - `--json`: machine-readable result (exit code accurately reflects validity)
+    - `--strict`: warnings (e.g. missing `mcp.json`) treated as failures
+    - Exit code is non-zero on invalid packages — safe for CI usage
+  - New module `src/ai_adapter/agent_plugins.py` implementing validation:
+    - `plugin.json` manifest: required `$schema` / `name`, name rules (1-64 chars,
+      lowercase alphanumeric/hyphen/period, no leading/trailing separator), `author`
+      fields, field type checks; unknown top-level fields / non-object `extensions`
+      are non-fatal warnings
+    - `mcp.json`: required `$schema` + `mcpServers`, per-server `type`
+      (`stdio` / `streamable-http` / `sse`), single-token `command`, `${PLUGIN_ROOT}`
+      references for `cwd`/`args`, reserved env keys (`PLUGIN_ROOT` / `PLUGIN_DATA`),
+      HTTPS enforcement for non-loopback URLs, case-insensitive duplicate header check
+    - `skills/`: direct-children skill discovery, `SKILL.md` frontmatter
+      (`name` + `description`) best-effort checks
+- **Wiki / docs**: `documents/wiki/LLM-Tool-Comparison.md` documents the Agent
+  Plugins 1.0.0 standard, package structure, examples, and integration plan
+
+### Changed
+
+- **`cli.py`**: `plugin` subcommand group registered
+- **`plugin validate --json`**: JSON output now returns non-zero exit code on
+  invalid packages (previously always exited 0)
+- **Tests**: 48 new tests covering manifest / mcp.json / skills / package /
+  CLI behavior (`tests/test_agent_plugins.py`, `tests/test_plugin_command.py`)
+
 ## [0.20.0] - 2026-08-10
 
 ### Added

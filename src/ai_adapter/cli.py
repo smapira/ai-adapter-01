@@ -23,6 +23,7 @@ from ai_adapter.commands.env import env_group
 from ai_adapter.commands.get_all_rec import cmd_get_all_rec
 from ai_adapter.commands.instruction import instruction_group
 from ai_adapter.commands.mcp import mcp_group
+from ai_adapter.commands.plugin import plugin_group
 from ai_adapter.commands.prompt import prompt_group
 from ai_adapter.commands.skill import skill_group
 from ai_adapter.git import GitError, get_conflicted_files, is_rebasing
@@ -329,6 +330,7 @@ main.add_command(command_group)
 main.add_command(prompt_group)
 main.add_command(instruction_group, name="agent")
 main.add_command(mcp_group)
+main.add_command(plugin_group)
 main.add_command(opencode_group)
 main.add_command(codex_group)
 main.add_command(cmd_add_all_rec)

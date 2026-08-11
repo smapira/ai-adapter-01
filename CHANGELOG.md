@@ -8,6 +8,14 @@
   - `mcp get --format cursor` → `.cursor/mcp.json` (merges into existing `mcpServers`)
   - `skill get-all --format cursor` → `.cursor/rules/*.mdc`
   - New module `src/ai_adapter/providers/cursor.py` as the single conversion source
+- **`scan` command**: Discovers installed AI agent configs across Claude, Codex, Cursor, OpenCode
+  - Security: authentication files (`auth.json`, `.credentials.json`, `.env`, `*.key`) excluded from results
+  - Problem diagnosis: detects duplicate MCP servers, config drift, stale skills
+  - `--json` output for CI integration
+- **`doctor` command**: Read-only environment health diagnostics
+  - Checks installed tools, available updates, compatibility issues
+  - `--json` output for CI integration
+- **`info` severity**: `ValidationIssue` now supports `error` / `warning` / `info` three-level severity
 - **README**: supported-tools comparison table with explicit 対応 / 未対応
   distinction (GitHub Copilot, Claude Code, OpenCode, Codex CLI, Cursor,
   OpenClaw, Orca, Agent Plugins 1.0.0 — Continue is planned)

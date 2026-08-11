@@ -617,6 +617,38 @@ Internally, the following steps are executed:
 3. `git pull --rebase origin main`
 4. `git push origin main`
 
+### `ai-adapter scan`
+
+Discovers installed AI agent configurations across tools (Claude, Codex, Cursor, OpenCode) and shows a summary.
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Machine-readable JSON output (for CI integration) |
+| `--project-dir` | Target project directory (default: current directory) |
+
+```bash
+ai-adapter scan                     # Human-readable summary
+ai-adapter scan --json              # JSON output
+ai-adapter scan --project-dir /path # Scan a specific project
+```
+
+Security: authentication files (`auth.json`, `.credentials.json`, `.env`, `*.key`) are automatically excluded from results.
+
+### `ai-adapter doctor`
+
+Read-only health diagnostics for your AI environment.
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Machine-readable JSON output |
+
+```bash
+ai-adapter doctor           # Health summary
+ai-adapter doctor --json    # JSON output
+```
+
+Checks: installed tools, available updates, compatibility issues, configuration validation.
+
 ---
 
 ## Data Storage

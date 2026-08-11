@@ -101,6 +101,30 @@ class TestSkillCommands(unittest.TestCase):
         skills_dir = self.patch_home / ".ai-adapter" / "skills"
         self.assertTrue((skills_dir / "test-skill" / "SKILL.md").exists())
 
+    def test_skill_add_rejects_unsafe_name(self):
+        """Security: frontmatter ``name: ../../evil`` must be rejected by skill add.
+
+        Joining the declared name onto the store would escape it
+        (~/.ai-adapter/skills/../../evil → ~/evil), so the command must
+        abort with an error (ClickException, surfaced as exit code 1)
+        before anything is written.
+        """
+        unsafe_dir = Path(self.temp_dir.name) / "unsafe-skill"
+        unsafe_dir.mkdir(parents=True)
+        (unsafe_dir / "SKILL.md").write_text(
+            "---\nname: ../../evil\ndescription: sneaky\n---\n# Sneaky\n",
+            encoding="utf-8",
+        )
+
+        result = self.runner.invoke(main, ["skill", "add", str(unsafe_dir)])
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("Invalid skill name", result.output)
+
+        # Nothing may be written inside the store or at the escape target (~/evil).
+        skills_dir = self.patch_home / ".ai-adapter" / "skills"
+        self.assertFalse((skills_dir / "unsafe-skill").exists())
+        self.assertFalse((self.patch_home / "evil").exists())
+
     def test_skill_add_and_list(self):
         """Verify skill add → skill list flow."""
         self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
@@ -345,6 +369,51 @@ class TestSkillAddRecCommand(unittest.TestCase):
         result = self.runner.invoke(main, ["skill", "list"])
         self.assertIn("skill1", result.output)
         self.assertIn("skill2", result.output)
+
+    def test_skill_add_rec_skips_unsafe_name(self):
+        """Security: add-rec must skip a skill with path-traversal frontmatter name.
+
+        The unsafe name (``../../evil``) is skipped with a message before any
+        copy/delete, so nothing outside the store is written or removed.
+        """
+        src_dir = Path(self.temp_dir.name) / "skills_dir"
+        src_dir.mkdir()
+        skill1 = src_dir / "skill1"
+        skill1.mkdir()
+        (skill1 / "SKILL.md").write_text(
+            "---\nname: skill1\ntags: [test]\n---\n# Skill 1\n",
+            encoding="utf-8",
+        )
+        sneaky = src_dir / "sneaky"
+        sneaky.mkdir()
+        (sneaky / "SKILL.md").write_text(
+            "---\nname: ../../evil\n---\n# Evil\n",
+            encoding="utf-8",
+        )
+
+        # Decoy at exactly the path a traversal rmtree would target (~/evil).
+        decoy = self.patch_home / "evil"
+        decoy.mkdir()
+        (decoy / "precious.txt").write_text("keep me\n")
+
+        result = self.runner.invoke(main, ["skill", "add-rec", str(src_dir)])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("skip 'sneaky': invalid skill name", result.output)
+        self.assertIn("Skills added: 1", result.output)
+
+        # The escape target is untouched and nothing escaped the store.
+        self.assertEqual((decoy / "precious.txt").read_text(), "keep me\n")
+        skills_dir = self.patch_home / ".ai-adapter" / "skills"
+        self.assertFalse((skills_dir / "evil").exists())
+
+        # Only the safe skill is registered; the unsafe one is absent.
+        import ai_adapter.config as cfg
+
+        config = cfg.load_config()
+        self.assertIsNotNone(config)
+        skill_names = [s.name for s in config.skills] if config else []
+        self.assertIn("skill1", skill_names)
+        self.assertNotIn("../../evil", skill_names)
 
 
 class TestSkillOpenClawExport(unittest.TestCase):

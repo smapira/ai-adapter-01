@@ -1,10 +1,37 @@
 # ai-adapter
 
-**Common management infrastructure CLI tool for AI agent scripts**
+**One configuration for all your AI coding agents.**
 
 [![CI](https://github.com/smapira/ai-adapter-01/actions/workflows/ci.yml/badge.svg)](https://github.com/smapira/ai-adapter-01/actions/workflows/ci.yml)
 [![Agent Plugins 1.0.0](https://img.shields.io/badge/Agent%20Plugins-1.0.0-blue)](https://agent-plugins.org/)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
+
+<img src="docs/readme-thumbnail.png" alt="ai-adapter" width="800">
+
+Manage and sync your AI agent configuration across Claude Code, Codex, Cursor, VS Code, OpenCode and more.
+
+```bash
+# Get started in 3 commands
+pip install ai-adapter
+ai-adapter init
+ai-adapter start <your-config-repo-url>
+```
+
+```text
+            ┌─────────────┐
+            │  ai-adapter  │
+            └──────┬──────┘
+       ┌───────────┼───────────┐
+       ▼           ▼           ▼
+ ┌─────────┐ ┌─────────┐ ┌─────────┐
+ │ Claude  │ │  Codex  │ │  Cursor │
+ │  Code   │ │   CLI   │ │  rules  │
+ └─────────┘ └─────────┘ └─────────┘
+     ▼           ▼           ▼
+ ┌─────────┐ ┌─────────┐ ┌─────────┐
+ │ VS Code │ │ OpenCode│ │ OpenClaw│
+ └─────────┘ └─────────┘ └─────────┘
+```
 
 > ## ⭐ Agent Plugins 1.0.0 Compliant
 >
@@ -38,8 +65,32 @@ A CLI tool for managing AI agent instruction files (`.github/instructions` etc.)
 - **MCP Server Management**: Centrally manage MCP server settings and output in each tool format
 - **OpenCode Integration**: Generate `opencode.json` with MCP, skills, prompts, and agents; symlink `.opencode` → `.github`
 - **OpenClaw Integration**: Export MCP servers and skills to OpenClaw format (`--format openclaw`)
+- **Cursor Integration**: Export MCP servers and skills to Cursor format (`--format cursor` → `.cursor/mcp.json` + `.cursor/rules/*.mdc`)
 - **Codex CLI Integration**: Generate `AGENTS.md` for OpenAI Codex CLI (`ai-adapter codex install`)
 - **Root-Level Agent Management**: Manage `AGENTS.md`, `CLAUDE.md`, etc. as first-class artifacts, deployable to project root
+
+---
+
+## Supported Tools
+
+| Tool | Status | Integration |
+|------|--------|-------------|
+| **GitHub Copilot** | ✅ Partial | `.github/` (agents, skills, commands, prompts, bins) + `.mcp.json` |
+| **Claude Code** | ✅ Via `.github/` | Root-level files (`AGENTS.md`, `CLAUDE.md`) + `.github/` fallback |
+| **OpenCode** | ✅ Full | `ai-adapter opencode install` → `opencode.json` (+ `.opencode` symlink) |
+| **Codex CLI** | ✅ Full | `ai-adapter codex install` → `AGENTS.md` |
+| **Cursor** | ✅ Skills + MCP | `--format cursor` → `.cursor/rules/*.mdc` + `.cursor/mcp.json` |
+| **OpenClaw** | ✅ Partial | `--format openclaw` → `~/.openclaw/` (MCP + skills) |
+| **Orca** | ✅ Partial | Shared `~/.claude/skills/` + `.mcp.json` via OpenClaw-style export |
+| **Agent Plugins 1.0.0** | ✅ Full | `ai-adapter plugin build/validate` (portable packages) |
+
+Not supported yet:
+
+| Tool | Status | Notes |
+|------|--------|-------|
+| **Continue** | ❌ Planned | `.continuerc.json` rules export is a future task |
+
+Per-file-type details: [LLM Tool Specification Comparison](documents/wiki/LLM-Tool-Comparison.md).
 
 ---
 

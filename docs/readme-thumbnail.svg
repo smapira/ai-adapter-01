@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f2027"/>
+      <stop offset="50%" stop-color="#203a43"/>
+      <stop offset="100%" stop-color="#2c5364"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#2ec9bb"/>
+      <stop offset="100%" stop-color="#7fffd4"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="640" fill="url(#bg)"/>
+
+  <!-- ノード（エージェント群） -->
+  <circle cx="280" cy="180" r="58" fill="none" stroke="#2ec9bb" stroke-width="4" opacity="0.9"/>
+  <circle cx="540" cy="120" r="42" fill="none" stroke="#7fffd4" stroke-width="3" opacity="0.8"/>
+  <circle cx="800" cy="200" r="48" fill="none" stroke="#2ec9bb" stroke-width="3" opacity="0.85"/>
+  <circle cx="1020" cy="140" r="36" fill="none" stroke="#7fffd4" stroke-width="3" opacity="0.7"/>
+  <circle cx="640" cy="440" r="70" fill="url(#accent)" opacity="0.95"/>
+
+  <!-- 接続線 -->
+  <line x1="338" y1="180" x2="570" y2="440" stroke="#2ec9bb" stroke-width="3" opacity="0.5"/>
+  <line x1="582" y1="122" x2="640" y2="440" stroke="#2ec9bb" stroke-width="3" opacity="0.5"/>
+  <line x1="848" y1="200" x2="710" y2="440" stroke="#2ec9bb" stroke-width="3" opacity="0.5"/>
+  <line x1="1056" y1="140" x2="710" y2="440" stroke="#2ec9bb" stroke-width="3" opacity="0.5"/>
+
+  <!-- タイトル -->
+  <text x="80" y="420" font-family="Helvetica, Arial, sans-serif" font-size="64" font-weight="bold" fill="#ffffff">
+    ai-adapter
+  </text>
+  <text x="80" y="480" font-family="Helvetica, Arial, sans-serif" font-size="30" fill="#2ec9bb">
+    One configuration for all your AI coding agents.
+  </text>
+  <text x="80" y="540" font-family="Helvetica, Arial, sans-serif" font-size="22" fill="#9fb3c8">
+    Claude Code · Codex · Cursor · VS Code · OpenCode · OpenClaw · Agent Plugins 1.0.0
+  </text>
+
+  <!-- 中心ラベル -->
+  <text x="640" y="448" font-family="Helvetica, Arial, sans-serif" font-size="24" font-weight="bold" fill="#0f2027" text-anchor="middle">
+    CLI
+  </text>
+</svg>

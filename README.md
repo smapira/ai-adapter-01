@@ -2,11 +2,7 @@
 
 **One configuration for all your AI coding agents.**
 
-[![CI](https://github.com/smapira/ai-adapter-01/actions/workflows/ci.yml/badge.svg)](https://github.com/smapira/ai-adapter-01/actions/workflows/ci.yml)
-[![Agent Plugins 1.0.0](https://img.shields.io/badge/Agent%20Plugins-1.0.0-blue)](https://agent-plugins.org/)
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
-
-<img src="docs/readme-thumbnail.png" alt="ai-adapter" width="800">
+[![CI](https://github.com/smapira/ai-adapter-01/actions/workflows/ci.yml/badge.svg)](https://github.com/smapira/ai-adapter-01/actions/workflows/ci.yml) [![Agent Plugins 1.0.0](https://img.shields.io/badge/Agent%20Plugins-1.0.0-blue)](https://agent-plugins.org/) [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
 
 Manage and sync your AI agent configuration across Claude Code, Codex, Cursor, VS Code, OpenCode and more.
 
@@ -32,6 +28,8 @@ ai-adapter start <your-config-repo-url>
  │ VS Code │ │ OpenCode│ │ OpenClaw│
  └─────────┘ └─────────┘ └─────────┘
 ```
+
+<img src="docs/readme-thumbnail.png" alt="ai-adapter" width="800">
 
 > ## ⭐ Agent Plugins 1.0.0 Compliant
 >
@@ -240,6 +238,7 @@ The reverse of `add-all-rec` — runs `sub-agent get-all` + `bin get-all` + `ski
 | `--force` | Overwrite existing files without prompting |
 | `--env` | Filter by environment name (only deploy items for this env) |
 | `--project-dir`, `-d` | Target project directory (default: current directory) |
+| `--no-summary` | Skip the diagnostic summary shown before deployment |
 
 ```bash
 # Deploy everything from ~/.ai-adapter/ to the current project
@@ -250,6 +249,9 @@ ai-adapter get-all-rec --env remote
 
 # Force overwrite to a specific project
 ai-adapter get-all-rec --force --project-dir /path/to/project
+
+# Skip the pre-deploy diagnostic summary
+ai-adapter get-all-rec --no-summary
 ```
 
 ### `ai-adapter agent`
@@ -358,12 +360,13 @@ Manages skills (directories containing SKILL.md).
 | `skill add <path>` | Add a skill directory to `~/.ai-adapter/skills/` |
 | `skill add-rec <dir>` | Recursively register all skills in a directory |
 | `skill get <name>` | Copy a skill to `.github/skills/` |
-| `skill get-all` | Copy all registered skills to `.github/skills/` |
-| `skill get-all --format openclaw` | Copy all registered skills to `~/.openclaw/skills/` |
-| `skill list` | List registered skills (filter with `--tag`) |
-| `skill remove <name>` | Remove a skill (use `--purge` to also delete files) |
-| `skill remove-all` | Remove all skills (supports `--purge`, `--force`) |
-| `skill search <keyword>` | Search skills by keyword |
+ | `skill get-all` | Copy all registered skills to `.github/skills/` |
+ | `skill get-all --format openclaw` | Copy all registered skills to `~/.openclaw/skills/` |
+ | `skill get-all --format cursor` | Deploy skills to `.cursor/rules/` as `*.mdc` (Cursor rules) |
+ | `skill list` | List registered skills (filter with `--tag`) |
+ | `skill remove <name>` | Remove a skill (use `--purge` to also delete files) |
+ | `skill remove-all` | Remove all skills (supports `--purge`, `--force`) |
+ | `skill search <keyword>` | Search skills by keyword (filter with `--tag`) |
 | `skill link-agent <skill> <agent>` | Bind a skill to an agent |
 
 All commands above accept `--env <env>` to filter or scope by environment, and `--agent <agent>` on add commands for env resolution (e.g. `skill add --env production ~/skills/db/`, `skill get-all --env staging`).
@@ -389,7 +392,8 @@ Manages MCP server settings.
 | `mcp list` | List MCP servers (filter with `--tool`, `--env`) |
 | `mcp get --path <dir>` | Export MCP settings to `.mcp.json` (default: current directory) |
 | `mcp get --env <env>` | Export MCP settings filtered by environment |
-| `mcp get --format openclaw` | Export MCP settings to `~/.openclaw/openclaw.json` (server-name-based merge) |
+ | `mcp get --format openclaw` | Export MCP settings to `~/.openclaw/openclaw.json` (server-name-based merge) |
+ | `mcp get --format cursor` | Export MCP settings to `.cursor/mcp.json` (Cursor format) |
 | `mcp remove-all` | Remove all MCP server settings (supports `--force`) |
 
 ```bash
@@ -825,6 +829,8 @@ ai-adapter/
 │       │   ├── bin.py          # bin subcommand
 │       │   ├── command.py      # command subcommand
 │       │   ├── env.py          # env subcommand
+│       │   ├── get_all_rec.py  # get-all-rec subcommand (deploy everything + summary)
+│       │   ├── instruction.py  # instruction subcommand (root AGENTS.md etc.)
 │       │   ├── mcp.py          # mcp subcommand
 │       │   ├── plugin.py       # plugin subcommand (Agent Plugins build/validate)
 │       │   ├── prompt.py       # prompt subcommand
@@ -832,6 +838,7 @@ ai-adapter/
 │       └── providers/          # External tool integrations
 │           ├── opencode.py     # OpenCode integration (install/alias/uninstall)
 │           ├── openclaw.py     # OpenClaw integration (MCP + skills export)
+│           ├── cursor.py       # Cursor integration (MCP + skills export to .cursor/)
 │           └── codex.py        # Codex CLI integration (AGENTS.md generation)
 ├── tests/
 │   ├── __init__.py
@@ -844,6 +851,7 @@ ai-adapter/
 │   ├── test_sync.py
 │   ├── test_git.py
 │   ├── test_cli.py
+│   ├── test_cursor.py          # Cursor integration tests
 │   └── test_instruction.py
 └── examples/
     └── sample-config.json      # Sample configuration file

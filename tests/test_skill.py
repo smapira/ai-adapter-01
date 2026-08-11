@@ -189,6 +189,20 @@ class TestSkillCommands(unittest.TestCase):
         self.assertIn("test-skill", result.output)
         self.assertNotIn("other-skill", result.output)
 
+    def test_skill_list_tag_case_insensitive(self):
+        """Verify skill list --tag matching is case-insensitive (--tag PYTHON matches tags: [python])."""
+        self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
+        result = self.runner.invoke(main, ["skill", "list", "--tag", "PYTHON"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("test-skill", result.output)
+
+    def test_skill_search_tag_case_insensitive(self):
+        """Verify --tag matching is case-insensitive (--tag PYTHON matches tags: [python])."""
+        self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
+        result = self.runner.invoke(main, ["skill", "search", "python", "--tag", "PYTHON"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("test-skill", result.output)
+
     def test_skill_search_tag_no_match(self):
         """Verify tag filter with no matching tag shows no-match message."""
         self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])

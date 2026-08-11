@@ -60,7 +60,7 @@ def skill_list(tag: str | None, env: str | None) -> None:
     if env:
         skills = [s for s in skills if s.env is None or s.env == env]
     if tag:
-        skills = [s for s in skills if tag in s.tags]
+        skills = [s for s in skills if tag.lower() in {t.lower() for t in s.tags}]
 
     if not skills:
         click.echo("No skills registered.")
@@ -307,7 +307,7 @@ def _matching_skills(
     for s in skills:
         if env and s.env is not None and s.env != env:
             continue
-        if tag and tag not in s.tags:
+        if tag and tag.lower() not in {t.lower() for t in s.tags}:
             continue
         if kw in s.name.lower() or kw in s.description.lower() or any(kw in t.lower() for t in s.tags):
             results.append(s)

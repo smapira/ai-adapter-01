@@ -31,3 +31,25 @@ def _isolate_cwd(tmp_path: Path) -> Iterator[None]:
     os.chdir(tmp_path)
     yield
     os.chdir(old_cwd)
+
+
+@pytest.fixture
+def isolated_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Isolate HOME (and the ai-adapter store) for scan/doctor tests.
+
+    ``scan`` / ``doctor`` read ``Path.home()`` (``~/.claude``, ``~/.codex``,
+    ``~/.cursor``, ``~/.config/opencode``); the cwd isolation provided by
+    :func:`_isolate_cwd` does not protect those directories.  This fixture
+    redirects ``Path.home()`` *and* the ``HOME`` environment variable to a
+    temp directory, and re-points the module-level ``AI_ADAPTER_DIR`` which
+    is evaluated at import time.
+    """
+    import pathlib
+
+    monkeypatch.setattr(pathlib.Path, "home", classmethod(lambda cls: tmp_path))
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    from ai_adapter import config as cfg
+
+    monkeypatch.setattr(cfg, "AI_ADAPTER_DIR", tmp_path / ".ai-adapter")
+    return tmp_path

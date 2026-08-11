@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.22.0] - 2026-08-12
+
+### Added
+
+- **Cursor integration**: Export MCP servers and skills to Cursor format
+  - `mcp get --format cursor` → `.cursor/mcp.json` (merges into existing `mcpServers`)
+  - `skill get-all --format cursor` → `.cursor/rules/*.mdc`
+  - New module `src/ai_adapter/providers/cursor.py` as the single conversion source
+- **README**: supported-tools comparison table with explicit 対応 / 未対応
+  distinction (GitHub Copilot, Claude Code, OpenCode, Codex CLI, Cursor,
+  OpenClaw, Orca, Agent Plugins 1.0.0 — Continue is planned)
+- **Docs**: `documents/wiki/LLM-Tool-Comparison.md` tracked as the source-of-truth
+  per-file-type comparison across tools
+
+### Changed
+
+- **README**: hero section redesigned (badges + logo + one-line pitch)
+- **pyproject metadata**: description and keywords refreshed (`codex`, `cursor`,
+  `ai-dotfiles`, `ai-agent-config` added)
+
 ## [0.21.0] - 2026-08-10
 
 ### Added

@@ -490,6 +490,30 @@ class TestAddAllRecCommand(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("skills", result.output)
 
+    def test_add_all_rec_skills_unsafe_name_skipped(self):
+        """Security: frontmatter name with ../.. must not escape the store."""
+        import ai_adapter.config as cfg
+
+        github_skills = Path.cwd() / ".github" / "skills"
+        github_skills.mkdir(parents=True, exist_ok=True)
+        sneaky = github_skills / "sneaky"
+        sneaky.mkdir()
+        (sneaky / "SKILL.md").write_text("---\nname: ../../evil\n---\n# Evil\n")
+
+        # Decoy at exactly the path a traversal rmtree would target.
+        decoy = self.patch_home / "evil"
+        decoy.mkdir()
+        (decoy / "precious.txt").write_text("keep me\n")
+
+        result = self.runner.invoke(main, ["add-all-rec"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("unsafe", result.output)
+        self.assertEqual((decoy / "precious.txt").read_text(), "keep me\n")
+        config = cfg.load_config()
+        self.assertIsNotNone(config)
+        skill_names = [s.name for s in config.skills] if config else []
+        self.assertFalse(any("/" in n or n == "evil" for n in skill_names))
+
     def test_add_all_rec_mcp(self):
         """Verify MCP servers are registered from .mcp.json."""
         mcp_json = Path.cwd() / ".mcp.json"

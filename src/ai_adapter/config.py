@@ -110,6 +110,23 @@ def get_github_instructions_dir(project_dir: Path | None = None) -> Path:
     return base
 
 
+def is_safe_store_name(name: str) -> bool:
+    """Return True when *name* can be used as a single store path component.
+
+    Frontmatter ``name`` values are attacker-controllable (e.g. a skill
+    whose SKILL.md declares ``name: ../../evil``).  Joining such a value
+    onto a store directory would escape it, and a later ``rmtree`` could
+    delete files outside the store.  Rejecting empty names, path
+    separators, and "." / ".." keeps every store join inside the store.
+
+    Shared by the scan import hook and ``add-all-rec`` so both follow the
+    same policy.
+    """
+    if not name:
+        return False
+    return "/" not in name and "\\" not in name and name not in (".", "..")
+
+
 def init() -> bool:
     """Initialize the ~/.ai-adapter/ directory.
 

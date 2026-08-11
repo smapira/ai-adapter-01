@@ -315,6 +315,30 @@ def test_scan_json_uninstalled_tools_are_zero(isolated_home: Path):
         assert payload["agents"][tool] == 0, tool
 
 
+def test_scan_json_per_tool_installed_flags(isolated_home: Path):
+    """JSON exposes per-tool installed/settings so settings-only installs
+    are distinguishable from missing tools (F2)."""
+    (isolated_home / ".codex").mkdir(parents=True)
+    (isolated_home / ".codex" / "config.toml").write_text("model = 'gpt-5'\n", encoding="utf-8")
+    result = scan_all(project_dir=Path.cwd())
+    payload = scan_result_to_dict(result)
+    assert payload["tools"]["codex"]["installed"] is True
+    assert payload["tools"]["codex"]["settings"] == 1
+    assert payload["tools"]["claude"]["installed"] is False
+    assert payload["tools"]["claude"]["settings"] == 0
+
+
+def test_scan_cli_settings_only_tool_not_reported_not_installed(isolated_home: Path, runner: CliRunner):
+    """A settings-only install (config.toml, no agents) must not be shown
+    as 'not installed' (F2)."""
+    (isolated_home / ".codex").mkdir(parents=True)
+    (isolated_home / ".codex" / "config.toml").write_text("model = 'gpt-5'\n", encoding="utf-8")
+    result = runner.invoke(main, ["scan", "--project-dir", str(Path.cwd())], input="n\n")
+    assert result.exit_code == 0, result.output
+    assert "Codex: installed (no agents/skills)" in result.output
+    assert "Codex: 0 detected (not installed)" not in result.output
+
+
 def test_scan_cli_output_summary(isolated_home: Path, runner: CliRunner):
     _claude_env(isolated_home)
     _write_skill(isolated_home, "claude", "frontend", description="Frontend")
@@ -484,10 +508,30 @@ def test_is_ignored_patterns():
     assert is_ignored("secrets.json")
     assert is_ignored("tokens.txt")
     assert is_ignored("credentials.json")
+    assert is_ignored("jwt-token.json")
     # Normal files are not ignored.
     assert not is_ignored(".claude/settings.json")
     assert not is_ignored(".codex/config.toml")
     assert not is_ignored(".github/agents/reviewer.agent.md")
+    # Generic secret words match filename components exactly, never as
+    # substrings: "secretary" / "tokensmith" must not be collapsed into
+    # "secret" / "token" (F1 regression).
+    assert not is_ignored(".github/agents/secretary.agent.md")
+    assert not is_ignored("tokensmith.md")
+
+
+def test_scan_detects_secretary_agent(isolated_home: Path):
+    """Security: component-wise secret matching must not hide secretary.agent.md."""
+    project = Path.cwd()
+    agents_dir = project / ".github" / "agents"
+    agents_dir.mkdir(parents=True)
+    (agents_dir / "secretary.agent.md").write_text(
+        "---\nname: secretary\ndescription: Office agent\n---\n# secretary\n",
+        encoding="utf-8",
+    )
+    result = scan_all(project_dir=project)
+    agents = [i for i in result.items if i.tool == "project" and i.category == "agent"]
+    assert [a.name for a in agents] == ["secretary"]
 
 
 def test_scan_ignore_patterns_are_defined():
@@ -566,6 +610,50 @@ def test_import_detected_items_registers_mcp_and_skills(isolated_home: Path):
     assert server is not None
     assert server.command == "gh-mcp"
     assert server.args == ["--flag"]
+
+
+def test_import_skill_rejects_path_traversal_name(isolated_home: Path):
+    """Security: frontmatter ``name: ../../evil`` must not escape the store (F3).
+
+    The destination is built from the frontmatter name and replaced with
+    ``shutil.rmtree`` on collision; an unsafe name must be skipped before
+    any copy/delete so nothing outside the store is written or removed.
+    """
+    skill_dir = isolated_home / ".claude" / "skills" / "sneaky"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: ../../evil\ndescription: sneaky\n---\n# sneaky\n",
+        encoding="utf-8",
+    )
+    # Decoy at exactly the path a traversal rmtree would target
+    # (~/.ai-adapter/skills/../../evil → ~/evil).
+    decoy = isolated_home / "evil"
+    decoy.mkdir()
+    (decoy / "precious.txt").write_text("keep me\n", encoding="utf-8")
+
+    result = scan_all(project_dir=Path.cwd())
+    imported = import_detected_items(result)
+
+    assert imported == 0
+    # Nothing was deleted or written outside the store.
+    assert (decoy / "precious.txt").read_text(encoding="utf-8") == "keep me\n"
+    assert not (cfg.AI_ADAPTER_DIR / "evil").exists()
+    config = cfg.load_config()
+    assert config is not None
+    assert not any(s.name == "../../evil" for s in config.skills)
+
+
+def test_scan_import_prompt_closed_stdin_skips(isolated_home: Path, runner: CliRunner):
+    """Closed stdin (EOF) with detected items must not abort the scan (F4).
+
+    ``click.confirm`` raises ``Abort`` on EOF; the read-only diagnostic
+    must degrade to "Import skipped." with exit code 0 instead of failing.
+    """
+    _claude_env(isolated_home)
+    result = runner.invoke(main, ["scan", "--project-dir", str(Path.cwd())], input="")
+    assert result.exit_code == 0, result.output
+    assert "Import skipped." in result.output
+    assert "Aborted!" not in result.output
 
 
 # ── Data structure sanity ───────────────────────────────────────────────

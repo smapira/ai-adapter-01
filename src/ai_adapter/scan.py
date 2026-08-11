@@ -8,7 +8,8 @@ instructions, ``.mcp.json``) — without reading sensitive content.
 Security rules (must be kept in sync with tests/test_scan.py):
 - Only filenames and YAML frontmatter (name/description/tags) are read.
 - Full file contents are never printed.
-- Credential files are excluded via :data:`SCAN_IGNORE_PATTERNS`.
+- Credential files are excluded via :data:`SCAN_IGNORE_PATTERNS` and the
+  component-wise :data:`_GENERIC_SECRET_COMPONENTS` check.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from __future__ import annotations
 import fnmatch
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
@@ -25,9 +27,10 @@ from ai_adapter.agent_plugins import ValidationIssue
 from ai_adapter.models import Config
 
 # ── Security blacklist ──────────────────────────────────────────────────
-# Glob patterns matched (case-insensitively) against scan-relative paths.
-# ``*`` matches across directory separators, so ``.cursor/*auth*`` covers
-# both ``.cursor/auth.json`` and ``.cursor/sub/auth.json``.
+# Tool-specific glob patterns matched (case-insensitively) against
+# scan-relative paths.  ``*`` matches across directory separators, so
+# ``.cursor/*auth*`` covers both ``.cursor/auth.json`` and
+# ``.cursor/sub/auth.json``.
 SCAN_IGNORE_PATTERNS: tuple[str, ...] = (
     # Tool-specific credential stores
     ".codex/auth.json",
@@ -35,14 +38,21 @@ SCAN_IGNORE_PATTERNS: tuple[str, ...] = (
     # Cursor credentials / API keys
     ".cursor/*auth*",
     ".cursor/*key*",
-    # Generic secrets
+    # Generic secret-file extensions
     ".env",
     "*.env",
     "*.pem",
     "*.key",
-    "*secret*",
-    "*token*",
-    "*credential*",
+)
+
+# Filename components that identify a credential store.  These are matched
+# *exactly* against the ``._-``-split basename (see :func:`_has_secret_component`)
+# rather than as substrings of the full path: ``secrets.json`` / ``auth.json`` /
+# ``tokens.txt`` are excluded, while normal files such as ``secretary.agent.md``
+# or ``tokensmith.md`` are not (a substring match on ``*secret*`` would hide
+# them).
+_GENERIC_SECRET_COMPONENTS: frozenset[str] = frozenset(
+    ("secret", "secrets", "token", "tokens", "auth", "credential", "credentials")
 )
 
 # Number of days after which a skill with an old ``update_date`` is
@@ -64,16 +74,33 @@ TOOL_LABELS: dict[str, str] = {
 }
 
 
+def _has_secret_component(scan_rel_path: str) -> bool:
+    """Return True when the basename's ``._-``-split contains a secret word.
+
+    Generic secret words (see :data:`_GENERIC_SECRET_COMPONENTS`) are
+    compared per-component *exactly*, so ``secrets.json`` / ``token.txt`` /
+    ``auth.json`` are excluded while similarly-named normal files such as
+    ``secretary.agent.md`` are kept.
+    """
+    basename = scan_rel_path.rsplit("/", 1)[-1]
+    components = set(re.split(r"[._-]+", basename))
+    return bool(components & _GENERIC_SECRET_COMPONENTS)
+
+
 def is_ignored(scan_rel_path: str) -> bool:
     """Return True when a scan-relative path must be excluded.
 
     *scan_rel_path* is the path relative to the scanned root (home or
     project directory) using forward slashes, e.g. ``".codex/auth.json"``.
     Matching is a case-insensitive glob against :data:`SCAN_IGNORE_PATTERNS`
-    so credentials and secrets never appear in scan results.
+    plus an exact per-component check against
+    :data:`_GENERIC_SECRET_COMPONENTS`, so credential files never appear in
+    scan results while normal files are left untouched.
     """
     normalized = scan_rel_path.replace("\\", "/").lower()
-    return any(fnmatch.fnmatch(normalized, pattern.lower()) for pattern in SCAN_IGNORE_PATTERNS)
+    if any(fnmatch.fnmatch(normalized, pattern.lower()) for pattern in SCAN_IGNORE_PATTERNS):
+        return True
+    return _has_secret_component(normalized)
 
 
 # ── Data structures ─────────────────────────────────────────────────────
@@ -447,13 +474,22 @@ def scan_result_to_dict(result: ScanResult) -> dict:
     """Serialize a :class:`ScanResult` to a JSON-compatible dict (CI-ready).
 
     Uninstalled tools appear with a count of 0 so CI consumers can rely on
-    a stable key set.
+    a stable key set.  ``tools`` adds a per-tool ``installed`` flag and
+    ``settings`` count so consumers can distinguish "not installed" from
+    "installed with settings only" (e.g. ``~/.codex/config.toml``).
     """
     skills = result.by_category("skill")
     mcp = result.by_category("mcp")
     instructions = result.by_category("instruction")
     return {
         "agents": {tool: result.count(tool=tool, category="agent") for tool in TOOL_ORDER},
+        "tools": {
+            tool: {
+                "installed": result.count(tool=tool) > 0,
+                "settings": result.count(tool=tool, category="settings"),
+            }
+            for tool in TOOL_ORDER
+        },
         "skills": {"total": len(skills), "items": [i.to_dict() for i in skills]},
         "mcp": {"total": len(mcp), "items": [i.to_dict() for i in mcp]},
         "instructions": {"total": len(instructions), "items": [i.to_dict() for i in instructions]},
@@ -565,13 +601,20 @@ def _import_agent(config: Config, item: ScanItem) -> bool:
 
 
 def _import_skill(config: Config, item: ScanItem) -> bool:
-    """Copy a skill directory into the store and register it in config."""
+    """Copy a skill directory into the store and register it in config.
+
+    The frontmatter ``name`` is used as the destination directory name, so
+    it is validated with :func:`~ai_adapter.config.is_safe_store_name`
+    before any copy or delete happens — a name such as ``../../evil`` must
+    never escape the store or trigger an ``rmtree`` outside of it.
+    """
     import shutil
 
     from ai_adapter import config as _config
+    from ai_adapter.config import is_safe_store_name
     from ai_adapter.models import Skill
 
-    if item.path is None:
+    if item.path is None or not is_safe_store_name(item.name):
         return False
     skills_dir = _config.get_skills_dir()
     skills_dir.mkdir(parents=True, exist_ok=True)

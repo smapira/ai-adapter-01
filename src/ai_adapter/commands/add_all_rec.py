@@ -93,6 +93,9 @@ def _import_skills(config: _config.Config, github_dir: Path) -> int:
         except Exception:
             continue
         name = metadata.get("name") or d.name
+        if not _config.is_safe_store_name(str(name)):
+            click.echo(f"  skills/: skip '{d.name}' (unsafe frontmatter name)")
+            continue
         dest = skills_dir / name
         if dest.exists():
             shutil.rmtree(dest)

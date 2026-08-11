@@ -18,6 +18,7 @@ from ai_adapter.config import (
     add_to_gitignore,
     get_github_skills_dir,
     get_skills_dir,
+    is_safe_store_name,
     load_config,
     resolve_env,
     save_config,
@@ -93,6 +94,8 @@ def skill_add(path: str, env: str | None, agent: str | None) -> None:
     src = Path(path).resolve()
     metadata = _parse_skill_metadata(src)
     name = metadata.get("name") or src.name
+    if not is_safe_store_name(str(name)):
+        raise click.ClickException(f"Invalid skill name '{name}': must be a single path component")
 
     skills_dir = get_skills_dir()
     skills_dir.mkdir(parents=True, exist_ok=True)
@@ -163,6 +166,9 @@ def skill_add_rec(dir_path: str, env: str | None, agent: str | None) -> None:
             continue
 
         name = metadata.get("name") or d.name
+        if not is_safe_store_name(str(name)):
+            click.echo(f"    skip '{d.name}': invalid skill name '{name}'")
+            continue
         dest = skills_dir / name
         if dest.exists():
             shutil.rmtree(dest)

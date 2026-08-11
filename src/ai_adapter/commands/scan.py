@@ -70,14 +70,22 @@ def _render_result(result: ScanResult) -> None:
 
 
 def _render_agents(result: ScanResult) -> None:
-    """Print the per-tool agent counts (0 = not installed, never omitted)."""
+    """Print the per-tool status with agent counts when installed.
+
+    A tool counts as installed when *any* item was detected (agents,
+    skills, settings, MCP, instructions) — not just agents — so a
+    settings-only install (e.g. ``~/.codex/config.toml``) is never
+    reported as "not installed".
+    """
     click.echo("Agents")
     for tool in TOOL_ORDER:
         count = result.count(tool=tool, category="agent")
-        if count:
+        if not result.count(tool=tool):
+            click.echo(f"  ✓ {TOOL_LABELS[tool]}: 0 detected (not installed)")
+        elif count:
             click.echo(f"  ✓ {TOOL_LABELS[tool]}: {count} detected")
         else:
-            click.echo(f"  ✓ {TOOL_LABELS[tool]}: 0 detected (not installed)")
+            click.echo(f"  ✓ {TOOL_LABELS[tool]}: installed (no agents/skills)")
 
 
 def _render_list(result: ScanResult, category: str, heading: str, noun: str) -> None:
@@ -119,7 +127,13 @@ def _offer_import(result: ScanResult, project_dir: Path, yes: bool) -> None:
         label = TOOL_LABELS.get(item.tool, item.tool)
         click.echo(f"  - [{item.category}] {item.name} ({label})")
 
-    confirmed = yes or click.confirm(f"Import them into {_config.AI_ADAPTER_DIR}?", default=False)
+    try:
+        confirmed = yes or click.confirm(f"Import them into {_config.AI_ADAPTER_DIR}?", default=False)
+    except click.exceptions.Abort:
+        # Non-interactive runs (e.g. pipelines with closed stdin) must not
+        # turn a read-only diagnostic into an exit-code-1 failure.
+        click.echo("Import skipped.")
+        return
     if not confirmed:
         click.echo("Import skipped.")
         return

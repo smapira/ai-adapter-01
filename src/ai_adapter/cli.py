@@ -19,12 +19,14 @@ from ai_adapter.commands.add_all_rec import cmd_add_all_rec
 from ai_adapter.commands.agent import agent_group
 from ai_adapter.commands.bin import bin_group
 from ai_adapter.commands.command import command_group
+from ai_adapter.commands.doctor import cmd_doctor
 from ai_adapter.commands.env import env_group
 from ai_adapter.commands.get_all_rec import cmd_get_all_rec
 from ai_adapter.commands.instruction import instruction_group
 from ai_adapter.commands.mcp import mcp_group
 from ai_adapter.commands.plugin import plugin_group
 from ai_adapter.commands.prompt import prompt_group
+from ai_adapter.commands.scan import cmd_scan
 from ai_adapter.commands.skill import skill_group
 from ai_adapter.git import GitError, get_conflicted_files, is_rebasing
 from ai_adapter.providers.codex import codex_group
@@ -335,6 +337,8 @@ main.add_command(opencode_group)
 main.add_command(codex_group)
 main.add_command(cmd_add_all_rec)
 main.add_command(cmd_get_all_rec)
+main.add_command(cmd_scan)
+main.add_command(cmd_doctor)
 
 
 @main.command(name="sync")

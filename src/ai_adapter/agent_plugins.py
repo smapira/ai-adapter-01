@@ -53,13 +53,13 @@ class ValidationIssue:
 
     component: str
     message: str
-    severity: str = "error"  # "error" or "warning"
+    severity: str = "error"  # "error", "warning", or "info"
     path: str = ""
 
     def __str__(self) -> str:
         prefix = f"[{self.component}]" if self.component else ""
         loc = f" ({self.path})" if self.path else ""
-        label = "ERROR" if self.severity == "error" else "WARN"
+        label = {"error": "ERROR", "warning": "WARN", "info": "INFO"}.get(self.severity, "WARN")
         return f"{label}: {prefix}{loc} {self.message}"
 
 

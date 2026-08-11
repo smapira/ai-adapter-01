@@ -716,3 +716,152 @@ class TestGetAllRecCommand(unittest.TestCase):
         # Cleanup
 
         (Path.cwd() / ".mcp.json").unlink(missing_ok=True)
+
+    def test_get_all_rec_summary_shown(self):
+        """Verify pre-deploy summary with per-category counts for a fresh project."""
+        import shutil
+
+        self._populate_store()
+
+        project_dir = Path(self.temp_dir.name) / "summary-proj"
+        project_dir.mkdir(parents=True)
+
+        result = self.runner.invoke(
+            main,
+            ["get-all-rec", "--force", "--project-dir", str(project_dir)],
+        )
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("=== Summary ===", result.output)
+        self.assertIn("Agents: 2 (0 in repo, 2 new)", result.output)
+        self.assertIn("Bins: 2 (0 in repo, 2 new)", result.output)
+        self.assertIn("Skills: 1 (0 in repo, 1 new)", result.output)
+        self.assertIn("Commands: 2 (0 in repo, 2 new)", result.output)
+        self.assertIn("Prompts: 2 (0 in repo, 2 new)", result.output)
+        self.assertIn("MCP: 1 (0 in repo, 1 new)", result.output)
+
+        shutil.rmtree(project_dir, ignore_errors=True)
+
+    def test_get_all_rec_summary_before_deploy(self):
+        """Verify the diff is computed pre-deploy (second run shows up-to-date)."""
+        import shutil
+
+        self._populate_store()
+
+        project_dir = Path(self.temp_dir.name) / "summary-proj2"
+        project_dir.mkdir(parents=True)
+
+        # First run: everything is new
+        self.runner.invoke(main, ["get-all-rec", "--force", "--project-dir", str(project_dir)])
+
+        # Second run: everything is now in repo (up-to-date, nothing new)
+        result = self.runner.invoke(main, ["get-all-rec", "--force", "--project-dir", str(project_dir)])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("Agents: 2 (2 in repo, 0 new)", result.output)
+        self.assertIn("MCP: 1 (1 in repo, 0 new)", result.output)
+
+        shutil.rmtree(project_dir, ignore_errors=True)
+
+    def test_get_all_rec_no_summary(self):
+        """Verify --no-summary skips the summary but still deploys."""
+        import shutil
+
+        self._populate_store()
+
+        project_dir = Path(self.temp_dir.name) / "no-summary-proj"
+        project_dir.mkdir(parents=True)
+
+        result = self.runner.invoke(
+            main,
+            ["get-all-rec", "--force", "--no-summary", "--project-dir", str(project_dir)],
+        )
+        self.assertEqual(result.exit_code, 0)
+        self.assertNotIn("=== Summary ===", result.output)
+        self.assertTrue((project_dir / ".github" / "agents" / "reviewer.agent.md").exists())
+
+        shutil.rmtree(project_dir, ignore_errors=True)
+
+    def test_get_all_rec_summary_then_deploy_continues(self):
+        """Verify deployment proceeds normally after the summary (AC5)."""
+        import shutil
+
+        self._populate_store()
+
+        project_dir = Path(self.temp_dir.name) / "continue-proj"
+        project_dir.mkdir(parents=True)
+
+        result = self.runner.invoke(
+            main,
+            ["get-all-rec", "--force", "--project-dir", str(project_dir)],
+        )
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("=== Summary ===", result.output)
+        self.assertIn("All deployments completed: Total:", result.output)
+
+        shutil.rmtree(project_dir, ignore_errors=True)
+
+    def test_get_all_rec_summary_empty_store(self):
+        """Verify summary shows no category lines when nothing is registered."""
+        import shutil
+
+        project_dir = Path(self.temp_dir.name) / "empty-proj"
+        project_dir.mkdir(parents=True)
+
+        result = self.runner.invoke(
+            main,
+            ["get-all-rec", "--project-dir", str(project_dir)],
+        )
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("=== Summary ===", result.output)
+        self.assertNotIn("in repo", result.output)
+        self.assertIn("All deployments completed: Total:", result.output)
+
+        shutil.rmtree(project_dir, ignore_errors=True)
+
+
+class TestCursorFormatSmoke(unittest.TestCase):
+    """CLI smoke tests for the --format cursor option (task 0-2)."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.patch_home = Path(self.temp_dir.name)
+        self.runner = CliRunner()
+
+        import pathlib
+
+        self._original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.patch_home)
+
+        import ai_adapter.config as cfg
+
+        cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
+
+        from ai_adapter.config import init
+
+        init()
+
+    def tearDown(self):
+        import pathlib
+
+        pathlib.Path.home = staticmethod(self._original_home)
+        import ai_adapter.config as cfg
+
+        cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        self.temp_dir.cleanup()
+
+    def test_skill_get_all_format_cursor_starts(self):
+        """skill get-all --format cursor starts without error (empty store)."""
+        result = self.runner.invoke(main, ["skill", "get-all", "--format", "cursor"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("No skills registered.", result.output)
+
+    def test_mcp_get_format_cursor_starts(self):
+        """mcp get --format cursor starts without error (empty store)."""
+        result = self.runner.invoke(main, ["mcp", "get", "--format", "cursor"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("No enabled MCP servers registered.", result.output)
+
+    def test_agent_get_format_cursor_rejected(self):
+        """agent get --format cursor fails fast with conversion error (exit 2)."""
+        result = self.runner.invoke(main, ["agent", "get", "AGENTS.md", "--format", "cursor"])
+        self.assertEqual(result.exit_code, 2)
+        self.assertIn("not supported", result.output)

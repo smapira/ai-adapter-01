@@ -13,6 +13,9 @@ import click
 
 from ai_adapter import config as _config
 from ai_adapter.models import MCPServer
+from ai_adapter.providers.cursor import export_mcp as _export_cursor_mcp
+from ai_adapter.providers.cursor import merge_into_cursor_mcp_json as _merge_cursor_mcp
+from ai_adapter.providers.cursor import resolve_mcp_output_path as _cursor_output_path
 from ai_adapter.providers.openclaw import export_mcp as _export_openclaw_mcp
 from ai_adapter.providers.openclaw import merge_into_openclaw_json as _merge_openclaw
 from ai_adapter.providers.openclaw import resolve_mcp_output_path as _openclaw_output_path
@@ -187,20 +190,32 @@ def _mcp_get_openclaw(servers: list[MCPServer], path: str | None, force: bool = 
     _merge_openclaw(openclaw_path, data, force=force)
 
 
+def _mcp_get_cursor(servers: list[MCPServer], path: str | None, force: bool = False) -> None:
+    """Export MCP servers in Cursor format (.cursor/mcp.json).
+
+    Cursor is MCP-compatible, so the standard mcpServers structure is
+    merged into the project's .cursor/mcp.json (preserving unmanaged servers).
+    """
+    cursor_path = _cursor_output_path(path)
+    data = _export_cursor_mcp(servers)
+    _merge_cursor_mcp(cursor_path, data, force=force)
+
+
 @mcp_group.command(name="get")
 @click.option(
     "--path",
     default=None,
     help="Output directory (default: current directory). "
     "With --format standard: writes .mcp.json. "
-    "With --format openclaw: writes openclaw.json.",
+    "With --format openclaw: writes openclaw.json. "
+    "With --format cursor: writes .cursor/mcp.json.",
 )
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(["standard", "openclaw"]),
+    type=click.Choice(["standard", "openclaw", "cursor"]),
     default="standard",
-    help="Output format (standard=.mcp.json, openclaw=openclaw.json)",
+    help="Output format (standard=.mcp.json, openclaw=openclaw.json, cursor=.cursor/mcp.json)",
 )
 @click.option("--env", help="Filter by environment name (only export servers for this env)")
 @click.option(
@@ -209,7 +224,7 @@ def _mcp_get_openclaw(servers: list[MCPServer], path: str | None, force: bool = 
     help="Overwrite output file without confirmation",
 )
 def mcp_get(path: str | None, format: str, env: str | None, force: bool) -> None:
-    """Export MCP configuration to .mcp.json or openclaw.json."""
+    """Export MCP configuration to .mcp.json, openclaw.json, or .cursor/mcp.json."""
     config = _config.load_config()
     if config is None:
         click.echo("Configuration file not found. Run ai-adapter init first.")
@@ -224,6 +239,8 @@ def mcp_get(path: str | None, format: str, env: str | None, force: bool) -> None
 
     if format == "openclaw":
         _mcp_get_openclaw(enabled_servers, path, force)
+    elif format == "cursor":
+        _mcp_get_cursor(enabled_servers, path, force)
     else:
         _mcp_get_standard(enabled_servers, path, force)
 

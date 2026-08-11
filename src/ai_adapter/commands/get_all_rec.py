@@ -11,6 +11,7 @@ from pathlib import Path
 import click
 
 from ai_adapter import config as _config
+from ai_adapter import diff as _diff
 from ai_adapter.agent_format import parse_frontmatter as _parse_frontmatter
 
 
@@ -248,6 +249,44 @@ def _deploy_instructions(config: _config.Config, project_path: Path | None, forc
     return deployed
 
 
+def _category_label(category: str) -> str:
+    """Human-readable label for a diff category (``mcp`` → ``MCP``)."""
+    return "MCP" if category == "mcp" else category.capitalize()
+
+
+def _summarize_categories(category_diffs: list[_diff.CategoryDiff]) -> list[str]:
+    """Build the pre-deploy diff summary lines.
+
+    Line format: ``Category: N (X in repo, Y new)`` where *in repo* aggregates
+    up-to-date and modified files, and *new* counts files only in the store.
+    Orphaned files (present only in the project) are appended when non-zero.
+    Categories with no files at all are omitted to keep the summary focused.
+    """
+    lines = ["=== Summary ==="]
+    for cat in category_diffs:
+        if not cat.files:
+            continue
+        in_repo = sum(1 for f in cat.files if f.status in ("up-to-date", "modified"))
+        new = sum(1 for f in cat.files if f.status == "added")
+        orphaned = sum(1 for f in cat.files if f.status == "orphaned")
+        line = f"{_category_label(cat.category)}: {len(cat.files)} ({in_repo} in repo, {new} new)"
+        if orphaned:
+            line += f", {orphaned} orphaned"
+        lines.append(line)
+    return lines
+
+
+def _show_deploy_summary(project_path: Path | None) -> None:
+    """Print the diff summary to stdout before deploying anything.
+
+    The diff must be computed *before* deployment — comparing afterwards
+    would report every category as up-to-date. Output goes to stdout so
+    the command stays pipe-compatible.
+    """
+    for line in _summarize_categories(_diff.compare_all(project_path)):
+        click.echo(line)
+
+
 @click.command(name="get-all-rec")
 @click.option("--force", is_flag=True, help="Overwrite existing files without prompting")
 @click.option("--env", help="Filter by environment name (only deploy items for this env)")
@@ -258,7 +297,8 @@ def _deploy_instructions(config: _config.Config, project_path: Path | None, forc
     default=None,
     help="Target project directory (default: current directory)",
 )
-def cmd_get_all_rec(force: bool, env: str | None, project_dir: str | None) -> None:
+@click.option("--no-summary", is_flag=True, help="Skip the pre-deploy diff summary")
+def cmd_get_all_rec(force: bool, env: str | None, project_dir: str | None, no_summary: bool) -> None:
     """Deploy all registered items to .github/ (reverse of add-all-rec)."""
     config = _config.load_config()
     if config is None:
@@ -266,6 +306,8 @@ def cmd_get_all_rec(force: bool, env: str | None, project_dir: str | None) -> No
         return
 
     project_path = Path(project_dir).resolve() if project_dir else None
+    if not no_summary:
+        _show_deploy_summary(project_path)
     total = 0
     total += _deploy_agents(config, project_path, force, env)
     total += _deploy_bins(config, project_path, force, env)

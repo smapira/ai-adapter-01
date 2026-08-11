@@ -104,11 +104,31 @@ def _find_instruction_by_name(instructions_dir: Path, name: str) -> Path | None:
     help="Target project directory (default: current directory)",
 )
 @click.option("--force", is_flag=True, help="Overwrite existing file without prompting")
-def instruction_get(name: str, project_dir: str | None, force: bool) -> None:
+@click.option(
+    "--format",
+    "-f",
+    "format_name",
+    type=click.Choice(["standard", "cursor"]),
+    default="standard",
+    help="Output format (standard=project root, cursor=unsupported)",
+)
+def instruction_get(name: str, project_dir: str | None, force: bool, format_name: str) -> None:
     """Copy instruction to project root (./AGENTS.md etc.).
 
     NAME: Instruction name to retrieve (no extension needed).
     """
+    # Cursor has no native agent concept, so agent instructions (AGENTS.md)
+    # cannot be mapped to a Cursor format. Fail fast with a clear reason.
+    if format_name == "cursor":
+        click.echo(
+            "Error: 'agent get --format cursor' is not supported. "
+            "Cursor has no native 'agent' concept, so agent instructions "
+            "(AGENTS.md) cannot be converted to a Cursor format. "
+            "Supported formats: standard.",
+            err=True,
+        )
+        raise click.exceptions.Exit(2)
+
     instructions_dir = get_instructions_dir()
     src = _find_instruction_by_name(instructions_dir, name)
 

@@ -270,6 +270,37 @@ class TestMCPCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertTrue((export_dir / ".mcp.json").exists())
 
+    def test_mcp_get_cursor_choice(self):
+        """Verify --format cursor is a valid Choice (writes .cursor/mcp.json)."""
+        self.runner.invoke(
+            main,
+            [
+                "mcp",
+                "add",
+                "github",
+                "--command",
+                "npx",
+                "--args",
+                "@modelcontextprotocol/server-github",
+            ],
+        )
+
+        export_dir = Path(self.temp_dir.name) / "cursor-mcp"
+        export_dir.mkdir(parents=True)
+
+        result = self.runner.invoke(
+            main,
+            ["mcp", "get", "--format", "cursor", "--path", str(export_dir), "--force"],
+        )
+        self.assertEqual(result.exit_code, 0)
+        self.assertTrue((export_dir / ".cursor" / "mcp.json").exists())
+
+    def test_mcp_get_invalid_format(self):
+        """Verify an invalid --format value is rejected by the Choice."""
+        result = self.runner.invoke(main, ["mcp", "get", "--format", "bogus"])
+        self.assertEqual(result.exit_code, 2)
+        self.assertIn("Invalid value", result.output)
+
 
 class TestOpenClawMCPExport(unittest.TestCase):
     """Tests for OpenClaw MCP export functionality."""

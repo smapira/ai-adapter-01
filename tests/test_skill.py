@@ -166,11 +166,58 @@ class TestSkillCommands(unittest.TestCase):
         self.assertIn("test-skill", result.output)
 
     def test_skill_search_no_match(self):
-        """Verify skill search shows message when no match."""
+        """Verify search shows no-match message and hint when nothing found."""
         self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
         result = self.runner.invoke(main, ["skill", "search", "nonexistent"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("No skills matching", result.output)
+        self.assertIn("No matching skills found", result.output)
+        self.assertIn("Hint:", result.output)
+
+    def test_skill_search_tag_filter(self):
+        """Verify --tag narrows search results to skills having that tag."""
+        self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
+        # Second skill matching the keyword but with a different tag
+        other_dir = Path(self.temp_dir.name) / "other-skill"
+        other_dir.mkdir(parents=True)
+        (other_dir / "SKILL.md").write_text(
+            "---\nname: other-skill\ndescription: Python based\ntags: [react]\n---\n# Other\n"
+        )
+        self.runner.invoke(main, ["skill", "add", str(other_dir)])
+
+        result = self.runner.invoke(main, ["skill", "search", "python", "--tag", "test"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("test-skill", result.output)
+        self.assertNotIn("other-skill", result.output)
+
+    def test_skill_search_tag_no_match(self):
+        """Verify tag filter with no matching tag shows no-match message."""
+        self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
+        result = self.runner.invoke(main, ["skill", "search", "python", "--tag", "database"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("No matching skills found", result.output)
+        self.assertIn("Hint:", result.output)
+        self.assertIn("database", result.output)
+
+    def test_skill_search_env_compat(self):
+        """Verify --env still filters search results (argument compatibility)."""
+        self.runner.invoke(main, ["skill", "add", str(self.skill_dir), "--env", "prod"])
+        result = self.runner.invoke(main, ["skill", "search", "python", "--env", "prod"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("test-skill", result.output)
+
+        # A different environment must not match
+        result = self.runner.invoke(main, ["skill", "search", "python", "--env", "staging"])
+        self.assertIn("No matching skills found", result.output)
+
+    def test_skill_search_tag_and_env_compat(self):
+        """Verify --tag and --env combine with the keyword."""
+        self.runner.invoke(main, ["skill", "add", str(self.skill_dir), "--env", "prod"])
+        result = self.runner.invoke(
+            main,
+            ["skill", "search", "python", "--tag", "test", "--env", "prod"],
+        )
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("test-skill", result.output)
 
     def test_skill_link_agent(self):
         """Verify skill link-agent binds skill to agent."""
@@ -196,6 +243,34 @@ class TestSkillCommands(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("1", result.output)
         self.assertTrue((github_skills / "test-skill" / "SKILL.md").exists())
+
+    def test_skill_get_all_cursor_choice(self):
+        """Verify --format cursor is a valid Choice (deploys .mdc rule)."""
+        self.runner.invoke(main, ["skill", "add", str(self.skill_dir)])
+
+        project_dir = Path(self.temp_dir.name) / "cursor-proj"
+        project_dir.mkdir(parents=True)
+
+        result = self.runner.invoke(
+            main,
+            [
+                "skill",
+                "get-all",
+                "--format",
+                "cursor",
+                "--project-dir",
+                str(project_dir),
+                "--force",
+            ],
+        )
+        self.assertEqual(result.exit_code, 0)
+        self.assertTrue((project_dir / ".cursor" / "rules" / "test-skill.mdc").exists())
+
+    def test_skill_get_all_invalid_format(self):
+        """Verify an invalid --format value is rejected by the Choice."""
+        result = self.runner.invoke(main, ["skill", "get-all", "--format", "bogus"])
+        self.assertEqual(result.exit_code, 2)
+        self.assertIn("Invalid value", result.output)
 
     def test_skill_remove_all(self):
         """Verify skill remove-all removes all skills."""

@@ -23,6 +23,7 @@ from ai_adapter.config import (
     save_config,
 )
 from ai_adapter.models import Skill
+from ai_adapter.providers.cursor import deploy_skills as _cursor_deploy_skills
 from ai_adapter.providers.openclaw import deploy_skills as _openclaw_deploy_skills
 
 
@@ -291,11 +292,44 @@ def skill_remove(name: str, env: str | None, agent: str | None, purge: bool) -> 
     click.echo(f"Skill '{name}' removed.")
 
 
+def _matching_skills(
+    skills: list[Skill],
+    keyword: str,
+    tag: str | None,
+    env: str | None,
+) -> list[Skill]:
+    """Return registered skills matching *keyword* (name / description / tags).
+
+    Filters are applied in order: environment, then tag, then keyword.
+    """
+    kw = keyword.lower()
+    results: list[Skill] = []
+    for s in skills:
+        if env and s.env is not None and s.env != env:
+            continue
+        if tag and tag not in s.tags:
+            continue
+        if kw in s.name.lower() or kw in s.description.lower() or any(kw in t.lower() for t in s.tags):
+            results.append(s)
+    return results
+
+
+def _echo_search_hint(tag: str | None) -> None:
+    """Print a hint pointing to ``skill list`` after an empty search."""
+    if tag:
+        click.echo(
+            f"Hint: No skill has the tag '{tag}'. Run 'ai-adapter skill list' to see registered skills and tags."
+        )
+    else:
+        click.echo("Hint: Run 'ai-adapter skill list' to see all registered skills.")
+
+
 @skill_group.command(name="search")
 @click.argument("keyword")
+@click.option("--tag", help="Filter by tag")
 @click.option("--env", "-e", default=None, help="Filter by environment name")
-def skill_search(keyword: str, env: str | None) -> None:
-    """Search skills by keyword.
+def skill_search(keyword: str, tag: str | None, env: str | None) -> None:
+    """Search registered skills by keyword.
 
     KEYWORD: Keyword to match against skill name, description, and tags.
     """
@@ -304,16 +338,10 @@ def skill_search(keyword: str, env: str | None) -> None:
         click.echo("Configuration file not found. Run ai-adapter init first.")
         return
 
-    kw = keyword.lower()
-    results = []
-    for s in config.skills:
-        if env and s.env is not None and s.env != env:
-            continue
-        if kw in s.name.lower() or kw in s.description.lower() or any(kw in t.lower() for t in s.tags):
-            results.append(s)
-
+    results = _matching_skills(config.skills, keyword, tag, env)
     if not results:
-        click.echo(f"No skills matching '{keyword}'.")
+        click.echo(f"No matching skills found for '{keyword}'.")
+        _echo_search_hint(tag)
         return
 
     click.echo(f"Search results: '{keyword}'")
@@ -376,15 +404,16 @@ def skill_link_agent(skill: str, agent: str) -> None:
     "--format",
     "-f",
     "format_name",
-    type=click.Choice(["standard", "openclaw"]),
+    type=click.Choice(["standard", "openclaw", "cursor"]),
     default="standard",
-    help="Output format (standard=.github/skills/, openclaw=~/.openclaw/skills/)",
+    help="Output format (standard=.github/skills/, openclaw=~/.openclaw/skills/, cursor=.cursor/rules/)",
 )
 def skill_get_all(env: str | None, force: bool, project_dir: str | None, format_name: str) -> None:
-    """Copy all registered skills to project .github/skills/ or OpenClaw skills dir.
+    """Copy all registered skills to project .github/skills/, OpenClaw, or Cursor rules.
 
     With --format openclaw, deploys to ~/.openclaw/skills/ (OpenClaw user skills).
-    Existing non-ai-adapter skills in the target directory are preserved.
+    With --format cursor, deploys as .cursor/rules/*.mdc files (Cursor rules).
+    Existing non-ai-adapter files in the target directory are preserved.
     Use --env to filter by environment.
     """
     config = load_config()
@@ -399,6 +428,8 @@ def skill_get_all(env: str | None, force: bool, project_dir: str | None, format_
 
     if format_name == "openclaw":
         _openclaw_deploy_skills(targets, skills_dir, force)
+    elif format_name == "cursor":
+        _cursor_deploy_skills(targets, skills_dir, force, project_dir)
     else:
         _deploy_skills_standard(targets, skills_dir, force, project_dir)
 

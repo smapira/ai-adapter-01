@@ -24,9 +24,11 @@ from ai_adapter.commands.env import env_group
 from ai_adapter.commands.get_all_rec import cmd_get_all_rec
 from ai_adapter.commands.instruction import instruction_group
 from ai_adapter.commands.mcp import mcp_group
+from ai_adapter.commands.pack import pack_group
 from ai_adapter.commands.plugin import plugin_group
 from ai_adapter.commands.prompt import prompt_group
 from ai_adapter.commands.scan import cmd_scan
+from ai_adapter.commands.setup import setup_group
 from ai_adapter.commands.skill import skill_group
 from ai_adapter.git import GitError, get_conflicted_files, is_rebasing
 from ai_adapter.providers.codex import codex_group
@@ -339,6 +341,8 @@ main.add_command(cmd_add_all_rec)
 main.add_command(cmd_get_all_rec)
 main.add_command(cmd_scan)
 main.add_command(cmd_doctor)
+main.add_command(setup_group)
+main.add_command(pack_group)
 
 
 @main.command(name="sync")

@@ -1,0 +1,20 @@
+name: web-development
+description: Web development recommended configuration
+skills:
+  - frontend
+  - react
+  - typescript
+  - testing
+mcp:
+  - name: github
+    command: npx
+    args:
+      - "@modelcontextprotocol/server-github"
+  - name: playwright
+    command: npx
+    args:
+      - "@modelcontextprotocol/server-playwright"
+agents:
+  - code-reviewer
+  - frontend-engineer
+commands: []

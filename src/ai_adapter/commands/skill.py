@@ -506,3 +506,136 @@ def skill_remove_all(env: str | None, force: bool, purge: bool) -> None:
         config.skills.clear()
     save_config(config)
     click.echo(f"Removed {count} skill(s).")
+
+
+# ---------------------------------------------------------------------------
+# skill install
+# ---------------------------------------------------------------------------
+
+
+@skill_group.command(name="install")
+@click.argument("name")
+@click.option("--source", default=None, help="Source (github:user/repo). Default: local cache.")
+@click.option("--force", is_flag=True, help="Overwrite existing skill without confirmation")
+def skill_install(name: str, source: str | None, force: bool) -> None:
+    """Install a skill from a local cache or GitHub repository.
+
+    NAME: Skill name to install.
+
+    Resolution order (when --source is omitted):
+      1. Local cache:  ~/.ai-adapter/skills/<name>/ (if present, reuse)
+      2. Error: skill not found locally
+    """
+    from ai_adapter.agent_plugins import ValidationIssue, validate_skill_dir
+
+    skills_dir = get_skills_dir()
+    skills_dir.mkdir(parents=True, exist_ok=True)
+    dest = skills_dir / name
+
+    # --- If skill already exists locally ---
+    if dest.is_dir():
+        if force:
+            shutil.rmtree(dest)
+        else:
+            click.confirm(f"Skill '{name}' already exists. Overwrite?", abort=True)
+            shutil.rmtree(dest)
+
+    if source:
+        # --- GitHub source ---
+        _install_from_github(name, source, dest)
+    else:
+        # --- Local cache ---
+        from ai_adapter.profiles import resolve_skill_source
+
+        cached = resolve_skill_source(name)
+        if cached is None:
+            click.echo(f"Skill '{name}' not found locally and no --source specified.", err=True)
+            raise click.ClickException(
+                f"Skill '{name}' not found. Use --source github:user/repo to install from GitHub."
+            )
+        shutil.copytree(cached, dest)
+
+    # --- Validate frontmatter before registering ---
+    issues: list[ValidationIssue] = []
+    validate_skill_dir(dest, issues)
+    has_errors = any(i.severity == "error" for i in issues)
+    for issue in issues:
+        level = "⚠" if issue.severity == "warning" else "✗"
+        click.echo(f"  {level} {issue.message}", err=True)
+    if has_errors:
+        shutil.rmtree(dest)
+        raise click.ClickException(f"Skill '{name}' failed validation. Install aborted.")
+
+    # --- Register in config ---
+    metadata = _parse_skill_metadata(dest)
+    skill_name = metadata.get("name") or name
+    if not is_safe_store_name(skill_name):
+        shutil.rmtree(dest)
+        raise click.ClickException(f"Invalid skill name '{skill_name}': must be a single path component")
+
+    config = load_config()
+    if config is None:
+        click.echo("Configuration file not found. Run ai-adapter init first.")
+        return
+
+    # Duplicate check
+    for existing in config.skills:
+        if existing.name == skill_name:
+            existing.description = metadata.get("description", "")
+            existing.tags = metadata.get("tags", [])
+            existing.path = f"skills/{skill_name}"
+            save_config(config)
+            click.echo(f"Skill '{skill_name}' installed and updated.")
+            return
+
+    config.skills.append(
+        Skill(
+            name=skill_name,
+            description=metadata.get("description", ""),
+            path=f"skills/{skill_name}",
+            tags=metadata.get("tags", []),
+        )
+    )
+    save_config(config)
+    click.echo(f"Skill '{skill_name}' installed.")
+
+
+def _install_from_github(name: str, source: str, dest: Path) -> None:
+    """Clone a skill from a GitHub repository.
+
+    ``source`` format: ``github:user/repo``
+    """
+    from ai_adapter.git import GitError, _run_git
+
+    if not source.startswith("github:"):
+        raise click.ClickException(f"Invalid source format '{source}'. Expected 'github:user/repo'.")
+
+    repo_path = source[len("github:") :]
+    if "/" not in repo_path:
+        raise click.ClickException(f"Invalid GitHub source '{repo_path}'. Expected format: user/repo")
+
+    url = f"https://github.com/{repo_path}.git"
+
+    click.echo(f"Cloning from {url}...")
+    tmp_dir = dest.parent / f".tmp-{name}"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        _run_git(["clone", "--depth", "1", url, str(tmp_dir)])
+
+        # Look for SKILL.md in the cloned repo
+        skill_md = tmp_dir / "SKILL.md"
+        if skill_md.exists():
+            shutil.copytree(tmp_dir, dest)
+        else:
+            # Maybe the skill is in a subdirectory
+            sub = tmp_dir / name
+            if sub.is_dir() and (sub / "SKILL.md").exists():
+                shutil.copytree(sub, dest)
+            else:
+                raise click.ClickException(f"No SKILL.md found in {repo_path}. Is this a valid skill repository?")
+    except GitError as e:
+        raise click.ClickException(f"Git clone failed: {e}")
+    finally:
+        if tmp_dir.exists():
+            shutil.rmtree(tmp_dir)

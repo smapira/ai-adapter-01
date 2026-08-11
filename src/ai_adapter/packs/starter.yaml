@@ -1,0 +1,4 @@
+name: starter
+description: Starter pack with web development basics
+profiles:
+  - web-development

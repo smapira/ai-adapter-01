@@ -611,3 +611,179 @@ class TestSkillOpenClawExport(unittest.TestCase):
         # Content should remain old
         content = (self.openclaw_dir / "skills" / "my-skill" / "SKILL.md").read_text()
         self.assertIn("Old", content)
+
+
+class TestSkillInstall(unittest.TestCase):
+    """Tests for ``ai-adapter skill install``."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.patch_home = Path(self.temp_dir.name)
+        self.runner = CliRunner()
+
+        import pathlib
+
+        self._original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.patch_home)
+
+        import ai_adapter.config as cfg
+
+        cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
+
+        from ai_adapter.config import init
+
+        init()
+
+        # Backup real .github/ to protect from test cleanup
+        self._github_bak = None
+        github_dir = Path.cwd() / ".github"
+        if github_dir.exists():
+            import shutil
+
+            self._github_bak = Path(self.temp_dir.name) / "github.bak"
+            shutil.copytree(github_dir, self._github_bak)
+
+        # Create a local skill source directory (simulates bundled/installed skill)
+        self.skill_source = Path(self.temp_dir.name) / "local-skill"
+        self.skill_source.mkdir(parents=True)
+        (self.skill_source / "SKILL.md").write_text(
+            "---\nname: local-skill\ndescription: A local test skill\ntags: [test]\n---\n\n# Local Skill\n",
+            encoding="utf-8",
+        )
+
+    def tearDown(self):
+        import pathlib
+
+        pathlib.Path.home = staticmethod(self._original_home)
+        import ai_adapter.config as cfg
+
+        cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        # Restore .github/ from backup
+        if hasattr(self, "_github_bak") and self._github_bak and Path(self._github_bak).exists():
+            import shutil
+
+            github_dir = Path.cwd() / ".github"
+            if github_dir.exists():
+                shutil.rmtree(github_dir)
+            shutil.copytree(self._github_bak, github_dir)
+        self.temp_dir.cleanup()
+
+    def test_skill_install_local_cache(self):
+        """Verify skill install copies from a local source directory."""
+        from unittest.mock import patch
+
+        with patch(
+            "ai_adapter.profiles.resolve_skill_source",
+            return_value=self.skill_source,
+        ):
+            result = self.runner.invoke(main, ["skill", "install", "local-skill"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("installed", result.output)
+
+        # Verify the skill was copied to the store
+        skills_dir = self.patch_home / ".ai-adapter" / "skills"
+        self.assertTrue((skills_dir / "local-skill" / "SKILL.md").exists())
+
+        # Verify the skill is registered in config
+        from ai_adapter.config import load_config
+
+        config = load_config()
+        assert config is not None
+        self.assertTrue(any(s.name == "local-skill" for s in config.skills))
+
+    def test_skill_install_rejects_unsafe_name(self):
+        """Security: install must reject path-traversal frontmatter names."""
+        unsafe_source = Path(self.temp_dir.name) / "unsafe-install"
+        unsafe_source.mkdir(parents=True)
+        (unsafe_source / "SKILL.md").write_text(
+            "---\nname: ../../evil\ndescription: sneaky\n---\n# Evil\n",
+            encoding="utf-8",
+        )
+
+        from unittest.mock import patch
+
+        with patch(
+            "ai_adapter.profiles.resolve_skill_source",
+            return_value=unsafe_source,
+        ):
+            result = self.runner.invoke(main, ["skill", "install", "evil"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("Invalid skill name", result.output)
+
+        # Nothing may be written inside the store or at the escape target
+        skills_dir = self.patch_home / ".ai-adapter" / "skills"
+        self.assertFalse((skills_dir / "evil").exists())
+        self.assertFalse((self.patch_home / "evil").exists())
+
+    def test_skill_install_validates_frontmatter(self):
+        """Install aborts when SKILL.md has invalid frontmatter (missing description)."""
+        bad_source = Path(self.temp_dir.name) / "bad-skill"
+        bad_source.mkdir(parents=True)
+        # Missing required 'description' field
+        (bad_source / "SKILL.md").write_text(
+            "---\nname: bad-skill\n---\n\n# Bad Skill\n",
+            encoding="utf-8",
+        )
+
+        from unittest.mock import patch
+
+        with patch(
+            "ai_adapter.profiles.resolve_skill_source",
+            return_value=bad_source,
+        ):
+            result = self.runner.invoke(main, ["skill", "install", "bad-skill"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("failed validation", result.output)
+
+        # The dest directory should have been removed after validation failure
+        skills_dir = self.patch_home / ".ai-adapter" / "skills"
+        self.assertFalse((skills_dir / "bad-skill").exists())
+
+    def test_skill_install_force_overwrites(self):
+        """Verify --force overwrites an existing skill without prompting."""
+        from unittest.mock import patch
+
+        # First install
+        with patch(
+            "ai_adapter.profiles.resolve_skill_source",
+            return_value=self.skill_source,
+        ):
+            result = self.runner.invoke(main, ["skill", "install", "local-skill"])
+        self.assertEqual(result.exit_code, 0, result.output)
+
+        # Modify the source
+        (self.skill_source / "SKILL.md").write_text(
+            "---\nname: local-skill\ndescription: Updated description\n---\n\n# Updated\n",
+            encoding="utf-8",
+        )
+
+        # Second install with --force (no prompt)
+        with patch(
+            "ai_adapter.profiles.resolve_skill_source",
+            return_value=self.skill_source,
+        ):
+            result = self.runner.invoke(main, ["skill", "install", "local-skill", "--force"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("installed", result.output)
+
+        # Verify the content was updated
+        skills_dir = self.patch_home / ".ai-adapter" / "skills"
+        content = (skills_dir / "local-skill" / "SKILL.md").read_text()
+        self.assertIn("Updated description", content)
+
+    def test_skill_install_not_found_without_source(self):
+        """Verify install fails when skill is not found and no --source given."""
+        from unittest.mock import patch
+
+        with patch(
+            "ai_adapter.profiles.resolve_skill_source",
+            return_value=None,
+        ):
+            result = self.runner.invoke(main, ["skill", "install", "nonexistent"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("not found", result.output)

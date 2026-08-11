@@ -24,6 +24,7 @@ from ai_adapter.commands.env import env_group
 from ai_adapter.commands.get_all_rec import cmd_get_all_rec
 from ai_adapter.commands.instruction import instruction_group
 from ai_adapter.commands.mcp import mcp_group
+from ai_adapter.commands.optimize import cmd_optimize
 from ai_adapter.commands.pack import pack_group
 from ai_adapter.commands.plugin import plugin_group
 from ai_adapter.commands.prompt import prompt_group
@@ -34,6 +35,7 @@ from ai_adapter.git import GitError, get_conflicted_files, is_rebasing
 from ai_adapter.providers.codex import codex_group
 from ai_adapter.providers.opencode import opencode_group
 from ai_adapter.sync import handle_rebase_operation, sync_command
+from ai_adapter.version import check_versions, render_version_table
 
 logging.basicConfig(
     level=logging.INFO,
@@ -341,8 +343,16 @@ main.add_command(cmd_add_all_rec)
 main.add_command(cmd_get_all_rec)
 main.add_command(cmd_scan)
 main.add_command(cmd_doctor)
+main.add_command(cmd_optimize)
 main.add_command(setup_group)
 main.add_command(pack_group)
+
+
+@main.command(name="version")
+def cmd_version() -> None:
+    """Show version information for registered skills."""
+    versions = check_versions()
+    click.echo(render_version_table(versions))
 
 
 @main.command(name="sync")

@@ -1,19 +1,21 @@
-"""doctor diagnostic logic (read-only).
+"""doctor diagnostic logic — read-only diagnostics and fix planning.
 
 Reports the health of the local ai-adapter store and its tool integrations:
 
 - Health summary (registered skills / MCP servers / agents / instructions)
 - Updates available (store skill version vs. project ``.github/skills``)
 - Compatibility issues (invalid JSON configs, invalid opencode.json)
+- MCP server executability checks (``shutil.which``)
+- Fix planning (``HealthReport``) for ``doctor --fix``
 
-``--fix`` is intentionally out of scope (implemented in phase 3) — this
-module only inspects and reports, using the shared
-:class:`~ai_adapter.agent_plugins.ValidationIssue` model.
+Phase 3 adds :class:`HealthReport`, :class:`FixAction`, and the fix-planning
+logic while preserving the existing read-only diagnostic interface.
 """
 
 from __future__ import annotations
 
 import json
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -178,3 +180,171 @@ def _compatibility_issues(project_dir: Path, home: Path) -> list[ValidationIssue
             )
 
     return issues
+
+
+# ── Phase 3: HealthReport + FixAction ────────────────────────────────────
+
+
+@dataclass
+class FixAction:
+    """A single fix that ``doctor --fix`` can apply."""
+
+    kind: str  # "update" | "disable" | "remove" | "merge" | "unify"
+    target: str
+    detail: str
+    destructive: bool
+
+    def to_dict(self) -> dict:
+        return {
+            "kind": self.kind,
+            "target": self.target,
+            "detail": self.detail,
+            "destructive": self.destructive,
+        }
+
+
+@dataclass
+class HealthReport:
+    """Comprehensive health report including issues, updates, and fix plans."""
+
+    issues: list[ValidationIssue]
+    updates: list[UpdateInfo]
+    fixes: list[FixAction]
+    skills_total: int = 0
+    mcp_total: int = 0
+    agents_total: int = 0
+    instructions_total: int = 0
+    initialized: bool = True
+
+    def to_dict(self) -> dict:
+        return {
+            "initialized": self.initialized,
+            "skills": {
+                "total": self.skills_total,
+                "updates_available": len(self.updates),
+                "updates": [u.to_dict() for u in self.updates],
+            },
+            "mcp_servers": self.mcp_total,
+            "agents": self.agents_total,
+            "instructions": self.instructions_total,
+            "issues": [
+                {"component": i.component, "message": i.message, "severity": i.severity, "path": i.path}
+                for i in self.issues
+            ],
+            "fixes": [f.to_dict() for f in self.fixes],
+        }
+
+
+def run_health_report(
+    config: _config.Config | None = None,
+    project_dir: Path | None = None,
+    home: Path | None = None,
+) -> HealthReport:
+    """Build a :class:`HealthReport` with issues, updates, and planned fixes.
+
+    Reuses the phase-1 diagnostic logic and adds:
+    - Version update detection (``check_versions``)
+    - MCP server executability checks (``shutil.which``)
+    - Fix planning for detected issues
+    """
+    if config is None:
+        config = _config.load_config()
+
+    if config is None:
+        return HealthReport(
+            issues=[
+                ValidationIssue(
+                    "doctor",
+                    "ai-adapter is not initialized; run 'ai-adapter init' first",
+                    severity="warning",
+                )
+            ],
+            updates=[],
+            fixes=[],
+            initialized=False,
+        )
+
+    project = (project_dir or Path.cwd()).resolve()
+    resolved_home = home or Path.home()
+
+    # Collect issues from existing diagnostics.
+    issues: list[ValidationIssue] = []
+    issues.extend(_compatibility_issues(project, resolved_home))
+    issues.extend(_mcp_executability_issues(config))
+
+    # Collect version updates.
+    updates = _find_skill_updates(config, project)
+
+    # Plan fix actions.
+    fixes = _plan_fixes(config, issues, updates)
+
+    return HealthReport(
+        issues=issues,
+        updates=updates,
+        fixes=fixes,
+        skills_total=len(config.skills),
+        mcp_total=len(config.mcp_servers),
+        agents_total=len(config.agents),
+        instructions_total=len(config.instructions),
+        initialized=True,
+    )
+
+
+def _mcp_executability_issues(config: _config.Config) -> list[ValidationIssue]:
+    """Check whether MCP server commands are reachable via ``shutil.which``."""
+    issues: list[ValidationIssue] = []
+    for server in config.mcp_servers:
+        if not server.enabled:
+            continue
+        if not server.command:
+            continue
+        # Resolve to the first token (handle edge case of command with spaces).
+        cmd_token = server.command.split()[0] if server.command else ""
+        if cmd_token and shutil.which(cmd_token) is None:
+            issues.append(
+                ValidationIssue(
+                    "mcp",
+                    f"MCP server '{server.name}' command '{cmd_token}' not found in PATH",
+                    severity="warning",
+                    path=server.command,
+                )
+            )
+    return issues
+
+
+def _plan_fixes(
+    config: _config.Config,
+    issues: list[ValidationIssue],
+    updates: list[UpdateInfo],
+) -> list[FixAction]:
+    """Derive :class:`FixAction` items from detected issues and updates."""
+    fixes: list[FixAction] = []
+
+    # Fix: update skills with available updates.
+    for update in updates:
+        fixes.append(
+            FixAction(
+                kind="update",
+                target=update.name,
+                detail=f"Update skill '{update.name}' from {update.store_version} to {update.upstream_version}",
+                destructive=False,
+            )
+        )
+
+    # Fix: disable MCP servers whose command is not found.
+    for issue in issues:
+        if issue.component == "mcp" and "command" in issue.message and "not found in PATH" in issue.message:
+            # Extract server name from the message: "MCP server '<name>' command ..."
+            start = issue.message.find("'") + 1
+            end = issue.message.find("'", start)
+            server_name = issue.message[start:end] if end > start else "unknown"
+            fixes.append(
+                FixAction(
+                    kind="disable",
+                    target=server_name,
+                    detail=f"Disable MCP server '{server_name}' (command not in PATH)",
+                    destructive=False,
+                )
+            )
+
+    return sorted(fixes, key=lambda f: (f.kind, f.target))

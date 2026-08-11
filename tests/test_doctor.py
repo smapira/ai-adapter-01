@@ -244,3 +244,147 @@ def test_doctor_cli_json(isolated_home: Path, runner: CliRunner):
     assert payload["skills"]["total"] == 1
     assert payload["skills"]["updates_available"] == 1
     assert payload["skills"]["updates"][0]["name"] == "frontend"
+
+
+# ── Phase 3: HealthReport + FixAction ───────────────────────────────────
+
+
+def test_health_report_structure(isolated_home: Path):
+    """HealthReport contains issues, updates, fixes, and counts."""
+    from ai_adapter.doctor import HealthReport, run_health_report
+
+    _register_skill("frontend", "1.0.0", "1.0.0")
+    _add_mcp("github")
+    report = run_health_report(project_dir=Path.cwd())
+    assert isinstance(report, HealthReport)
+    assert report.initialized is True
+    assert report.skills_total == 1
+    assert report.mcp_total == 1
+    assert isinstance(report.issues, list)
+    assert isinstance(report.updates, list)
+    assert isinstance(report.fixes, list)
+
+
+def test_health_report_json_serializable(isolated_home: Path):
+    """HealthReport.to_dict() produces valid JSON."""
+    from ai_adapter.doctor import run_health_report
+
+    _register_skill("frontend", "1.0.0", "1.0.0")
+    report = run_health_report(project_dir=Path.cwd())
+    payload = report.to_dict()
+    json.dumps(payload)  # must not raise
+
+
+def test_health_report_uninitialized(isolated_home: Path):
+    """Uninitialized store produces a warning issue."""
+    from ai_adapter.doctor import run_health_report
+
+    report = run_health_report(project_dir=Path.cwd())
+    assert report.initialized is False
+    assert len(report.issues) == 1
+    assert report.issues[0].severity == "warning"
+    assert report.fixes == []
+
+
+def test_health_report_detects_mcp_executability(isolated_home: Path):
+    """MCP servers with unreachable commands produce warnings."""
+    from ai_adapter.doctor import run_health_report
+
+    _init_store()
+    config = cfg.load_config()
+    assert config is not None
+    config.mcp_servers.append(MCPServer(name="fake-server", command="definitely-not-a-real-binary-xyz123"))
+    cfg.save_config(config)
+    report = run_health_report(project_dir=Path.cwd())
+    warnings = [i for i in report.issues if i.component == "mcp" and "not found in PATH" in i.message]
+    assert len(warnings) == 1
+
+
+def test_health_report_fixes_for_updates(isolated_home: Path):
+    """Available updates produce fix actions of kind 'update'."""
+    from ai_adapter.doctor import run_health_report
+
+    _register_skill("frontend", "1.0.0", "2.0.0")
+    report = run_health_report(project_dir=Path.cwd())
+    update_fixes = [f for f in report.fixes if f.kind == "update"]
+    assert len(update_fixes) == 1
+    assert update_fixes[0].target == "frontend"
+    assert update_fixes[0].destructive is False
+
+
+def test_health_report_fixes_for_mcp_disable(isolated_home: Path):
+    """Unreachable MCP servers produce fix actions of kind 'disable'."""
+    from ai_adapter.doctor import run_health_report
+
+    _init_store()
+    config = cfg.load_config()
+    assert config is not None
+    config.mcp_servers.append(MCPServer(name="broken-mcp", command="no-such-binary"))
+    cfg.save_config(config)
+    report = run_health_report(project_dir=Path.cwd())
+    disable_fixes = [f for f in report.fixes if f.kind == "disable"]
+    assert len(disable_fixes) == 1
+    assert disable_fixes[0].target == "broken-mcp"
+
+
+def test_doctor_cli_fix_dry_run(isolated_home: Path, runner: CliRunner):
+    """doctor --fix --dry-run shows fixes without applying."""
+    _register_skill("frontend", "1.0.0", "2.0.0")
+    result = runner.invoke(main, ["doctor", "--fix", "--dry-run", "--project-dir", str(Path.cwd())])
+    assert result.exit_code == 0, result.output
+    assert "dry-run" in result.output.lower() or "[dry-run]" in result.output
+    assert "frontend" in result.output
+
+
+def test_doctor_fix_dry_run_no_snapshot(isolated_home: Path):
+    """--dry-run should not create a backup snapshot."""
+    from ai_adapter.commands.doctor import _get_backup_dir
+
+    _register_skill("frontend", "1.0.0", "2.0.0")
+    runner = CliRunner()
+    runner.invoke(main, ["doctor", "--fix", "--dry-run", "--project-dir", str(Path.cwd())])
+    backup_dir = _get_backup_dir()
+    # No backups directory should be created in dry-run mode
+    # (or at most an empty one from _ensure_backups_gitignored)
+    if backup_dir.exists():
+        snapshots = [d for d in backup_dir.iterdir() if d.is_dir() and d.name.startswith("20")]
+        assert len(snapshots) == 0
+
+
+def test_doctor_fix_applies_disable(isolated_home: Path, runner: CliRunner):
+    """doctor --fix --force disables unreachable MCP servers."""
+    _init_store()
+    config = cfg.load_config()
+    assert config is not None
+    config.mcp_servers.append(MCPServer(name="broken-mcp", command="no-such-binary-xyz"))
+    cfg.save_config(config)
+
+    result = runner.invoke(main, ["doctor", "--fix", "--force", "--project-dir", str(Path.cwd())])
+    assert result.exit_code == 0, result.output
+    assert "Applied" in result.output
+
+    # Verify the server is now disabled.
+    config = cfg.load_config()
+    assert config is not None
+    server = next(s for s in config.mcp_servers if s.name == "broken-mcp")
+    assert server.enabled is False
+
+
+def test_doctor_fix_creates_snapshot(isolated_home: Path, runner: CliRunner):
+    """doctor --fix creates a backup snapshot before applying."""
+    from ai_adapter.commands.doctor import _get_backup_dir
+
+    _init_store()
+    config = cfg.load_config()
+    assert config is not None
+    config.mcp_servers.append(MCPServer(name="broken-mcp", command="no-such-binary"))
+    cfg.save_config(config)
+
+    result = runner.invoke(main, ["doctor", "--fix", "--force", "--project-dir", str(Path.cwd())])
+    assert result.exit_code == 0, result.output
+    assert "Snapshot saved" in result.output or "Backup:" in result.output
+
+    backup_dir = _get_backup_dir()
+    assert backup_dir.exists()
+    snapshots = [d for d in backup_dir.iterdir() if d.is_dir() and d.name.startswith("20")]
+    assert len(snapshots) >= 1

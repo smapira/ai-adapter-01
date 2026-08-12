@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.50.0] - 2026-08-12
+
+### Added
+
+- **`doctor --fix`**: Auto-fix detected issues with backup snapshot
+  - `--dry-run` for preview, `--force` to skip destructive confirmations
+  - Backups saved to `~/.cache/ai-adapter/backups/` (git-sync safe)
+- **`optimize`**: Analyzes duplicate instructions, unused MCP servers, config drift
+  - `--apply` to execute optimizations with snapshot
+  - `--dry-run` for preview, `--force` to skip confirmations
+- **`version`**: Show installed skill versions with GitHub tag update detection
+- **`HealthReport` / `OptimizationReport`**: Structured data classes for diagnostics
+- **`FixAction`**: Shared model for fix planning (doctor + optimize)
+
+## [0.40.0] - 2026-08-12
+
+### Added
+
+- **`setup apply/list`**: Named profile presets for bulk skill/MCP/agent registration
+  - `--dry-run` for preview, `--install-missing` for auto-install
+  - YAML-based profiles with user override support
+- **`pack install/list`**: Collections of profiles applied in sequence
+- **`skill install`**: Install skills from local cache or GitHub (`--source github:user/repo`)
+- **`Profile` / `Pack` data classes**: YAML loading with validation
+
+## [0.30.0] - 2026-08-12
+
+### Added
+
+- **`scan`**: Discover Claude/Codex/Cursor/OpenCode configurations
+  - Security: authentication files excluded from results
+  - `--json` output for CI integration
+- **`doctor`**: Read-only environment health diagnostics
+  - Update detection, compatibility checks, configuration validation
+- **`info` severity**: `ValidationIssue` supports error/warning/info three-level severity
+
 ## [0.22.0] - 2026-08-12
 
 ### Added

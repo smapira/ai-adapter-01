@@ -636,18 +636,96 @@ Security: authentication files (`auth.json`, `.credentials.json`, `.env`, `*.key
 
 ### `ai-adapter doctor`
 
-Read-only health diagnostics for your AI environment.
+Health diagnostics and auto-fix for your AI environment.
 
 | Option | Description |
 |--------|-------------|
 | `--json` | Machine-readable JSON output |
+| `--fix` | Apply detected fixes (with backup) |
+| `--dry-run` | Preview fixes without applying |
+| `--force` | Skip confirmation for destructive actions |
 
 ```bash
-ai-adapter doctor           # Health summary
-ai-adapter doctor --json    # JSON output
+ai-adapter doctor              # Health summary
+ai-adapter doctor --fix        # Auto-fix with backup
+ai-adapter doctor --fix --dry-run  # Preview fixes
 ```
 
 Checks: installed tools, available updates, compatibility issues, configuration validation.
+
+### `ai-adapter setup`
+
+Apply named profiles to register skills / MCP / agents / commands in bulk.
+
+| Command | Description |
+|---------|------|
+| `setup apply <profile>` | Apply a named profile |
+| `setup list` | List available profiles |
+
+| Option | Description |
+|--------|-------------|
+| `--dry-run` | Preview without making changes |
+| `--yes` | Skip confirmation prompt |
+| `--install-missing` | Auto-install skills not found locally |
+
+```bash
+ai-adapter setup list                # List profiles
+ai-adapter setup apply web-development  # Apply profile
+ai-adapter setup apply web-development --dry-run  # Preview
+```
+
+### `ai-adapter pack`
+
+Apply collections of profiles in sequence.
+
+| Command | Description |
+|---------|------|
+| `pack install <name>` | Apply a pack (multiple profiles) |
+| `pack list` | List available packs |
+
+```bash
+ai-adapter pack list           # List packs
+ai-adapter pack install starter  # Apply pack
+```
+
+### `ai-adapter skill install`
+
+Install skills from local cache or GitHub.
+
+| Option | Description |
+|--------|-------------|
+| `--source` | Source: `github:user/repo` |
+| `--force` | Overwrite existing skill |
+
+```bash
+ai-adapter skill install database-schema
+ai-adapter skill install my-skill --source github:example/ai-skills
+```
+
+### `ai-adapter optimize`
+
+Analyze and optimize your AI environment configuration.
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Machine-readable JSON output |
+| `--apply` | Apply recommended optimizations |
+| `--dry-run` | Preview changes (default for --apply) |
+| `--force` | Skip confirmation prompts |
+
+```bash
+ai-adapter optimize              # Read-only analysis
+ai-adapter optimize --apply      # Apply optimizations
+ai-adapter optimize --apply --dry-run  # Preview
+```
+
+### `ai-adapter version`
+
+Show installed skill versions and available updates.
+
+```bash
+ai-adapter version
+```
 
 ---
 

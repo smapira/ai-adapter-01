@@ -21,6 +21,7 @@ from pathlib import Path
 
 from ai_adapter import config as _config
 from ai_adapter.agent_plugins import ValidationIssue
+from ai_adapter.models import FixAction  # re-export for backward compat
 
 
 @dataclass
@@ -182,25 +183,7 @@ def _compatibility_issues(project_dir: Path, home: Path) -> list[ValidationIssue
     return issues
 
 
-# ── Phase 3: HealthReport + FixAction ────────────────────────────────────
-
-
-@dataclass
-class FixAction:
-    """A single fix that ``doctor --fix`` can apply."""
-
-    kind: str  # "update" | "disable" | "remove" | "merge" | "unify"
-    target: str
-    detail: str
-    destructive: bool
-
-    def to_dict(self) -> dict:
-        return {
-            "kind": self.kind,
-            "target": self.target,
-            "detail": self.detail,
-            "destructive": self.destructive,
-        }
+# ── Phase 3: HealthReport ────────────────────────────────────────────────
 
 
 @dataclass

@@ -20,25 +20,7 @@ from pathlib import Path
 
 from ai_adapter import config as _config
 from ai_adapter.agent_plugins import ValidationIssue
-from ai_adapter.models import Skill
-
-
-@dataclass
-class FixAction:
-    """A single fix that ``optimize --apply`` can execute."""
-
-    kind: str  # "update" | "disable" | "remove" | "merge" | "unify"
-    target: str
-    detail: str
-    destructive: bool
-
-    def to_dict(self) -> dict:
-        return {
-            "kind": self.kind,
-            "target": self.target,
-            "detail": self.detail,
-            "destructive": self.destructive,
-        }
+from ai_adapter.models import FixAction, Skill  # noqa: F811 — re-export for backward compat
 
 
 @dataclass

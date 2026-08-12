@@ -338,12 +338,12 @@ def test_doctor_cli_fix_dry_run(isolated_home: Path, runner: CliRunner):
 
 def test_doctor_fix_dry_run_no_snapshot(isolated_home: Path):
     """--dry-run should not create a backup snapshot."""
-    from ai_adapter.commands.doctor import _get_backup_dir
+    from ai_adapter.backup import get_backup_dir
 
     _register_skill("frontend", "1.0.0", "2.0.0")
     runner = CliRunner()
     runner.invoke(main, ["doctor", "--fix", "--dry-run", "--project-dir", str(Path.cwd())])
-    backup_dir = _get_backup_dir()
+    backup_dir = get_backup_dir()
     # No backups directory should be created in dry-run mode
     # (or at most an empty one from _ensure_backups_gitignored)
     if backup_dir.exists():
@@ -372,7 +372,7 @@ def test_doctor_fix_applies_disable(isolated_home: Path, runner: CliRunner):
 
 def test_doctor_fix_creates_snapshot(isolated_home: Path, runner: CliRunner):
     """doctor --fix creates a backup snapshot before applying."""
-    from ai_adapter.commands.doctor import _get_backup_dir
+    from ai_adapter.backup import get_backup_dir
 
     _init_store()
     config = cfg.load_config()
@@ -384,7 +384,7 @@ def test_doctor_fix_creates_snapshot(isolated_home: Path, runner: CliRunner):
     assert result.exit_code == 0, result.output
     assert "Snapshot saved" in result.output or "Backup:" in result.output
 
-    backup_dir = _get_backup_dir()
+    backup_dir = get_backup_dir()
     assert backup_dir.exists()
     snapshots = [d for d in backup_dir.iterdir() if d.is_dir() and d.name.startswith("20")]
     assert len(snapshots) >= 1

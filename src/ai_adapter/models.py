@@ -1,7 +1,7 @@
 """Data model definition module.
 
-Provides dataclasses for Agent, Env, AgentBinding, Bin, Skill, MCPServer, Config
-and their to_dict / from_dict methods for JSON serialization.
+Provides dataclasses for Agent, Env, AgentBinding, Bin, Skill, MCPServer, Config,
+FixAction and their to_dict / from_dict methods for JSON serialization.
 """
 
 from __future__ import annotations
@@ -319,3 +319,24 @@ class Config:
             mcp_servers=[MCPServer.from_dict(m) for m in _ensure_list(data, "mcp_servers")],
             remote=data.get("remote"),
         )
+
+
+@dataclass
+class FixAction:
+    """A single fix that ``doctor --fix`` or ``optimize --apply`` can execute.
+
+    Shared between the doctor and optimize modules to avoid duplication.
+    """
+
+    kind: str  # "update" | "disable" | "remove" | "merge" | "unify"
+    target: str
+    detail: str
+    destructive: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "target": self.target,
+            "detail": self.detail,
+            "destructive": self.destructive,
+        }

@@ -264,14 +264,14 @@ def test_optimize_apply_disables_unused_mcp(isolated_home: Path, runner: CliRunn
 
 def test_optimize_apply_creates_snapshot(isolated_home: Path, runner: CliRunner):
     """optimize --apply creates a backup snapshot."""
-    from ai_adapter.commands.optimize import _get_backup_dir
+    from ai_adapter.backup import get_backup_dir
 
     _register_mcp("orphan-mcp", tools=[])
     result = runner.invoke(main, ["optimize", "--apply", "--force"])
     assert result.exit_code == 0, result.output
     assert "Snapshot saved" in result.output or "Backup:" in result.output
 
-    backup_dir = _get_backup_dir()
+    backup_dir = get_backup_dir()
     assert backup_dir.exists()
     snapshots = [d for d in backup_dir.iterdir() if d.is_dir() and d.name.startswith("20")]
     assert len(snapshots) >= 1

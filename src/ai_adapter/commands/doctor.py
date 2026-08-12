@@ -11,58 +11,13 @@ available skill updates, compatibility issues, and MCP executability.
 from __future__ import annotations
 
 import json
-import shutil
-from datetime import datetime, timezone
 from pathlib import Path
 
 import click
 
 from ai_adapter import config as _config
-from ai_adapter.config import add_to_gitignore
+from ai_adapter.backup import create_snapshot, ensure_backups_gitignored
 from ai_adapter.doctor import DoctorReport, HealthReport, build_doctor_report, run_health_report
-
-
-def _get_backup_dir() -> Path:
-    """Return the backup directory path (git-ignored)."""
-    from ai_adapter import config as _config
-
-    return _config.AI_ADAPTER_DIR / "backups"
-
-
-def _create_snapshot(label: str) -> Path | None:
-    """Create a snapshot of the store before applying fixes.
-
-    Returns the snapshot directory, or None if the store doesn't exist.
-    """
-    from ai_adapter import config as _cfg
-
-    adapter_dir = _cfg.AI_ADAPTER_DIR
-    if not adapter_dir.exists():
-        return None
-
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    backup_dir = _get_backup_dir() / f"{timestamp}_{label}"
-    backup_dir.mkdir(parents=True, exist_ok=True)
-
-    # Copy config.json if it exists.
-    config_path = adapter_dir / "config.json"
-    if config_path.is_file():
-        shutil.copy2(config_path, backup_dir / "config.json")
-
-    # Copy skills directory (the most critical data).
-    skills_dir = adapter_dir / "skills"
-    if skills_dir.is_dir():
-        dest = backup_dir / "skills"
-        shutil.copytree(skills_dir, dest, dirs_exist_ok=True)
-
-    return backup_dir
-
-
-def _ensure_backups_gitignored() -> None:
-    """Add backups/ to .gitignore so backup files are never committed."""
-    backups_dir = _get_backup_dir()
-    backups_dir.mkdir(parents=True, exist_ok=True)
-    add_to_gitignore(backups_dir)
 
 
 @click.command(name="doctor")
@@ -132,10 +87,10 @@ def _run_doctor_fix(project: Path, dry_run: bool, force: bool, as_json: bool) ->
                 click.echo(f"  - {f.kind}: {f.detail}")
             click.confirm("Continue?", abort=True)
 
-    _ensure_backups_gitignored()
+    ensure_backups_gitignored()
 
     # Create snapshot before applying.
-    snapshot_dir = _create_snapshot("doctor")
+    snapshot_dir = create_snapshot("doctor")
     if snapshot_dir:
         click.echo(f"\nSnapshot saved: {snapshot_dir}")
 

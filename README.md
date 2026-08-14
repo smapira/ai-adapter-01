@@ -1,8 +1,9 @@
 # ai-adapter
+<img src="docs/readme-thumbnail.png" alt="ai-adapter" width="800">
 
 **One configuration for all your AI coding agents.**
 
-[![CI](https://github.com/smapira/ai-adapter-01/actions/workflows/ci.yml/badge.svg)](https://github.com/smapira/ai-adapter-01/actions/workflows/ci.yml) [![Agent Plugins 1.0.0](https://img.shields.io/badge/Agent%20Plugins-1.0.0-blue)](https://agent-plugins.org/) [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
+[![CI](https://github.com/smapira/ai-adapter-01/actions/workflows/ci.yml/badge.svg)](https://github.com/smapira/ai-adapter-01/actions/workflows/ci.yml)[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
 
 Manage and sync your AI agent configuration across Claude Code, Codex, Cursor, VS Code, OpenCode and more.
 
@@ -29,9 +30,7 @@ ai-adapter start <your-config-repo-url>
  └─────────┘ └─────────┘ └─────────┘
 ```
 
-<img src="docs/readme-thumbnail.png" alt="ai-adapter" width="800">
-
-> ## ⭐ Agent Plugins 1.0.0 Compliant
+> ## Agent Plugins 1.0.0 Compliant
 >
 > `ai-adapter` natively supports the **Agent Plugins 1.0.0** open standard
 > ([agent-plugins.org](https://agent-plugins.org/)) — the vendor-neutral packaging

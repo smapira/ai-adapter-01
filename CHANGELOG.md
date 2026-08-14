@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.23.0] - 2026-08-14
+
+### Added
+
+- **`mcp add --force`**: Overwrite existing MCP server configuration without prompting
+  - Single server: `mcp add <name> --command ... --force` updates in-place
+  - Bulk import: `mcp add --file .mcp.json --force` updates duplicates instead of skipping
+
+### Fixed
+
+- **`sync`**: Remove misleading "(Some steps may have been skipped.)" message from sync completion output
+
 ## [0.50.0] - 2026-08-12
 
 ### Added

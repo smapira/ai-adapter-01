@@ -195,7 +195,7 @@ def sync_command(adapter_dir: Path | None = None) -> None:
     except GitError:
         pass
 
-    click.echo("Sync completed. (Some steps may have been skipped.)")
+    click.echo("Sync completed.")
 
 
 def handle_rebase_operation(

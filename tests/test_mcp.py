@@ -164,6 +164,25 @@ class TestMCPCommands(unittest.TestCase):
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("already exists", result.output)
 
+    def test_mcp_add_force_overwrite(self):
+        """Verify mcp add --force overwrites an existing server."""
+        # First add
+        self.runner.invoke(
+            main,
+            ["mcp", "add", "github", "--command", "npx", "--args", "@old/server"],
+        )
+        # Overwrite with --force
+        result = self.runner.invoke(
+            main,
+            ["mcp", "add", "github", "--command", "npx", "--args", "@new/server", "--force"],
+        )
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("updated", result.output)
+        # Verify the server was updated, not duplicated
+        result = self.runner.invoke(main, ["mcp", "list"])
+        self.assertIn("@new/server", result.output)
+        self.assertNotIn("@old/server", result.output)
+
     def test_mcp_remove(self):
         """Verify mcp remove removes an MCP server."""
         self.runner.invoke(

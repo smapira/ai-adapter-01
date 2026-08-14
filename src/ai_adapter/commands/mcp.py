@@ -72,6 +72,7 @@ def mcp_list(tool: str | None, env: str | None) -> None:
     type=click.Path(exists=True, readable=True),
     help="Path to .mcp.json file for bulk import",
 )
+@click.option("--force", is_flag=True, help="Overwrite existing server without prompting")
 def mcp_add(
     name: str | None,
     command: str | None,
@@ -80,6 +81,7 @@ def mcp_add(
     tool: tuple[str, ...],
     env: str | None,
     json_path: str | None,
+    force: bool,
 ) -> None:
     """Add an MCP server configuration.
 
@@ -92,7 +94,7 @@ def mcp_add(
 
     # --file mode: bulk import from .mcp.json
     if json_path:
-        _import_mcp_from_file(config, json_path)
+        _import_mcp_from_file(config, json_path, force=force)
         return
 
     # Interactive single-server mode
@@ -100,15 +102,25 @@ def mcp_add(
         click.echo("NAME is required when --file is not used.", err=True)
         raise click.ClickException("Provide NAME or use --file.")
 
-    # Duplicate check
-    for existing in config.mcp_servers:
-        if existing.name == name:
-            click.echo(f"MCP server '{name}' already exists.", err=True)
-            raise click.ClickException(f"MCP server '{name}' is already registered.")
-
     if not command:
         click.echo("--command is required.", err=True)
         raise click.ClickException("--command option is required.")
+
+    # Duplicate check — overwrite if --force, else error
+    existing = next((s for s in config.mcp_servers if s.name == name), None)
+    if existing is not None:
+        if not force:
+            click.echo(f"MCP server '{name}' already exists. Use --force to overwrite.", err=True)
+            raise click.ClickException(f"MCP server '{name}' is already registered.")
+        existing.command = command
+        existing.args = list(args)
+        existing.env_keys = list(env_key)
+        existing.tools = list(tool) if tool else ["vscode", "claude", "cursor"]
+        existing.env = env
+        existing.enabled = True
+        _config.save_config(config)
+        click.echo(f"MCP server '{name}' updated.")
+        return
 
     server = MCPServer(
         name=name,
@@ -245,7 +257,7 @@ def mcp_get(path: str | None, format: str, env: str | None, force: bool) -> None
         _mcp_get_standard(enabled_servers, path, force)
 
 
-def _import_mcp_from_file(config, json_path: str) -> None:
+def _import_mcp_from_file(config, json_path: str, *, force: bool = False) -> None:
     """Import MCP server configurations from a .mcp.json file."""
     with open(json_path) as f:
         data = json.load(f)
@@ -256,12 +268,21 @@ def _import_mcp_from_file(config, json_path: str) -> None:
         raise click.ClickException("Not a valid .mcp.json file.")
 
     loaded = 0
+    updated = 0
     skipped = 0
     for name, server_data in servers_data.items():
-        # Duplicate check
-        exists = any(s.name == name for s in config.mcp_servers)
-        if exists:
-            skipped += 1
+        existing = next((s for s in config.mcp_servers if s.name == name), None)
+        if existing is not None:
+            if force:
+                existing.command = server_data.get("command", "")
+                existing.args = server_data.get("args", [])
+                existing.env_keys = list(server_data.get("env", {}).keys())
+                existing.enabled = server_data.get("enabled", True)
+                existing.tools = []
+                existing.env = None
+                updated += 1
+            else:
+                skipped += 1
             continue
 
         server = MCPServer(
@@ -277,7 +298,7 @@ def _import_mcp_from_file(config, json_path: str) -> None:
         loaded += 1
 
     _config.save_config(config)
-    click.echo(f"MCP configurations imported: {loaded} added, {skipped} skipped (duplicate)")
+    click.echo(f"MCP configurations imported: {loaded} added, {updated} updated, {skipped} skipped (duplicate)")
 
 
 @mcp_group.command(name="remove-all")

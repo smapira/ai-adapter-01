@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.24.0] - 2026-08-16
+
+### Added
+
+- **`search`**: Cross-category search across agents, skills, MCP, commands, prompts, instructions, and bins
+  - Category filters: `--agent`, `--skill`, `--mcp`, `--command`, `--prompt`, `--instruction`, `--bin`
+  - `--tag` and `--env` filtering, `--json` output
+- **`npx`**: Wrapper for `npx skills` subcommands (find, add, list, update, remove, use, init)
+  - `--check` for availability, `--version` for version display, `--timeout` option
+
+### Fixed
+
+- **`setup apply --install-missing`**: Fix traceback caused by calling Click command directly; extracted `install_skill_core()` for plain function invocation
+- **Exit codes**: `status`, `doctor`, and `get-all-rec` now return non-zero exit code when uninitialized, consistent with `sync`
+- **`start`**: Clone failures now show error message with cause and remediation hint instead of silently falling back to new repo creation; use `--new` flag to explicitly create a new repo
+- **`scan`**: Uninstalled tools now show `-` instead of `✓` for clearer visual distinction
+
 ## [0.23.0] - 2026-08-14
 
 ### Added

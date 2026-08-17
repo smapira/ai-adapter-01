@@ -24,11 +24,13 @@ from ai_adapter.commands.env import env_group
 from ai_adapter.commands.get_all_rec import cmd_get_all_rec
 from ai_adapter.commands.instruction import instruction_group
 from ai_adapter.commands.mcp import mcp_group
+from ai_adapter.commands.npx import npx_group
 from ai_adapter.commands.optimize import cmd_optimize
 from ai_adapter.commands.pack import pack_group
 from ai_adapter.commands.plugin import plugin_group
 from ai_adapter.commands.prompt import prompt_group
 from ai_adapter.commands.scan import cmd_scan
+from ai_adapter.commands.search import cmd_search
 from ai_adapter.commands.setup import setup_group
 from ai_adapter.commands.skill import skill_group
 from ai_adapter.git import GitError, get_conflicted_files, is_rebasing
@@ -103,15 +105,15 @@ def cmd_status() -> None:
     """Show current status with sync diff."""
     adapter_dir = _config.AI_ADAPTER_DIR
     if not adapter_dir.exists():
-        click.echo("ai-adapter is not initialized.")
-        click.echo("Run ai-adapter init first.")
-        return
+        click.echo("ai-adapter is not initialized.", err=True)
+        click.echo("Run ai-adapter init first.", err=True)
+        raise click.ClickException("ai-adapter is not initialized.")
 
     config = _config.load_config()
     if config is None:
-        click.echo("Configuration file not found.")
-        click.echo("Run ai-adapter init first.")
-        return
+        click.echo("Configuration file not found.", err=True)
+        click.echo("Run ai-adapter init first.", err=True)
+        raise click.ClickException("Configuration file not found.")
 
     click.echo("ai-adapter Status:")
     click.echo(f"  Data directory: {adapter_dir}")
@@ -151,7 +153,8 @@ def cmd_status() -> None:
 
 @main.command(name="start")
 @click.argument("url")
-def cmd_start(url: str) -> None:
+@click.option("--new", "as_new", is_flag=True, help="Create a new repository instead of cloning")
+def cmd_start(url: str, as_new: bool) -> None:
     """Initialize ~/.ai-adapter/ with a GitHub remote.
 
     URL: Git remote repository URL (e.g. git@github.com:user/my-agent-config.git)
@@ -162,17 +165,29 @@ def cmd_start(url: str) -> None:
         click.echo(f"'{adapter_dir}' already exists.")
         click.confirm("Overwrite existing settings? (Settings will be merged)", abort=True)
 
-    # Step 1: Attempt git clone
-    click.echo(f"Cloning from remote repository: {url}")
-    try:
-        _git.clone(url, adapter_dir)
-        click.echo("Cloned.")
-    except _git.GitError:
-        click.echo("Clone failed. Initializing as a new repository.")
+    # Step 1: Attempt git clone (or create new if --new)
+    if as_new:
+        click.echo(f"Creating new repository with remote: {url}")
         adapter_dir.mkdir(parents=True, exist_ok=True)
         _git.init_repo(adapter_dir)
         _git.add_remote(adapter_dir, "origin", url)
         click.echo(f"Remote set: {url}")
+    else:
+        click.echo(f"Cloning from remote repository: {url}")
+        try:
+            _git.clone(url, adapter_dir)
+            click.echo("Cloned.")
+        except _git.GitError as exc:
+            click.echo(f"Clone failed: {exc}", err=True)
+            click.echo()
+            click.echo("Possible causes:")
+            click.echo("  - Incorrect URL or repository does not exist")
+            click.echo("  - Authentication failure (check SSH keys or credentials)")
+            click.echo("  - Network connectivity issue")
+            click.echo()
+            click.echo("To create a new empty repository instead, run:")
+            click.echo(f"  ai-adapter start {url} --new")
+            raise click.ClickException(f"Clone failed: {exc}")
 
     # Step 2: Initialize directory structure
     dirs = [
@@ -336,12 +351,14 @@ main.add_command(command_group)
 main.add_command(prompt_group)
 main.add_command(instruction_group, name="agent")
 main.add_command(mcp_group)
+main.add_command(npx_group)
 main.add_command(plugin_group)
 main.add_command(opencode_group)
 main.add_command(codex_group)
 main.add_command(cmd_add_all_rec)
 main.add_command(cmd_get_all_rec)
 main.add_command(cmd_scan)
+main.add_command(cmd_search)
 main.add_command(cmd_doctor)
 main.add_command(cmd_optimize)
 main.add_command(setup_group)

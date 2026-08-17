@@ -201,3 +201,4 @@ opencode.json
 /.github/bin/ocr_extract.swift
 /.github/skills/skill-a/
 /.github/agents/reviewer.md
+/artifacts

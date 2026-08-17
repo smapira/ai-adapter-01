@@ -336,7 +336,7 @@ def test_scan_cli_settings_only_tool_not_reported_not_installed(isolated_home: P
     result = runner.invoke(main, ["scan", "--project-dir", str(Path.cwd())], input="n\n")
     assert result.exit_code == 0, result.output
     assert "Codex: installed (no agents/skills)" in result.output
-    assert "Codex: 0 detected (not installed)" not in result.output
+    assert "Codex: not detected" not in result.output
 
 
 def test_scan_cli_output_summary(isolated_home: Path, runner: CliRunner):
@@ -346,7 +346,7 @@ def test_scan_cli_output_summary(isolated_home: Path, runner: CliRunner):
     assert result.exit_code == 0, result.output
     assert "AI Environment" in result.output
     assert "Claude Code: 1 detected" in result.output
-    assert "Codex: 0 detected (not installed)" in result.output
+    assert "Codex: not detected" in result.output
     assert "Skills" in result.output
     assert "database-schema" in result.output
     assert "Potential problems" in result.output

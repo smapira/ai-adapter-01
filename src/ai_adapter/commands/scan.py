@@ -81,7 +81,7 @@ def _render_agents(result: ScanResult) -> None:
     for tool in TOOL_ORDER:
         count = result.count(tool=tool, category="agent")
         if not result.count(tool=tool):
-            click.echo(f"  ✓ {TOOL_LABELS[tool]}: 0 detected (not installed)")
+            click.echo(f"  - {TOOL_LABELS[tool]}: not detected")
         elif count:
             click.echo(f"  ✓ {TOOL_LABELS[tool]}: {count} detected")
         else:

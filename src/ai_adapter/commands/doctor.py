@@ -54,9 +54,13 @@ def _run_doctor_readonly(project: Path, as_json: bool) -> None:
 
     if as_json:
         click.echo(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
+        if not report.initialized:
+            raise click.ClickException("ai-adapter is not initialized.")
         return
 
     _render_report(report)
+    if not report.initialized:
+        raise click.ClickException("ai-adapter is not initialized.")
 
 
 def _run_doctor_fix(project: Path, dry_run: bool, force: bool, as_json: bool) -> None:
@@ -65,9 +69,14 @@ def _run_doctor_fix(project: Path, dry_run: bool, force: bool, as_json: bool) ->
 
     if as_json:
         click.echo(json.dumps(health.to_dict(), indent=2, ensure_ascii=False))
+        if not health.initialized:
+            raise click.ClickException("ai-adapter is not initialized.")
         return
 
     _render_health_report(health)
+
+    if not health.initialized:
+        raise click.ClickException("ai-adapter is not initialized.")
 
     if not health.fixes:
         click.echo("\nNo fixes to apply.")

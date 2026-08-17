@@ -108,12 +108,12 @@ def _apply_skill(
     source = resolve_skill_source(name)
     if source is None:
         if install_missing and not dry_run:
-            # Auto-install missing skill via ``skill install``.
-            from ai_adapter.commands.skill import skill_install as _skill_install
+            # Auto-install missing skill via the core installer (no Click context needed).
+            from ai_adapter.commands.skill import install_skill_core
 
             click.echo(f"  ⏳ Skill '{name}': installing automatically…")
             try:
-                _skill_install(name, source=None, force=True)
+                install_skill_core(name, None, force=True)
             except click.ClickException as exc:
                 click.echo(f"  ✗ Skill '{name}': install failed — {exc.format_message()}")
                 return

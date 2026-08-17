@@ -302,8 +302,8 @@ def cmd_get_all_rec(force: bool, env: str | None, project_dir: str | None, no_su
     """Deploy all registered items to .github/ (reverse of add-all-rec)."""
     config = _config.load_config()
     if config is None:
-        click.echo("Configuration file not found. Run ai-adapter init first.")
-        return
+        click.echo("Configuration file not found. Run ai-adapter init first.", err=True)
+        raise click.ClickException("ai-adapter is not initialized.")
 
     project_path = Path(project_dir).resolve() if project_dir else None
     if not no_summary:

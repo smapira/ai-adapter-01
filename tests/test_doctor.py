@@ -220,7 +220,7 @@ def test_doctor_cli_renders_summary(isolated_home: Path, runner: CliRunner):
 
 def test_doctor_cli_uninitialized_warns(isolated_home: Path, runner: CliRunner):
     result = runner.invoke(main, ["doctor", "--project-dir", str(Path.cwd())])
-    assert result.exit_code == 0, result.output
+    assert result.exit_code != 0, result.output
     assert "Health Summary" in result.output
     assert "not initialized" in result.output
     assert "✓ Skills" not in result.output

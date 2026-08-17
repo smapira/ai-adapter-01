@@ -112,9 +112,9 @@ class TestCLIIntegration(unittest.TestCase):
         self.assertIn("git@github.com:user/test.git", result.output)
 
     def test_status_before_init(self):
-        """Verify status before init shows appropriate message."""
+        """Verify status before init shows error and non-zero exit code."""
         result = self.runner.invoke(main, ["status"])
-        self.assertEqual(result.exit_code, 0)
+        self.assertNotEqual(result.exit_code, 0)
         self.assertIn("is not initialized", result.output)
 
     def test_agent_help(self):
@@ -306,9 +306,8 @@ class TestStartCommand(unittest.TestCase):
         self.temp_dir.cleanup()
 
     @patch("ai_adapter.cli._git.clone")
-    def test_start_new_repo(self, mock_clone):
-        """Verify start command sets up a new repository."""
-        # Clone failed → new init path
+    def test_start_clone_failure_shows_error(self, mock_clone):
+        """Verify start command shows error on clone failure."""
         mock_clone.side_effect = GitError("clone failed")
 
         result = self.runner.invoke(
@@ -318,12 +317,29 @@ class TestStartCommand(unittest.TestCase):
                 "git@github.com:user/test.git",
             ],
         )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("Clone failed", result.output)
+        self.assertIn("--new", result.output)
+
+    @patch("ai_adapter.cli._git.clone")
+    def test_start_new_flag_creates_repo(self, mock_clone):
+        """Verify start --new creates a new repository without cloning."""
+        result = self.runner.invoke(
+            main,
+            [
+                "start",
+                "git@github.com:user/test.git",
+                "--new",
+            ],
+        )
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Setup complete", result.output)
         adapter_dir = self.patch_home / ".ai-adapter"
         self.assertTrue(adapter_dir.exists())
         self.assertTrue((adapter_dir / "agents").exists())
         self.assertTrue((adapter_dir / "bin").exists())
+        # clone should NOT have been called
+        mock_clone.assert_not_called()
 
     @patch("ai_adapter.cli._git.clone")
     def test_start_existing_abort(self, mock_clone):
@@ -642,14 +658,14 @@ class TestGetAllRecCommand(unittest.TestCase):
         config.save_config(cfg_obj)
 
     def test_get_all_rec_before_init(self):
-        """Verify message before init."""
+        """Verify error before init."""
         import shutil
 
         shutil.rmtree(self.patch_home / ".ai-adapter", ignore_errors=True)
 
         result = self.runner.invoke(main, ["get-all-rec"])
-        self.assertEqual(result.exit_code, 0)
-        self.assertIn("not found", result.output)  # config file not found
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("not initialized", result.output)
 
     def test_get_all_rec_empty(self):
         """Verify message when nothing registered."""

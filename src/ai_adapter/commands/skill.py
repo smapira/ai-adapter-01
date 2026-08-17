@@ -509,22 +509,23 @@ def skill_remove_all(env: str | None, force: bool, purge: bool) -> None:
 
 
 # ---------------------------------------------------------------------------
-# skill install
+# skill install (core logic — callable without Click context)
 # ---------------------------------------------------------------------------
 
 
-@skill_group.command(name="install")
-@click.argument("name")
-@click.option("--source", default=None, help="Source (github:user/repo). Default: local cache.")
-@click.option("--force", is_flag=True, help="Overwrite existing skill without confirmation")
-def skill_install(name: str, source: str | None, force: bool) -> None:
+def install_skill_core(name: str, source: str | None, *, force: bool = False) -> None:
     """Install a skill from a local cache or GitHub repository.
 
-    NAME: Skill name to install.
+    This is the core logic shared by the ``skill install`` CLI command and
+    ``setup apply --install-missing``.  It does **not** depend on a Click
+    context, so it can be called as a plain function.
 
-    Resolution order (when --source is omitted):
-      1. Local cache:  ~/.ai-adapter/skills/<name>/ (if present, reuse)
-      2. Error: skill not found locally
+    NAME: Skill name to install.
+    SOURCE: Optional ``github:user/repo`` string.  When *None*, resolves
+    from the local ``~/.ai-adapter/skills/`` cache.
+
+    Raises ``click.ClickException`` on validation or registration errors so
+    callers can present a user-friendly message.
     """
     from ai_adapter.agent_plugins import ValidationIssue, validate_skill_dir
 
@@ -598,6 +599,27 @@ def skill_install(name: str, source: str | None, force: bool) -> None:
     )
     save_config(config)
     click.echo(f"Skill '{skill_name}' installed.")
+
+
+# ---------------------------------------------------------------------------
+# skill install (Click command)
+# ---------------------------------------------------------------------------
+
+
+@skill_group.command(name="install")
+@click.argument("name")
+@click.option("--source", default=None, help="Source (github:user/repo). Default: local cache.")
+@click.option("--force", is_flag=True, help="Overwrite existing skill without confirmation")
+def skill_install(name: str, source: str | None, force: bool) -> None:
+    """Install a skill from a local cache or GitHub repository.
+
+    NAME: Skill name to install.
+
+    Resolution order (when --source is omitted):
+      1. Local cache:  ~/.ai-adapter/skills/<name>/ (if present, reuse)
+      2. Error: skill not found locally
+    """
+    install_skill_core(name, source, force=force)
 
 
 def _install_from_github(name: str, source: str, dest: Path) -> None:

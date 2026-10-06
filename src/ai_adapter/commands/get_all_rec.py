@@ -12,29 +12,7 @@ import click
 
 from ai_adapter import config as _config
 from ai_adapter import diff as _diff
-from ai_adapter.agent_format import parse_frontmatter as _parse_frontmatter
-
-
-def _find_agent_source(agents_dir: Path, name: str) -> Path | None:
-    """Find an agent file by frontmatter name or filename."""
-    for f in agents_dir.iterdir():
-        if not f.is_file():
-            continue
-        try:
-            fm = _parse_frontmatter(f)
-            if fm.get("name", "").strip() == name:
-                return f
-        except Exception:
-            continue
-    candidates = [
-        agents_dir / f"{name}.agent.md",
-        agents_dir / f"{name}.md",
-        agents_dir / name,
-    ]
-    for c in candidates:
-        if c.exists() and c.is_file():
-            return c
-    return None
+from ai_adapter.agent_format import find_agent_file as _find_agent_source
 
 
 def _copy_with_confirm(src: Path, dest: Path, force: bool) -> None:

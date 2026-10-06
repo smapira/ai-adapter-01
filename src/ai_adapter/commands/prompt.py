@@ -17,9 +17,12 @@ from ai_adapter.config import (
     get_prompts_dir,
     load_config,
     resolve_env,
+    resolve_scope_path,
     save_config,
 )
 from ai_adapter.models import Prompt
+from ai_adapter.providers.claude import validate_claude_scope
+from ai_adapter.providers.gemini import export_command_toml
 
 
 @click.group(name="prompt")
@@ -100,15 +103,25 @@ def prompt_add(path: str, env: str | None, agent: str | None) -> None:
 
 
 def _find_prompt_by_name(prompts_dir: Path, name: str) -> Path | None:
-    """Find a prompt file by name."""
-    # 1. Exact match
+    """Find a prompt file by name, supporting nested names (``dir/name``).
+
+    Gemini CLI nests custom commands as ``.gemini/commands/<dir>/<name>.toml``
+    (design 05 task 05-4), so the lookup must accept slash-separated names
+    as well as flat ones.
+    """
+    # 1. Exact match (flat or nested relative path)
     exact = prompts_dir / name
     if exact.exists() and exact.is_file():
         return exact
 
-    # 2. Search with extension
-    for f in sorted(prompts_dir.iterdir()):
-        if f.is_file() and f.stem == name:
+    # 2. Stem match within the name's parent directory — covers both
+    #    flat "summarize" → "summarize.md" and nested "dir/name" → "dir/name.md".
+    relative = Path(name)
+    parent = prompts_dir / relative.parent
+    if not parent.is_dir():
+        return None
+    for f in sorted(parent.iterdir()):
+        if f.is_file() and f.stem == relative.name:
             return f
 
     return None
@@ -119,11 +132,33 @@ def _find_prompt_by_name(prompts_dir: Path, name: str) -> Path | None:
 @click.option("--env", "-e", default=None, help="Environment name (auto-resolved when omitted)")
 @click.option("--agent", help="Agent name (for env resolution)")
 @click.option("--project-dir", "-d", type=click.Path(exists=True, file_okay=False, readable=True), default=None)
-def prompt_get(name: str, env: str | None, agent: str | None, project_dir: str | None) -> None:
-    """Copy prompt to .github/prompts/.
+@click.option(
+    "--format",
+    "-f",
+    "format_name",
+    type=click.Choice(["standard", "gemini"]),
+    default="standard",
+    help=("Output format (standard=.github/prompts/, gemini=.gemini/commands/*.toml or ~/.gemini/commands/*.toml)"),
+)
+@click.option(
+    "--scope",
+    type=click.Choice(["project", "user"]),
+    default="project",
+    help="Deploy scope for --format gemini: project=.gemini/commands/, user=~/.gemini/commands/",
+)
+def prompt_get(
+    name: str,
+    env: str | None,
+    agent: str | None,
+    project_dir: str | None,
+    format_name: str,
+    scope: str,
+) -> None:
+    """Copy prompt to .github/prompts/ (or .gemini/commands/ with --format gemini).
 
     When --env is omitted, auto-resolves via environment resolution logic.
     """
+    validate_claude_scope(format_name, scope, ignored_option="--project-dir" if project_dir else None)
     prompts_dir = get_prompts_dir()
     src = _find_prompt_by_name(prompts_dir, name)
 
@@ -132,6 +167,11 @@ def prompt_get(name: str, env: str | None, agent: str | None, project_dir: str |
         raise click.ClickException(f"Prompt '{name}' is not registered.")
 
     project_path = Path(project_dir).resolve() if project_dir else None
+
+    if format_name == "gemini":
+        _deploy_prompt_gemini(name, src, scope, project_path)
+        return
+
     github_dir = get_github_prompts_dir(project_path)
     github_dir.mkdir(parents=True, exist_ok=True)
 
@@ -139,6 +179,21 @@ def prompt_get(name: str, env: str | None, agent: str | None, project_dir: str |
     shutil.copy2(src, dest)
     add_to_gitignore(dest)
     click.echo(f"Prompt '{name}' copied to {dest}.")
+
+
+def _deploy_prompt_gemini(name: str, src: Path, scope: str, project_path: Path | None) -> None:
+    """Convert *src* Markdown to Gemini TOML under .gemini/commands/ (design 05).
+
+    Gemini has one custom-command namespace, so prompts export into the
+    same ``.gemini/commands/`` tree as commands.
+    """
+    target = resolve_scope_path("gemini", "commands", scope, project_path)
+    dest = target.path / f"{name}.toml"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(export_command_toml(name, src.read_text(encoding="utf-8")), encoding="utf-8")
+    if target.use_gitignore:
+        add_to_gitignore(dest)
+    click.echo(f"Prompt '{name}' exported to {dest} (gemini TOML).")
 
 
 @prompt_group.command(name="remove")

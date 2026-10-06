@@ -16,15 +16,22 @@ from ai_adapter.agent_format import (
     convert_agent_file,
     validate_agent_file,
 )
+from ai_adapter.agent_format import (
+    find_agent_file as _find_agent_file,
+)
 from ai_adapter.agent_format import parse_frontmatter as _parse_frontmatter
 from ai_adapter.config import (
     add_to_gitignore,
     get_agents_dir,
     get_github_agents_dir,
     load_config,
+    resolve_scope_path,
     save_config,
 )
 from ai_adapter.models import Agent, AgentBinding
+from ai_adapter.providers.claude import deploy_agent_file as _claude_deploy_agent_file
+from ai_adapter.providers.claude import deploy_agents as _claude_deploy_agents
+from ai_adapter.providers.claude import validate_claude_scope
 
 
 def _get_agent_name_from_path(path: Path) -> str:
@@ -71,30 +78,6 @@ def _get_agents_for_env(config, env: str | None) -> list:
     return [a for a in config.agents if _is_agent_bound_to_env(a.name, env, config.agent_bindings)]
 
 
-def _find_agent_file(agents_dir: Path, name: str) -> Path | None:
-    """Find an agent file by name (frontmatter or filename)."""
-    # Search by frontmatter name
-    for f in agents_dir.iterdir():
-        if not f.is_file():
-            continue
-        try:
-            fm = _parse_frontmatter(f)
-            if fm.get("name", "").strip() == name:
-                return f
-        except Exception:
-            continue
-    # Search by filename
-    candidates = [
-        agents_dir / f"{name}.agent.md",
-        agents_dir / f"{name}.md",
-        agents_dir / name,
-    ]
-    for c in candidates:
-        if c.exists() and c.is_file():
-            return c
-    return None
-
-
 def _copy_with_tools_conversion(src: Path, dest: Path, fix: bool = False) -> None:
     """Copy *src* to *dest*, optionally converting ``tools`` format.
 
@@ -138,6 +121,54 @@ def _copy_with_tools_conversion(src: Path, dest: Path, fix: bool = False) -> Non
                         )
     # Default: plain copy (also covers non-.agent.md files)
     shutil.copy2(src, dest)
+
+
+def _opencode_deploy_agent(src: Path, dest_dir: Path, force: bool, fix: bool) -> Path:
+    """Deploy one agent file for OpenCode.
+
+    OpenCode's docs state that agent markdown file names become the agent
+    name (``review.md`` → ``review`` agent).  A ``.agent.md`` source is
+    therefore renamed to ``.md`` so the agent name matches what OpenCode
+    derives (design 04 AC3, review M1 — verified against
+    https://opencode.ai/docs/agents/).  Tools conversion still applies
+    because OpenCode expects object-format frontmatter.
+    """
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest_name = src.name
+    if src.name.endswith(".agent.md"):
+        dest_name = src.name[: -len(".agent.md")] + ".md"
+    dest = dest_dir / dest_name
+    if dest.exists() and not force:
+        click.confirm(f"'{dest.name}' already exists. Overwrite?", abort=True)
+    _copy_with_tools_conversion(src, dest, fix=fix)
+    return dest
+
+
+def _opencode_deploy_agents(
+    targets: list,
+    agents_dir: Path,
+    scope: str,
+    project_dir: Path | None,
+    fix: bool,
+) -> None:
+    """Deploy registered agents for OpenCode across the given scope.
+
+    Project-scope destinations are added to ``.gitignore`` (user scope never
+    is — walking up from ``$HOME`` could touch a dotfiles repo).
+    """
+    target = resolve_scope_path("opencode", "agents", scope, project_dir)
+    copied = 0
+    for agent_cfg in targets:
+        src = _find_agent_file(agents_dir, agent_cfg.name)
+        if src is None:
+            click.echo(f"  Skip: '{agent_cfg.name}' file not found.")
+            continue
+        dest = _opencode_deploy_agent(src, target.path, force=False, fix=fix)
+        if target.use_gitignore:
+            add_to_gitignore(dest)
+        copied += 1
+
+    click.echo(f"All agents ({copied}) copied to {target.path}.")
 
 
 @click.group(name="sub-agent")
@@ -337,15 +368,50 @@ def agent_add_rec(dir_path: str, env: str | None, fix: bool) -> None:
     "-d",
     type=click.Path(exists=True, file_okay=False, readable=True),
     default=None,
-    help="Target project directory (default: current directory)",
+    help="Target project directory (default: current directory; ignored with --scope user)",
 )
-def agent_get(name: str, env: str | None, force: bool, fix: bool, project_dir: str | None) -> None:
-    """Copy agent file to .github/agents/.
+@click.option(
+    "--format",
+    "-f",
+    "format_name",
+    type=click.Choice(["standard", "claude", "opencode"]),
+    default="standard",
+    help=(
+        "Output format (standard=.github/agents/, claude=.claude/agents/, "
+        "opencode=.github/agents/ or ~/.config/opencode/agents/)"
+    ),
+)
+@click.option(
+    "--scope",
+    type=click.Choice(["project", "user"]),
+    default="project",
+    help=(
+        "Deploy scope for --format claude/opencode: "
+        "project=.claude/agents/ or .github/agents/, "
+        "user=~/.claude/agents/ or ~/.config/opencode/agents/"
+    ),
+)
+def agent_get(
+    name: str,
+    env: str | None,
+    force: bool,
+    fix: bool,
+    project_dir: str | None,
+    format_name: str,
+    scope: str,
+) -> None:
+    """Copy agent file to .github/agents/ (or .claude/agents/ with --format claude).
 
     NAME: Agent name to retrieve (no extension needed).
 
-    Use --env to only get agents bound to a specific environment.
+    With --format claude, ``.agent.md`` files are renamed to ``.md``
+    (Claude Code reads ``.md``) and array-format tools are converted to
+    object format.  With --format opencode, files keep their original
+    names and deploy to ``~/.config/opencode/agents/`` with ``--scope
+    user``.  Use --env to only get agents bound to a specific
+    environment.
     """
+    validate_claude_scope(format_name, scope, ignored_option="--project-dir" if project_dir else None)
     config = load_config()
     agents_dir = get_agents_dir()
 
@@ -362,6 +428,23 @@ def agent_get(name: str, env: str | None, force: bool, fix: bool, project_dir: s
         raise click.ClickException(f"Agent '{name}' is not registered.")
 
     project_path = Path(project_dir).resolve() if project_dir else None
+
+    if format_name == "claude":
+        target = resolve_scope_path("claude", "agents", scope, project_path)
+        dest = _claude_deploy_agent_file(src, target.path, force, fix=fix)
+        if target.use_gitignore:
+            add_to_gitignore(dest)
+        click.echo(f"Agent '{name}' copied to {dest}.")
+        return
+
+    if format_name == "opencode":
+        target = resolve_scope_path("opencode", "agents", scope, project_path)
+        dest = _opencode_deploy_agent(src, target.path, force, fix=fix)
+        if target.use_gitignore:
+            add_to_gitignore(dest)
+        click.echo(f"Agent '{name}' copied to {dest}.")
+        return
+
     github_dir = get_github_agents_dir(project_path)
     github_dir.mkdir(parents=True, exist_ok=True)
 
@@ -382,7 +465,7 @@ def agent_get(name: str, env: str | None, force: bool, fix: bool, project_dir: s
     "-d",
     type=click.Path(exists=True, file_okay=False, readable=True),
     default=None,
-    help="Target project directory (default: current directory)",
+    help="Target project directory (default: current directory; ignored with --scope user)",
 )
 @click.option(
     "--fix",
@@ -390,11 +473,43 @@ def agent_get(name: str, env: str | None, force: bool, fix: bool, project_dir: s
     default=False,
     help="Convert array-format tools to object format (destructive).",
 )
-def agent_get_all(env: str | None, project_dir: str | None, fix: bool) -> None:
-    """Copy all registered agents to .github/agents/.
+@click.option(
+    "--format",
+    "-f",
+    "format_name",
+    type=click.Choice(["standard", "claude", "opencode"]),
+    default="standard",
+    help=(
+        "Output format (standard=.github/agents/, claude=.claude/agents/, "
+        "opencode=.github/agents/ or ~/.config/opencode/agents/)"
+    ),
+)
+@click.option(
+    "--scope",
+    type=click.Choice(["project", "user"]),
+    default="project",
+    help=(
+        "Deploy scope for --format claude/opencode: "
+        "project=.claude/agents/ or .github/agents/, "
+        "user=~/.claude/agents/ or ~/.config/opencode/agents/"
+    ),
+)
+def agent_get_all(
+    env: str | None,
+    project_dir: str | None,
+    fix: bool,
+    format_name: str,
+    scope: str,
+) -> None:
+    """Copy all registered agents to .github/agents/ (or .claude/agents/ with --format claude).
 
-    Use --env to only deploy agents bound to a specific environment.
+    With --format claude, ``.agent.md`` files are renamed to ``.md`` and
+    array-format tools are converted to object format.  With --format
+    opencode, files keep their original names and deploy to
+    ``~/.config/opencode/agents/`` with ``--scope user``.  Use --env to only
+    deploy agents bound to a specific environment.
     """
+    validate_claude_scope(format_name, scope, ignored_option="--project-dir" if project_dir else None)
     config = load_config()
     if config is None or not config.agents:
         click.echo("No agents registered.")
@@ -402,10 +517,19 @@ def agent_get_all(env: str | None, project_dir: str | None, fix: bool) -> None:
 
     agents_dir = get_agents_dir()
     project_path = Path(project_dir).resolve() if project_dir else None
-    github_dir = get_github_agents_dir(project_path)
-    github_dir.mkdir(parents=True, exist_ok=True)
 
     targets = _get_agents_for_env(config, env)
+
+    if format_name == "claude":
+        _claude_deploy_agents(targets, agents_dir, scope=scope, project_dir=project_path, fix=fix)
+        return
+
+    if format_name == "opencode":
+        _opencode_deploy_agents(targets, agents_dir, scope=scope, project_dir=project_path, fix=fix)
+        return
+
+    github_dir = get_github_agents_dir(project_path)
+    github_dir.mkdir(parents=True, exist_ok=True)
 
     copied = 0
     for agent_cfg in targets:

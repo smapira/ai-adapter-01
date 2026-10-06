@@ -35,7 +35,10 @@ from ai_adapter.commands.setup import setup_group
 from ai_adapter.commands.skill import skill_group
 from ai_adapter.git import GitError, get_conflicted_files, is_rebasing
 from ai_adapter.providers.codex import codex_group
+from ai_adapter.providers.gemini import gemini_group
 from ai_adapter.providers.opencode import opencode_group
+from ai_adapter.providers.vscode import vscode_group
+from ai_adapter.providers.zed import zed_group
 from ai_adapter.sync import handle_rebase_operation, sync_command
 from ai_adapter.version import check_versions, render_version_table
 
@@ -355,6 +358,9 @@ main.add_command(npx_group)
 main.add_command(plugin_group)
 main.add_command(opencode_group)
 main.add_command(codex_group)
+main.add_command(vscode_group)
+main.add_command(gemini_group)
+main.add_command(zed_group)
 main.add_command(cmd_add_all_rec)
 main.add_command(cmd_get_all_rec)
 main.add_command(cmd_scan)

@@ -24,8 +24,26 @@ from ai_adapter.config import (
     save_config,
 )
 from ai_adapter.models import Skill
+from ai_adapter.providers.claude import deploy_skills as _claude_deploy_skills
+from ai_adapter.providers.claude import validate_claude_scope
+from ai_adapter.providers.codex import deploy_skills as _codex_deploy_skills
 from ai_adapter.providers.cursor import deploy_skills as _cursor_deploy_skills
+from ai_adapter.providers.cursor import deploy_skills_plugin
 from ai_adapter.providers.openclaw import deploy_skills as _openclaw_deploy_skills
+from ai_adapter.providers.zed import deploy_skills as _zed_deploy_skills
+
+# --format choices shared by `skill get` and `skill get-all` (design 07 AC5:
+# both commands accept the same format list). "cursor-plugin" installs a true
+# Cursor plugin package under ~/.cursor/plugins/local/ (design 07 task 07-2).
+SKILL_FORMAT_CHOICES: tuple[str, ...] = (
+    "standard",
+    "openclaw",
+    "cursor",
+    "claude",
+    "codex",
+    "zed",
+    "cursor-plugin",
+)
 
 
 def _parse_skill_metadata(skill_dir: Path) -> dict:
@@ -201,8 +219,28 @@ def skill_add_rec(dir_path: str, env: str | None, agent: str | None) -> None:
     default=None,
     help="Target project directory (default: current directory)",
 )
-def skill_get(name: str, env: str | None, agent: str | None, force: bool, project_dir: str | None) -> None:
-    """Copy skill to .github/skills/.
+@click.option(
+    "--format",
+    "-f",
+    "format_name",
+    type=click.Choice(SKILL_FORMAT_CHOICES),
+    default="standard",
+    help=(
+        "Output format (standard=.github/skills/, openclaw=~/.openclaw/skills/, "
+        "cursor=.cursor/rules/, cursor-plugin=~/.cursor/plugins/local/<project>/, "
+        "claude=.claude/skills/, codex=.agents/skills/, "
+        "zed=.agents/skills/ — Zed's discovery path)"
+    ),
+)
+def skill_get(
+    name: str,
+    env: str | None,
+    agent: str | None,
+    force: bool,
+    project_dir: str | None,
+    format_name: str,
+) -> None:
+    """Copy one skill to .github/skills/ or deploy via --format.
 
     NAME: Name of the skill to retrieve.
 
@@ -231,6 +269,13 @@ def skill_get(name: str, env: str | None, agent: str | None, force: bool, projec
     if not src.exists():
         click.echo(f"Skill directory '{src}' not found.", err=True)
         raise click.ClickException(f"Skill '{name}' directory does not exist.")
+
+    if format_name != "standard":
+        # Non-standard formats share get-all's provider dispatch (design 07
+        # AC5: same --format choices on both commands). skill get has no
+        # --scope, so platform formats deploy at project scope.
+        _deploy_skills_for_format([skill_entry], skills_dir, format_name, "project", project_dir, force)
+        return
 
     project_path = Path(project_dir).resolve() if project_dir else None
     claude_dir = get_github_skills_dir(project_path)
@@ -404,24 +449,64 @@ def skill_link_agent(skill: str, agent: str) -> None:
     "-d",
     type=click.Path(exists=True, file_okay=False, readable=True),
     default=None,
-    help="Target project directory (default: current directory)",
+    help="Target project directory (default: current directory; ignored with --scope user)",
 )
 @click.option(
     "--format",
     "-f",
     "format_name",
-    type=click.Choice(["standard", "openclaw", "cursor"]),
+    type=click.Choice(SKILL_FORMAT_CHOICES),
     default="standard",
-    help="Output format (standard=.github/skills/, openclaw=~/.openclaw/skills/, cursor=.cursor/rules/)",
+    help=(
+        "Output format (standard=.github/skills/, openclaw=~/.openclaw/skills/, "
+        "cursor=.cursor/rules/, cursor-plugin=~/.cursor/plugins/local/<project>/, "
+        "claude=.claude/skills/, codex=.agents/skills/, "
+        "zed=.agents/skills/ — Zed's discovery path)"
+    ),
 )
-def skill_get_all(env: str | None, force: bool, project_dir: str | None, format_name: str) -> None:
-    """Copy all registered skills to project .github/skills/, OpenClaw, or Cursor rules.
+@click.option(
+    "--scope",
+    type=click.Choice(["project", "user"]),
+    default="project",
+    help=(
+        "Deploy scope for --format claude/codex/zed: project=.claude/skills/ or .agents/skills/, "
+        "user=~/.claude/skills/ or ~/.agents/skills/"
+    ),
+)
+@click.option(
+    "--also-codex-dir",
+    is_flag=True,
+    help=(
+        "With --format codex: additionally copy each skill to the Codex-native "
+        ".codex/skills/ directory (opt-in compat mirror)"
+    ),
+)
+def skill_get_all(
+    env: str | None,
+    force: bool,
+    project_dir: str | None,
+    format_name: str,
+    scope: str,
+    also_codex_dir: bool,
+) -> None:
+    """Copy all registered skills to project .github/skills/, OpenClaw, Cursor, Claude Code, Codex, or Zed.
 
     With --format openclaw, deploys to ~/.openclaw/skills/ (OpenClaw user skills).
     With --format cursor, deploys as .cursor/rules/*.mdc files (Cursor rules).
+    With --format cursor-plugin, installs a Cursor plugin package under
+    ~/.cursor/plugins/local/<project-name>/ (plugin.json + skills/, design 07).
+    With --format claude, deploys to .claude/skills/ (or ~/.claude/skills/ with --scope user).
+    With --format codex, deploys to .agents/skills/ (or ~/.agents/skills/ with --scope user);
+    add --also-codex-dir to also mirror into .codex/skills/.
+    With --format zed, deploys to Zed's discovery path .agents/skills/
+    (or ~/.agents/skills/ with --scope user) — never .zed/skills/.
     Existing non-ai-adapter files in the target directory are preserved.
     Use --env to filter by environment.
     """
+    validate_claude_scope(format_name, scope, ignored_option="--project-dir" if project_dir else None)
+    if also_codex_dir and format_name != "codex":
+        click.echo("Warning: --also-codex-dir is ignored without --format codex.", err=True)
+
     config = load_config()
     if config is None or not config.skills:
         click.echo("No skills registered.")
@@ -432,10 +517,54 @@ def skill_get_all(env: str | None, force: bool, project_dir: str | None, format_
     if env:
         targets = [s for s in targets if s.env is None or s.env == env]
 
-    if format_name == "openclaw":
+    _deploy_skills_for_format(
+        targets,
+        skills_dir,
+        format_name,
+        scope,
+        project_dir,
+        force,
+        also_codex_dir=also_codex_dir,
+    )
+
+
+def _deploy_skills_for_format(
+    targets: list[Skill],
+    skills_dir: Path,
+    format_name: str,
+    scope: str,
+    project_dir: str | None,
+    force: bool,
+    also_codex_dir: bool = False,
+) -> None:
+    """Deploy *targets* to the destination for *format_name*.
+
+    Shared by ``skill get`` (single skill, project scope) and
+    ``skill get-all`` so both commands accept the same ``--format``
+    choices (design 07 AC5).
+    """
+    if format_name == "claude":
+        project_path = Path(project_dir).resolve() if project_dir else None
+        _claude_deploy_skills(targets, skills_dir, scope=scope, project_dir=project_path, force=force)
+    elif format_name == "codex":
+        project_path = Path(project_dir).resolve() if project_dir else None
+        _codex_deploy_skills(
+            targets,
+            skills_dir,
+            scope=scope,
+            project_dir=project_path,
+            force=force,
+            also_codex_dir=also_codex_dir,
+        )
+    elif format_name == "zed":
+        project_path = Path(project_dir).resolve() if project_dir else None
+        _zed_deploy_skills(targets, skills_dir, scope=scope, project_dir=project_path, force=force)
+    elif format_name == "openclaw":
         _openclaw_deploy_skills(targets, skills_dir, force)
     elif format_name == "cursor":
         _cursor_deploy_skills(targets, skills_dir, force, project_dir)
+    elif format_name == "cursor-plugin":
+        deploy_skills_plugin(targets, skills_dir, force=force, project_dir=project_dir)
     else:
         _deploy_skills_standard(targets, skills_dir, force, project_dir)
 

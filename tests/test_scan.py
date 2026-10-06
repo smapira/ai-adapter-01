@@ -693,3 +693,433 @@ def test_diagnose_is_read_only(isolated_home: Path):
     diagnose(result)
     after = set(p for p in isolated_home.rglob("*") if p.is_file())
     assert after == before
+
+
+# ── User-scope instruction detection (design 01 task 01-3) ──────────────
+
+
+def _write_user_instruction(home: Path, rel_path: str, body: str = "# Instructions\n") -> Path:
+    """Create a user-scope instruction file and return its path."""
+    path = home / rel_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body, encoding="utf-8")
+    return path
+
+
+def test_scan_codex_user_instruction_detected(isolated_home: Path):
+    instruction = _write_user_instruction(isolated_home, ".codex/AGENTS.md")
+    result = scan_all(project_dir=Path.cwd())
+    instructions = [i for i in result.items if i.tool == "codex" and i.category == "instruction"]
+    assert len(instructions) == 1
+    assert instructions[0].name == "AGENTS.md"
+    assert instructions[0].path == instruction
+
+
+def test_scan_claude_user_instruction_detected(isolated_home: Path):
+    _write_user_instruction(isolated_home, ".claude/CLAUDE.md")
+    result = scan_all(project_dir=Path.cwd())
+    instructions = [i for i in result.items if i.tool == "claude" and i.category == "instruction"]
+    assert len(instructions) == 1
+    assert instructions[0].name == "CLAUDE.md"
+
+
+def test_scan_opencode_user_instruction_detected(isolated_home: Path):
+    _write_user_instruction(isolated_home, ".config/opencode/AGENTS.md")
+    result = scan_all(project_dir=Path.cwd())
+    instructions = [i for i in result.items if i.tool == "opencode" and i.category == "instruction"]
+    assert len(instructions) == 1
+    assert instructions[0].name == "AGENTS.md"
+
+
+def test_scan_user_instruction_absent_when_no_file(isolated_home: Path):
+    """No instruction items when the user files do not exist."""
+    result = scan_all(project_dir=Path.cwd())
+    assert [i for i in result.items if i.category == "instruction"] == []
+
+
+def test_scan_user_instruction_applies_ignore_patterns(isolated_home: Path, monkeypatch: pytest.MonkeyPatch):
+    """is_ignored() is consulted for user instruction paths (security hook)."""
+    import ai_adapter.scan as scan_module
+
+    _write_user_instruction(isolated_home, ".codex/AGENTS.md")
+    monkeypatch.setattr(scan_module, "SCAN_IGNORE_PATTERNS", (".codex/AGENTS.md",))
+    result = scan_all(project_dir=Path.cwd())
+    assert [i for i in result.items if i.tool == "codex" and i.category == "instruction"] == []
+
+
+# ── Project .claude/ detection (design 02 task 02-4) ────────────────────
+
+
+def _write_project_claude_agent(project: Path, name: str, description: str = "Project agent") -> Path:
+    """Create ``<project>/.claude/agents/<name>.md`` and return its path."""
+    agent_file = project / ".claude" / "agents" / f"{name}.md"
+    agent_file.parent.mkdir(parents=True, exist_ok=True)
+    agent_file.write_text(
+        f"---\nname: {name}\ndescription: {description}\n---\n# {name}\n",
+        encoding="utf-8",
+    )
+    return agent_file
+
+
+def test_scan_project_claude_agents_detected(isolated_home: Path, tmp_path: Path):
+    """Project .claude/agents/*.md is reported with tool="claude" (taxonomy §2.6)."""
+    project = tmp_path / "proj"
+    path = _write_project_claude_agent(project, "reviewer")
+    result = scan_all(project_dir=project)
+    agents = [i for i in result.items if i.tool == "claude" and i.category == "agent"]
+    assert len(agents) == 1
+    assert agents[0].name == "reviewer"
+    assert agents[0].description == "Project agent"
+    assert agents[0].path == path
+
+
+def test_scan_project_claude_skills_detected(isolated_home: Path, tmp_path: Path):
+    """Project .claude/skills/*/SKILL.md is reported with tool="claude"."""
+    project = tmp_path / "proj"
+    skill_file = project / ".claude" / "skills" / "db-schema" / "SKILL.md"
+    skill_file.parent.mkdir(parents=True, exist_ok=True)
+    skill_file.write_text(
+        "---\nname: db-schema\ndescription: Schema skill\n---\n# db-schema\n",
+        encoding="utf-8",
+    )
+    result = scan_all(project_dir=project)
+    skills = [i for i in result.items if i.tool == "claude" and i.category == "skill"]
+    assert len(skills) == 1
+    assert skills[0].name == "db-schema"
+    assert skills[0].path == skill_file
+
+
+def test_scan_project_claude_rules_not_detected(isolated_home: Path, tmp_path: Path):
+    """.claude/rules/ stays undetected (Phase B per design 02)."""
+    project = tmp_path / "proj"
+    rules_dir = project / ".claude" / "rules"
+    rules_dir.mkdir(parents=True)
+    (rules_dir / "style.md").write_text("# Rule\n", encoding="utf-8")
+    result = scan_all(project_dir=project)
+    assert not any(".claude" in str(i.path) and "rules" in str(i.path) for i in result.items)
+
+
+def test_scan_project_claude_and_github_do_not_overlap(isolated_home: Path, tmp_path: Path):
+    """Same-named files under .claude/ (tool=claude) and .github/ (tool=project)
+    are both reported — distinct paths, no double counting."""
+    project = tmp_path / "proj"
+    _write_project_claude_agent(project, "reviewer")
+    github_dir = project / ".github" / "agents"
+    github_dir.mkdir(parents=True)
+    (github_dir / "reviewer.agent.md").write_text(
+        "---\nname: reviewer\ndescription: GH agent\n---\n# reviewer\n",
+        encoding="utf-8",
+    )
+    result = scan_all(project_dir=project)
+    claude_agents = [i for i in result.items if i.tool == "claude" and i.category == "agent"]
+    project_agents = [i for i in result.items if i.tool == "project" and i.category == "agent"]
+    assert len(claude_agents) == 1
+    assert len(project_agents) == 1
+    assert claude_agents[0].path != project_agents[0].path
+
+
+def test_scan_user_and_project_claude_both_detected(isolated_home: Path, tmp_path: Path):
+    """User ~/.claude/ and project .claude/ contribute items to the same tool."""
+    _write_agent(isolated_home, "claude", "user-agent")
+    project = tmp_path / "proj"
+    _write_project_claude_agent(project, "project-agent")
+    result = scan_all(project_dir=project)
+    names = {i.name for i in result.items if i.tool == "claude" and i.category == "agent"}
+    assert names == {"user-agent", "project-agent"}
+
+
+def test_scan_project_claude_applies_ignore_patterns(
+    isolated_home: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """SCAN_IGNORE_PATTERNS / is_ignored() apply to project .claude paths."""
+    import ai_adapter.scan as scan_module
+
+    project = tmp_path / "proj"
+    _write_project_claude_agent(project, "reviewer")
+    # "private.md" trips no generic secret rule — only the monkeypatched
+    # pattern below can exclude it, proving glob matching runs on project paths.
+    (project / ".claude" / "agents" / "private.md").write_text("# restricted\n", encoding="utf-8")
+    monkeypatch.setattr(
+        scan_module,
+        "SCAN_IGNORE_PATTERNS",
+        scan_module.SCAN_IGNORE_PATTERNS + (".claude/agents/private.md",),
+    )
+    result = scan_all(project_dir=project)
+    names = {i.name for i in result.items if i.tool == "claude" and i.category == "agent"}
+    assert "private" not in names
+    assert "reviewer" in names
+
+
+# ── Design 08: copilot-instructions.md + .vscode/ detection ─────────────
+
+
+def test_scan_project_copilot_instructions_github(isolated_home: Path, tmp_path: Path):
+    """.github/copilot-instructions.md is detected as instruction (task 08-3)."""
+    project = tmp_path / "proj"
+    (project / ".github").mkdir(parents=True)
+    (project / ".github" / "copilot-instructions.md").write_text("# Copilot\n", encoding="utf-8")
+    result = scan_all(project_dir=project)
+    instructions = [i.name for i in result.items if i.category == "instruction"]
+    assert "copilot-instructions.md" in instructions
+    # AC2: root copilot-instructions.md detection is maintained
+    (project / "copilot-instructions.md").write_text("# Root copilot\n", encoding="utf-8")
+    result2 = scan_all(project_dir=project)
+    names = [i.name for i in result2.items if i.category == "instruction"]
+    assert names.count("copilot-instructions.md") == 2
+
+
+def test_scan_vscode_mcp_json(isolated_home: Path, tmp_path: Path):
+    """`.vscode/mcp.json` is detected with servers from the `servers` key."""
+    project = tmp_path / "proj"
+    _write_json_config(
+        project / ".vscode" / "mcp.json",
+        {"servers": {"github": {"type": "stdio", "command": "gh-mcp", "args": []}}},
+    )
+    result = scan_all(project_dir=project)
+    settings = [i for i in result.items if i.tool == "vscode" and i.category == "settings"]
+    assert any(i.name == "mcp.json" for i in settings)
+    mcp = [i for i in result.items if i.tool == "vscode" and i.category == "mcp"]
+    assert [i.name for i in mcp] == ["github"]
+
+
+def test_scan_vscode_extensions_json(isolated_home: Path, tmp_path: Path):
+    """`.vscode/extensions.json` is detected as vscode settings."""
+    project = tmp_path / "proj"
+    _write_json_config(
+        project / ".vscode" / "extensions.json",
+        {"recommendations": ["ms-vscode.copilot-chat"]},
+    )
+    result = scan_all(project_dir=project)
+    settings = [i for i in result.items if i.tool == "vscode" and i.category == "settings"]
+    assert any(i.name == "extensions.json" for i in settings)
+
+
+def test_scan_vscode_launch_and_tasks(isolated_home: Path, tmp_path: Path):
+    """launch.json and tasks.json are detected (scan only, not managed)."""
+    project = tmp_path / "proj"
+    _write_json_config(project / ".vscode" / "launch.json", {"configurations": []})
+    _write_json_config(project / ".vscode" / "tasks.json", {"tasks": []})
+    result = scan_all(project_dir=project)
+    settings = {i.name for i in result.items if i.tool == "vscode" and i.category == "settings"}
+    assert "launch.json" in settings
+    assert "tasks.json" in settings
+
+
+def test_scan_vscode_not_detected_without_dir(isolated_home: Path, tmp_path: Path):
+    """No .vscode/ directory → no vscode items."""
+    project = tmp_path / "proj"
+    project.mkdir(parents=True)
+    result = scan_all(project_dir=project)
+    assert result.count(tool="vscode") == 0
+
+
+def test_tool_order_includes_vscode():
+    """TOOL_ORDER has vscode inserted before project."""
+    from ai_adapter.scan import TOOL_ORDER
+
+    assert "vscode" in TOOL_ORDER
+    assert TOOL_ORDER.index("vscode") < TOOL_ORDER.index("project")
+
+
+def test_tool_labels_include_vscode():
+    """TOOL_LABELS has a label for vscode."""
+    from ai_adapter.scan import TOOL_LABELS
+
+    assert "vscode" in TOOL_LABELS
+    assert TOOL_LABELS["vscode"] == "VS Code"
+
+
+# ── Gemini CLI detection (design 05 task 05-7) ─────────────────────────
+
+
+def test_scan_gemini_user_commands_settings_and_context(isolated_home: Path):
+    """User scope: ~/.gemini/commands/*.toml + settings.json + GEMINI.md."""
+    commands_dir = isolated_home / ".gemini" / "commands"
+    commands_dir.mkdir(parents=True)
+    (commands_dir / "deploy.toml").write_text('description = "d"\nprompt = """p"""\n', encoding="utf-8")
+    _write_json_config(
+        isolated_home / ".gemini" / "settings.json",
+        {"mcpServers": {"github": {"command": "npx"}}},
+    )
+    (isolated_home / ".gemini" / "GEMINI.md").write_text("# rules\n", encoding="utf-8")
+
+    result = scan_all(project_dir=Path.cwd())
+    commands = [i for i in result.items if i.tool == "gemini" and i.category == "command"]
+    assert any(i.name == "deploy" for i in commands)
+    settings = [i for i in result.items if i.tool == "gemini" and i.category == "settings"]
+    assert any(i.name == "settings.json" for i in settings)
+    mcp = [i for i in result.items if i.tool == "gemini" and i.category == "mcp"]
+    assert any(i.name == "github" for i in mcp)
+    instructions = [i for i in result.items if i.tool == "gemini" and i.category == "instruction"]
+    assert any(i.name == "GEMINI.md" for i in instructions)
+
+
+def test_scan_gemini_project_commands_and_settings(isolated_home: Path, tmp_path: Path):
+    """Project scope: <proj>/.gemini/commands + settings.json detected."""
+    project = tmp_path / "proj"
+    commands_dir = project / ".gemini" / "commands"
+    commands_dir.mkdir(parents=True)
+    (commands_dir / "test.toml").write_text('prompt = """x"""\n', encoding="utf-8")
+    _write_json_config(project / ".gemini" / "settings.json", {"mcpServers": {"local": {"command": "x"}}})
+
+    result = scan_all(project_dir=project)
+    commands = [i for i in result.items if i.tool == "gemini" and i.category == "command"]
+    assert any(i.name == "test" for i in commands)
+    mcp = [i for i in result.items if i.tool == "gemini" and i.category == "mcp"]
+    assert any(i.name == "local" for i in mcp)
+
+
+def test_scan_gemini_extension_manifest_detected(isolated_home: Path):
+    """Extension manifests under ~/.gemini/extensions/ are detected."""
+    ext_dir = isolated_home / ".gemini" / "extensions" / "my-ext"
+    ext_dir.mkdir(parents=True)
+    _write_json_config(ext_dir / "gemini-extension.json", {"name": "my-ext", "mcpServers": {}})
+
+    result = scan_all(project_dir=Path.cwd())
+    settings = [i for i in result.items if i.tool == "gemini" and i.category == "settings"]
+    assert any(i.name == "my-ext" for i in settings)
+
+
+def test_scan_gemini_project_root_gemini_md(isolated_home: Path, tmp_path: Path):
+    """Project-root GEMINI.md is detected as a gemini instruction."""
+    project = tmp_path / "proj"
+    project.mkdir(parents=True)
+    (project / "GEMINI.md").write_text("# project rules\n", encoding="utf-8")
+
+    result = scan_all(project_dir=project)
+    instructions = [i for i in result.items if i.tool == "gemini" and i.category == "instruction"]
+    assert any(i.name == "GEMINI.md" and i.path == project / "GEMINI.md" for i in instructions)
+
+
+def test_scan_gemini_not_detected(isolated_home: Path, tmp_path: Path):
+    """No .gemini/ anywhere → zero gemini items."""
+    project = tmp_path / "proj"
+    project.mkdir(parents=True)
+    result = scan_all(project_dir=project)
+    assert result.count(tool="gemini") == 0
+
+
+def test_tool_order_includes_gemini():
+    """TOOL_ORDER has gemini inserted before project (append-only)."""
+    from ai_adapter.scan import TOOL_ORDER
+
+    assert "gemini" in TOOL_ORDER
+    assert TOOL_ORDER.index("gemini") < TOOL_ORDER.index("project")
+    # Existing order preserved
+    assert TOOL_ORDER.index("vscode") < TOOL_ORDER.index("gemini")
+
+
+def test_tool_labels_include_gemini():
+    """TOOL_LABELS has a label for gemini."""
+    from ai_adapter.scan import TOOL_LABELS
+
+    assert "gemini" in TOOL_LABELS
+    assert TOOL_LABELS["gemini"] == "Gemini CLI"
+
+
+def test_scan_ignore_patterns_cover_gemini_credentials():
+    """Credential-ish files under .gemini/ are excluded from scan results."""
+    assert ".gemini/*cred*" in SCAN_IGNORE_PATTERNS
+    assert ".gemini/*token*" in SCAN_IGNORE_PATTERNS
+    assert is_ignored(".gemini/credentials.json")
+    assert is_ignored(".gemini/api-token.txt")
+
+
+def test_scan_gemini_settings_only_reports_installed(isolated_home: Path):
+    """A settings-only Gemini install counts as installed via scan_all JSON."""
+    _write_json_config(isolated_home / ".gemini" / "settings.json", {"mcpServers": {}})
+    result = scan_all(project_dir=Path.cwd())
+    data = scan_result_to_dict(result)
+    assert data["tools"]["gemini"]["installed"] is True
+    assert data["tools"]["gemini"]["settings"] >= 1
+
+
+# ── Zed editor detection (design 06 task 06-5) ──────────────────────────
+
+
+def _force_zed_user_dir(monkeypatch: pytest.MonkeyPatch, system: str) -> None:
+    """Pin the OS branch used by config.get_zed_user_dir."""
+    import ai_adapter.config as cfg_mod
+
+    monkeypatch.setattr(cfg_mod.platform, "system", lambda: system)
+
+
+def test_scan_zed_user_linux(isolated_home: Path, monkeypatch: pytest.MonkeyPatch):
+    """User scope (Linux): ~/.config/zed/ settings + AGENTS.md + keymap."""
+    _force_zed_user_dir(monkeypatch, "Linux")
+    zed_dir = isolated_home / ".config" / "zed"
+    zed_dir.mkdir(parents=True)
+    _write_json_config(zed_dir / "settings.json", {"theme": "One Dark"})
+    _write_json_config(zed_dir / "keymap.json", [])
+    (zed_dir / "AGENTS.md").write_text("# rules\n", encoding="utf-8")
+
+    result = scan_all(project_dir=Path.cwd())
+    settings = {i.name for i in result.items if i.tool == "zed" and i.category == "settings"}
+    assert {"settings.json", "keymap.json"} <= settings
+    instructions = [i for i in result.items if i.tool == "zed" and i.category == "instruction"]
+    assert any(i.name == "AGENTS.md" for i in instructions)
+
+
+def test_scan_zed_user_macos(isolated_home: Path, monkeypatch: pytest.MonkeyPatch):
+    """T8/T9: macOS user scope resolves under ~/.config/zed (C1 fix)."""
+    _force_zed_user_dir(monkeypatch, "Darwin")
+    zed_dir = isolated_home / ".config" / "zed"
+    zed_dir.mkdir(parents=True)
+    _write_json_config(zed_dir / "settings.json", {"theme": "One Dark"})
+
+    result = scan_all(project_dir=Path.cwd())
+    settings = [i for i in result.items if i.tool == "zed" and i.category == "settings"]
+    assert any(i.name == "settings.json" and i.path == zed_dir / "settings.json" for i in settings)
+
+
+def test_scan_zed_project_scope(isolated_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Project scope: <proj>/.zed/settings.json + .zed/tasks.json detected."""
+    _force_zed_user_dir(monkeypatch, "Linux")
+    project = tmp_path / "proj"
+    zed_dir = project / ".zed"
+    zed_dir.mkdir(parents=True)
+    _write_json_config(zed_dir / "settings.json", {"theme": "One Dark"})
+    _write_json_config(zed_dir / "tasks.json", [])
+
+    result = scan_all(project_dir=project)
+    settings = {i.name for i in result.items if i.tool == "zed" and i.category == "settings"}
+    assert {"settings.json", "tasks.json"} <= settings
+
+
+def test_scan_zed_not_detected(isolated_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """No Zed config anywhere → zero zed items."""
+    _force_zed_user_dir(monkeypatch, "Linux")
+    project = tmp_path / "proj"
+    project.mkdir(parents=True)
+    result = scan_all(project_dir=project)
+    assert result.count(tool="zed") == 0
+
+
+def test_tool_order_includes_zed():
+    """TOOL_ORDER has zed inserted before project (append-only)."""
+    from ai_adapter.scan import TOOL_ORDER
+
+    assert "zed" in TOOL_ORDER
+    assert TOOL_ORDER.index("zed") < TOOL_ORDER.index("project")
+    # Existing order preserved (vscode → gemini → zed → project)
+    assert TOOL_ORDER.index("gemini") < TOOL_ORDER.index("zed")
+
+
+def test_tool_labels_include_zed():
+    """TOOL_LABELS has a label for zed."""
+    from ai_adapter.scan import TOOL_LABELS
+
+    assert "zed" in TOOL_LABELS
+    assert TOOL_LABELS["zed"] == "Zed"
+
+
+def test_scan_zed_settings_only_reports_installed(isolated_home: Path, monkeypatch: pytest.MonkeyPatch):
+    """A settings-only Zed install counts as installed via scan_all JSON."""
+    _force_zed_user_dir(monkeypatch, "Linux")
+    _write_json_config(isolated_home / ".config" / "zed" / "settings.json", {})
+    result = scan_all(project_dir=Path.cwd())
+    data = scan_result_to_dict(result)
+    assert data["tools"]["zed"]["installed"] is True
+    assert data["tools"]["zed"]["settings"] >= 1

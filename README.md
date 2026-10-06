@@ -60,9 +60,9 @@ A CLI tool for managing AI agent instruction files (`.github/instructions` etc.)
 - **Command Management**: Manage and deploy VS Code custom command definitions (`.github/commands/`)
 - **Prompt Management**: Manage and deploy prompt templates for AI agents (`.github/prompts/`)
 - **MCP Server Management**: Centrally manage MCP server settings and output in each tool format
-- **OpenCode Integration**: Generate `opencode.json` with MCP, skills, prompts, and agents; symlink `.opencode` → `.github`
+- **OpenCode Integration**: Generate `opencode.json`/`opencode.jsonc` (JSONC with comments) with MCP, skills (`.claude/skills`, `.agents/skills` compat paths supported), prompts, and agents; symlink `.opencode` → `.github`
 - **OpenClaw Integration**: Export MCP servers and skills to OpenClaw format (`--format openclaw`)
-- **Cursor Integration**: Export MCP servers and skills to Cursor format (`--format cursor` → `.cursor/mcp.json` + `.cursor/rules/*.mdc`)
+- **Cursor Integration**: Export MCP servers and skills to Cursor format (`--format cursor` → `.cursor/mcp.json` + `.cursor/rules/*.mdc`); legacy `.cursorrules` (`--format cursorrules`) and plugin packages (`--format cursor-plugin` → `~/.cursor/plugins/local/`) for migration (design 07)
 - **Codex CLI Integration**: Generate `AGENTS.md` for OpenAI Codex CLI (`ai-adapter codex install`)
 - **Root-Level Agent Management**: Manage `AGENTS.md`, `CLAUDE.md`, etc. as first-class artifacts, deployable to project root
 
@@ -73,12 +73,14 @@ A CLI tool for managing AI agent instruction files (`.github/instructions` etc.)
 | Tool | Status | Integration |
 |------|--------|-------------|
 | **GitHub Copilot** | ✅ Partial | `.github/` (agents, skills, commands, prompts, bins) + `.mcp.json` |
-| **Claude Code** | ✅ Via `.github/` | Root-level files (`AGENTS.md`, `CLAUDE.md`) + `.github/` fallback |
-| **OpenCode** | ✅ Full | `ai-adapter opencode install` → `opencode.json` (+ `.opencode` symlink) |
+| **Claude Code** | ✅ Partial | `.github/` fallback + `--format claude` → `.claude/` native paths (agents, skills, user MCP) |
+| **OpenCode** | ✅ Full | `ai-adapter opencode install` → `opencode.json`/`opencode.jsonc` (+ `.opencode` symlink); `sub-agent get --format opencode --scope user` → `~/.config/opencode/agents/` |
 | **Codex CLI** | ✅ Full | `ai-adapter codex install` → `AGENTS.md` |
-| **Cursor** | ✅ Skills + MCP | `--format cursor` → `.cursor/rules/*.mdc` + `.cursor/mcp.json` |
+| **Cursor** | ✅ Skills + MCP | `--format cursor` → `.cursor/rules/*.mdc` + `.cursor/mcp.json`; `--format cursorrules` (legacy) → `.cursorrules`; `--format cursor-plugin` → `~/.cursor/plugins/local/<project>/` |
 | **OpenClaw** | ✅ Partial | `--format openclaw` → `~/.openclaw/` (MCP + skills) |
 | **Orca** | ✅ Partial | Shared `~/.claude/skills/` + `.mcp.json` via OpenClaw-style export |
+| **Gemini CLI** | ✅ Full | `ai-adapter gemini install` → `.gemini/` (settings.json, commands/*.toml, GEMINI.md); `--with-extension` → `~/.gemini/extensions/<name>/`; `command/prompt get --format gemini` → TOML |
+| **Zed** | ✅ Full | `ai-adapter zed install` → `AGENTS.md` + `.agents/skills/` (Zed discovery path); `zed validate` checks settings.json/SKILL.md; `skill get-all --format zed` |
 | **Agent Plugins 1.0.0** | ✅ Full | `ai-adapter plugin build/validate` (portable packages) |
 
 Not supported yet:
@@ -175,6 +177,11 @@ ai-adapter mcp get                     # → .mcp.json
 ai-adapter mcp get --format openclaw          # → ~/.openclaw/openclaw.json
 ai-adapter skill get-all --format openclaw    # → ~/.openclaw/skills/
 
+# 8b. Deploy to Claude Code native paths (optional)
+ai-adapter skill get-all --format claude      # → .claude/skills/
+ai-adapter sub-agent get reviewer --format claude  # → .claude/agents/reviewer.md
+ai-adapter mcp get --format claude --scope user    # → ~/.claude.json (merged)
+
 # 9. Sync with GitHub (share settings)
 ai-adapter sync
 ```
@@ -256,7 +263,7 @@ ai-adapter get-all-rec --no-summary
 ### `ai-adapter agent`
 
 Manages root-level agent instruction files (`AGENTS.md`, `CLAUDE.md`, `copilot-instructions.md`).
-Deploys to **project root** (`./`).
+Deploys to **project root** (`./`) by default, or to each platform's user directory with `--scope user`.
 
 | Command | Description |
 |---------|------|
@@ -268,19 +275,56 @@ Deploys to **project root** (`./`).
 | `agent remove <name>` | Remove a root-level file |
 | `agent remove-all` | Remove all root-level files (supports `--force`) |
 
+`agent get` / `agent get-all` accept the following options:
+
+| Option | Description |
+|--------|-------------|
+| `--format <platform>` | `standard` (default, project root), `cursorrules` (legacy `.cursorrules` at project root), `codex`, `claude`, `opencode`, `gemini`, `zed`, or `cursor` (unsupported → exit 2) |
+| `--scope project\|user` | `project` (default) deploys to the project root; `user` deploys to the platform's user directory |
+| `--target root\|github-instructions\|github-copilot` | Deploy target: `root` (default) = project root, `github-instructions` = `.github/instructions/`, `github-copilot` = `.github/copilot-instructions.md`. Incompatible with `--format` (error when combined). |
+| `--project-dir <dir>` | Target project directory (project scope only; ignored with a warning under `--scope user`) |
+| `--force` | Skip overwrite confirmation |
+
+User-scope destinations and filenames:
+
+| `--format` | `--scope user` destination | Filename (mapped by `get-all`) |
+|------------|----------------------------|--------------------------------|
+| `codex` | `~/.codex/` | `AGENTS.md` |
+| `claude` | `~/.claude/` | `CLAUDE.md` |
+| `opencode` | `~/.config/opencode/` | `AGENTS.md` |
+| `gemini` | `~/.gemini/` | `GEMINI.md` |
+| `zed` | `~/.config/zed/` (macOS/Linux), `%APPDATA%\Zed\` (Windows) | `AGENTS.md` |
+
+With `--scope user`, `get-all` maps every registered file to the name its platform
+actually reads (e.g. `AGENTS.md` → `CLAUDE.md` for Claude Code). When the mapped name
+is already taken, the file keeps its original name and a warning is shown. User-scope
+deploys never modify any `.gitignore`.
+
 ```bash
 ai-adapter agent add ~/my-agents/AGENTS.md
 ai-adapter agent list
 ai-adapter agent get AGENTS          # → ./AGENTS.md
 ai-adapter agent get CLAUDE          # → ./CLAUDE.md
+ai-adapter agent get AGENTS --format codex --scope user    # → ~/.codex/AGENTS.md
+ai-adapter agent get-all --format claude --scope user      # → ~/.claude/CLAUDE.md (+ mapped names)
+ai-adapter agent get AGENTS --target github-instructions   # → ./.github/instructions/AGENTS.md
+ai-adapter agent get AGENTS --target github-copilot        # → ./.github/copilot-instructions.md
+ai-adapter agent get AGENTS --format cursorrules           # → ./.cursorrules (legacy, single instruction)
+ai-adapter agent get-all --format cursorrules              # → ./.cursorrules (all instructions concatenated)
 ai-adapter agent remove AGENTS
 ai-adapter agent remove-all --force
 ```
 
+> **Note on `.cursorrules`**: `--format cursorrules` writes the legacy project-root
+> `.cursorrules` file for migration purposes only. Cursor officially recommends
+> `.cursor/rules/*.mdc` (deploy with `skill get-all --format cursor`); prefer that
+> for new setups. `.cursorrules` is a single file, so concatenation only makes
+> sense with `get-all`.
+
 ### `ai-adapter sub-agent`
 
 Manages `.agent.md` files (for VS Code / GitHub Copilot agent definitions).
-Deploys to `.github/agents/`.
+Deploys to `.github/agents/` (or `.claude/agents/` with `--format claude`).
 
 | Command | Description |
 |---------|------|
@@ -288,6 +332,10 @@ Deploys to `.github/agents/`.
 | `sub-agent add-rec <dir>` | Recursively register all agents in a directory |
 | `sub-agent get <name>` | Copy an agent to `.github/agents/` (use `--force` to skip overwrite confirmation) |
 | `sub-agent get-all` | Copy all registered agents to `.github/agents/` |
+| `sub-agent get <name> --format claude` | Copy to `.claude/agents/` as `<name>.md` (`.agent.md` renamed, tools converted) |
+| `sub-agent get-all --format claude` | Copy all registered agents to `.claude/agents/` (add `--scope user` for `~/.claude/agents/`) |
+| `sub-agent get <name> --format opencode` | Copy to `.github/agents/` (add `--scope user` for `~/.config/opencode/agents/`; original filename kept — OpenCode is extension-agnostic) |
+| `sub-agent get-all --format opencode` | Copy all registered agents to `.github/agents/` (add `--scope user` for `~/.config/opencode/agents/`) |
 | `sub-agent list` | List registered agents |
 | `sub-agent remove <name>` | Remove an agent (use `--keep-file` to keep the file) |
 | `sub-agent remove-all` | Remove all agents (supports `--keep-file`, `--force`) |
@@ -358,10 +406,14 @@ Manages skills (directories containing SKILL.md).
 |---------|------|
 | `skill add <path>` | Add a skill directory to `~/.ai-adapter/skills/` |
 | `skill add-rec <dir>` | Recursively register all skills in a directory |
-| `skill get <name>` | Copy a skill to `.github/skills/` |
+ | `skill get <name>` | Copy a skill to `.github/skills/` (add `--format` for other targets) |
+ | `skill get <name> --format cursor-plugin` | Install a skill as a Cursor plugin package at `~/.cursor/plugins/local/<project>/` (manifest + skills/) |
  | `skill get-all` | Copy all registered skills to `.github/skills/` |
  | `skill get-all --format openclaw` | Copy all registered skills to `~/.openclaw/skills/` |
  | `skill get-all --format cursor` | Deploy skills to `.cursor/rules/` as `*.mdc` (Cursor rules) |
+ | `skill get-all --format cursor-plugin` | Install all skills as a Cursor plugin package at `~/.cursor/plugins/local/<project>/` |
+ | `skill get-all --format claude` | Deploy skills to `.claude/skills/` (add `--scope user` for `~/.claude/skills/`) |
+ | `skill get-all --format zed` | Deploy skills to Zed's discovery path `.agents/skills/` (add `--scope user` for `~/.agents/skills/`) |
  | `skill list` | List registered skills (filter with `--tag`) |
  | `skill remove <name>` | Remove a skill (use `--purge` to also delete files) |
  | `skill remove-all` | Remove all skills (supports `--purge`, `--force`) |
@@ -393,6 +445,9 @@ Manages MCP server settings.
 | `mcp get --env <env>` | Export MCP settings filtered by environment |
  | `mcp get --format openclaw` | Export MCP settings to `~/.openclaw/openclaw.json` (server-name-based merge) |
  | `mcp get --format cursor` | Export MCP settings to `.cursor/mcp.json` (Cursor format) |
+ | `mcp get --format claude --scope user` | Merge MCP settings into `~/.claude.json` (`.bak` backup, other keys preserved) |
+ | `mcp get --format vscode` | Export MCP settings to `.vscode/mcp.json` (VS Code `servers` + `type: stdio` format) |
+ | `mcp get --format gemini` | Merge MCP settings into `.gemini/settings.json` or `~/.gemini/settings.json` (`.bak` backup, other keys preserved) |
 | `mcp remove-all` | Remove all MCP server settings (supports `--force`) |
 
 ```bash
@@ -459,6 +514,8 @@ Manages VS Code custom command definitions (`.sh`, `.py`, `.js`, etc.).
 | `command add <path>` | Add a command file to `~/.ai-adapter/commands/` |
 | `command add-rec <dir>` | Recursively register all files in a directory |
 | `command get <name>` | Copy a command to `.github/commands/` |
+| `command get <name> --format opencode --scope user` | Copy to `~/.config/opencode/commands/` (OpenCode auto-discovers user commands) |
+| `command get <name> --format gemini` | Convert to Gemini TOML at `.gemini/commands/<name>.toml` (nested `dir/name` supported) |
 | `command get-all` | Copy all registered commands to `.github/commands/` |
 | `command list` | List registered commands |
 | `command remove <name>` | Remove a command |
@@ -483,6 +540,7 @@ Manages prompt templates for AI agents.
 | `prompt add <path>` | Add a prompt file to `~/.ai-adapter/prompts/` |
 | `prompt add-rec <dir>` | Recursively register all files in a directory |
 | `prompt get <name>` | Copy a prompt to `.github/prompts/` |
+| `prompt get <name> --format gemini` | Convert to Gemini TOML at `.gemini/commands/<name>.toml` |
 | `prompt get-all` | Copy all registered prompts to `.github/prompts/` |
 | `prompt list` | List registered prompts |
 | `prompt remove <name>` | Remove a prompt |
@@ -506,10 +564,12 @@ Manages OpenCode integration settings.
 |---------|------|
 | `opencode alias` | Create a symbolic link `.opencode` → `.github` |
 | `opencode install` | Generate `opencode.json` in the current directory (includes MCP, skills, prompts, and agents) |
-| `opencode uninstall` | Remove `opencode.json` |
-| `opencode validate` | Validate `opencode.json` schema and agent file formats |
+| `opencode install --format jsonc` | Generate `opencode.jsonc` with explanatory comments (prompts if `opencode.json` already exists; both files may coexist) |
+| `opencode install --with-compat-skills` | Add `.claude/skills` and `.agents/skills` to `skills.paths` (default keeps `.github/skills` only) |
+| `opencode uninstall` | Remove `opencode.json` / `opencode.jsonc` |
+| `opencode validate` | Validate `opencode.json` (or `opencode.jsonc`) schema and agent file formats; `opencode.jsonc` alone is valid, `opencode.json` takes precedence |
 | `opencode validate --fix` | Automatically fix array-format tools to object format |
-| `opencode validate --config-only` | Validate only `opencode.json` (skip agent file validation) |
+| `opencode validate --config-only` | Validate only the config file (skip agent file validation) |
 
 ```bash
 # Create an alias from .opencode to .github
@@ -517,6 +577,12 @@ ai-adapter opencode alias
 
 # Generate an opencode.json with MCP servers, skills, and agents
 ai-adapter opencode install
+
+# Generate opencode.jsonc with comments instead
+ai-adapter opencode install --format jsonc
+
+# Include .claude/skills and .agents/skills in skills.paths
+ai-adapter opencode install --with-compat-skills
 
 # Remove
 ai-adapter opencode uninstall
@@ -528,13 +594,18 @@ ai-adapter opencode validate --fix
 
 ### `ai-adapter codex`
 
-Manages Codex CLI integration. Generates `AGENTS.md` in plain Markdown for OpenAI Codex CLI.
+Manages Codex CLI integration. Generates `AGENTS.md` in plain Markdown for OpenAI Codex CLI, and deploys MCP servers / skills to Codex native paths.
 
 | Command | Description |
 |---------|------|
 | `codex install` | Generate `AGENTS.md` in the current directory from registered agents, instructions, and skills |
 | `codex install --force` | Overwrite existing `AGENTS.md` without prompting |
 | `codex uninstall` | Remove `AGENTS.md` from the current directory |
+| `mcp get --format codex` | Merge MCP servers into `.codex/config.toml` (project scope; comment-preserving text-splice) |
+| `mcp get --format codex --scope user` | Merge into `~/.codex/config.toml` |
+| `skill get-all --format codex` | Deploy skills to `.agents/skills/` (project) |
+| `skill get-all --format codex --scope user` | Deploy to `~/.agents/skills/` (user, spec-compliant path) |
+| `skill get-all --format codex --scope user --also-codex-dir` | Also mirror into `~/.codex/skills/` (compat opt-in) |
 
 ```bash
 # Generate AGENTS.md for Codex CLI
@@ -545,7 +616,201 @@ ai-adapter codex install --force
 
 # Remove
 ai-adapter codex uninstall
+
+# MCP → .codex/config.toml (comments in other sections preserved)
+ai-adapter mcp get --format codex
+ai-adapter mcp get --format codex --scope user
+
+# Skills → .agents/skills/ (spec-compliant path)
+ai-adapter skill get-all --format codex --scope user
 ```
+
+**Codex native paths**:
+- Project: `.codex/config.toml`, `.agents/skills/`
+- User: `~/.codex/config.toml`, `~/.agents/skills/`
+- `auth.json` is never read or written (security)
+
+### `ai-adapter vscode`
+
+Manages VS Code editor configuration under `.vscode/`. Covers MCP server export (`mcp.json`) and extension recommendations (`extensions.json`). User settings (`settings.json`), debug configs (`launch.json`), and task definitions (`tasks.json`) are detected by `scan` but not managed.
+
+| Command | Description |
+|---------|------|
+| `vscode install` | Generate `.vscode/mcp.json` from registered MCP servers (merge with `.bak` backup) |
+| `vscode install --project-dir <path>` | Generate `.vscode/mcp.json` in a specific project |
+| `vscode extension add <id>` | Add an extension to `.vscode/extensions.json` recommendations |
+| `vscode extension list` | List recommended extensions |
+| `vscode validate` | Validate `.vscode/mcp.json` and `.vscode/extensions.json` (JSON parse + schema) |
+| `vscode validate --json` | Structured JSON output for CI |
+| `mcp get --format vscode` | Export MCP settings to `.vscode/mcp.json` (same as install) |
+
+```bash
+# Generate .vscode/mcp.json from registered MCP servers
+ai-adapter vscode install
+
+# Add a recommended extension
+ai-adapter vscode extension add ms-vscode.copilot-chat
+
+# List recommended extensions
+ai-adapter vscode extension list
+
+# Validate VS Code configuration
+ai-adapter vscode validate
+ai-adapter vscode validate --json
+```
+
+**VS Code MCP format** (differs from Claude Code's `.mcp.json`):
+
+```json
+{
+  "servers": {
+    "github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": { "GITHUB_TOKEN": "${env:GITHUB_TOKEN}" }
+    }
+  }
+}
+```
+
+- Uses `servers` key (not `mcpServers`) with `type: "stdio"` entries
+- Env values use VS Code's `${env:KEY}` setting-variable syntax
+- Only stdio servers are exported; http/sse servers are skipped with a warning
+- Merge preserves unmanaged servers and takes a `.bak` backup
+
+**VS Code paths**:
+- `.vscode/mcp.json` — MCP server definitions (managed)
+- `.vscode/extensions.json` — recommended extensions (managed)
+- `.vscode/settings.json`, `.vscode/launch.json`, `.vscode/tasks.json` — detected by `scan` only
+
+### `ai-adapter gemini`
+
+Manages Gemini CLI configuration under `.gemini/` (project) or `~/.gemini/` (user). Covers MCP export (`settings.json` `mcpServers`), custom commands (Markdown → TOML), context deployment (`GEMINI.md`), extension manifests, and validation.
+
+| Command | Description |
+|---------|------|
+| `gemini install` | Generate `.gemini/settings.json`, `.gemini/commands/*.toml`, and `GEMINI.md` from the store |
+| `gemini install --scope user` | Same, deployed under `~/.gemini/` |
+| `gemini install --project-dir <path>` | Install into a specific project (default: current directory) |
+| `gemini install --with-extension` | Also generate `~/.gemini/extensions/<name>/gemini-extension.json` |
+| `gemini validate` | Validate settings.json, command TOMLs, and extension manifests |
+| `gemini validate --json` | Structured JSON output for CI |
+| `command get <name> --format gemini` | Convert one command to `.gemini/commands/<name>.toml` |
+| `prompt get <name> --format gemini` | Convert one prompt to `.gemini/commands/<name>.toml` |
+| `mcp get --format gemini` | Merge MCP servers into `.gemini/settings.json` (`.bak` backup) |
+
+```bash
+# Install everything from the store into .gemini/
+ai-adapter gemini install
+
+# Install into ~/.gemini/ (user scope)
+ai-adapter gemini install --scope user
+
+# Install + generate an extension manifest (registered via gemini extensions install)
+ai-adapter gemini install --with-extension
+
+# Validate the configuration
+ai-adapter gemini validate
+ai-adapter gemini validate --json
+```
+
+**Gemini settings.json format** (standard `mcpServers` key, `${ENV_KEY}` env references):
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": { "GITHUB_TOKEN": "${GITHUB_TOKEN}" }
+    }
+  }
+}
+```
+
+- Merge preserves unmanaged servers and non-MCP keys (model, theme, …); a `.bak` backup is taken
+- Commands/prompts export as TOML (`description` + triple-quoted `prompt`); nested commands (`dir/name`) become `.gemini/commands/dir/name.toml`
+- `--with-extension` writes the manifest **only** to `~/.gemini/extensions/<name>/` (Gemini does not read project-root manifests) and prints the `gemini extensions install` registration command
+
+**Gemini CLI paths**:
+- `.gemini/settings.json` / `~/.gemini/settings.json` — MCP servers (managed)
+- `.gemini/commands/**/*.toml` / `~/.gemini/commands/**/*.toml` — custom commands (managed)
+- `GEMINI.md` / `~/.gemini/GEMINI.md` — context instructions (managed)
+- `~/.gemini/extensions/<name>/gemini-extension.json` — extension manifests (generated by `--with-extension`)
+
+### `ai-adapter zed`
+
+Manages Zed editor configuration. Instructions deploy as `AGENTS.md` (project root or the OS-specific Zed user directory); skills deploy to Zed's actual discovery path `.agents/skills/` (project) / `~/.agents/skills/` (global) — **not** `.zed/skills/`, which Zed never searches. `settings.json` is **validate-only** in Phase A: Zed's settings carry user-owned editor preferences (theme, font, LSP), so ai-adapter never generates or merges them.
+
+| Command | Description |
+|---------|------|
+| `zed install` | Deploy `AGENTS.md` (instructions concatenated) + `.agents/skills/` from the store |
+| `zed install --scope user` | Same, under the OS-specific Zed user dir + `~/.agents/skills/` |
+| `zed install --project-dir <path>` | Install into a specific project (default: current directory) |
+| `zed install --force` | Overwrite existing `AGENTS.md` / skill directories without prompting |
+| `zed validate` | Check AGENTS.md existence, settings.json JSON parse, SKILL.md frontmatter |
+| `zed validate --json` | Structured JSON output for CI |
+| `skill get-all --format zed` | Deploy all skills to `.agents/skills/` (`--scope user` → `~/.agents/skills/`) |
+| `agent get <name> --format zed --scope user` | Deploy an instruction to the Zed user dir as `AGENTS.md` |
+
+```bash
+# Install everything from the store (AGENTS.md + .agents/skills/)
+ai-adapter zed install
+
+# Install into the OS-specific Zed user directory
+ai-adapter zed install --scope user
+
+# Validate the configuration
+ai-adapter zed validate
+ai-adapter zed validate --json
+```
+
+**Zed paths** (OS-dependent user dir via `config.get_zed_user_dir()`):
+
+| Path | Scope | Managed |
+|------|-------|---------|
+| `AGENTS.md` / `<Zed user dir>/AGENTS.md` | Project / User | `zed install` |
+| `.agents/skills/<name>/SKILL.md` / `~/.agents/skills/` | Project / User | `zed install`, `skill get-all --format zed` |
+| `.zed/settings.json` / `<Zed user dir>/settings.json` | Project / User | `zed validate` (detect-only) |
+| `<Zed user dir>/keymap.json`, `.zed/tasks.json` | User / Project | `scan` (detect-only) |
+
+- User dir: `~/.config/zed/` (macOS/Linux, XDG config dir), Windows `%APPDATA%\Zed\`
+- Zed does not support nested skills — each skill must be a direct child of the skills root
+- Zed's MCP servers use the `context_servers` key in `settings.json`; merge support is a Phase B feature
+
+### Claude Code Integration
+
+`ai-adapter` deploys to Claude Code's **native paths** (`.claude/`) with the `--format claude` option. Existing `.github/` deployment remains the default (`--format standard`).
+
+| Command | Description |
+|---------|------|
+| `skill get-all --format claude` | Deploy skills to `.claude/skills/` (`--scope user` → `~/.claude/skills/`) |
+| `sub-agent get <name> --format claude` | Deploy an agent to `.claude/agents/<name>.md` (`.agent.md` renamed, array tools converted) |
+| `sub-agent get-all --format claude` | Deploy all agents to `.claude/agents/` (`--scope user` → `~/.claude/agents/`) |
+| `mcp get --format claude --scope user` | Merge MCP servers into `~/.claude.json` (`.bak` backup; `projects` etc. preserved) |
+| `mcp get --format claude` | Project scope → `.mcp.json` (same as `--format standard`; Claude Code reads it natively) |
+
+```bash
+# Skills → .claude/skills/ (project) or ~/.claude/skills/ (user)
+ai-adapter skill get-all --format claude
+ai-adapter skill get-all --format claude --scope user --force
+
+# Agents → .claude/agents/ (.agent.md is renamed to .md; tools become object format)
+ai-adapter sub-agent get reviewer --format claude
+ai-adapter sub-agent get-all --format claude --scope user
+
+# User-scope MCP → ~/.claude.json (merges mcpServers, keeps Claude Code's own keys)
+ai-adapter mcp get --format claude --scope user
+```
+
+Key design principles:
+- **Native paths** — project deploys go to `.claude/agents/` and `.claude/skills/`; user deploys to `~/.claude/` via `--scope user`
+- **`.agent.md` → `.md`** — Claude Code reads plain `.md` agent files; array-format `tools` is converted to object format on deploy (the store copy is never modified)
+- **Project MCP = `.mcp.json`** — Claude Code reads project MCP servers from `.mcp.json` (already produced by `mcp get --format standard`); `--format claude --scope project` writes the same file
+- **User MCP = `~/.claude.json`** — only the `mcpServers` key is merged; other keys (project history, permissions) are preserved verbatim, and a `.bak` backup is taken first
+- **`doctor` validates `~/.claude.json`** — the `mcpServers` subtree shape is checked read-only during `ai-adapter doctor`
+- **`scan` detects project `.claude/`** — `ai-adapter scan` reports `.claude/agents/` and `.claude/skills/` with tool `claude` (alongside the existing user-scope detection)
 
 ### OpenClaw Integration
 
@@ -618,7 +883,8 @@ Internally, the following steps are executed:
 
 ### `ai-adapter scan`
 
-Discovers installed AI agent configurations across tools (Claude, Codex, Cursor, OpenCode) and shows a summary.
+Discovers installed AI agent configurations across tools (Claude, Codex, Cursor, OpenCode, VS Code, Gemini CLI, Zed) and shows a summary.
+For Claude Code this covers both the user scope (`~/.claude/`) and the project's `.claude/agents/` + `.claude/skills/` (reported with tool `claude`). Gemini CLI detection covers `~/.gemini/`, `.gemini/`, project-root `GEMINI.md`, and installed extension manifests. Zed detection covers the OS-specific user directory (`settings.json`, `AGENTS.md`, `keymap.json`) and project `.zed/settings.json` / `.zed/tasks.json`.
 
 | Option | Description |
 |--------|-------------|

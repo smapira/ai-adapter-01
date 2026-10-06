@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Cursor extensions (design 07)**: Legacy `.cursorrules` export and Cursor plugin packages
+  - `agent get/get-all --format cursorrules` → writes `./.cursorrules` (frontmatter stripped; `get-all` concatenates with `# --- <name> ---` separators). Legacy/migration only — `.cursor/rules/*.mdc` remains recommended.
+  - `skill get/get-all --format cursor-plugin` → installs a true plugin package at `~/.cursor/plugins/local/<project-name>/` (`.cursor-plugin/plugin.json` manifest + `skills/<name>/` with auxiliary files). `skill get` now accepts `--format` with the same choices as `get-all`.
+
 ## [0.24.0] - 2026-08-16
 
 ### Added

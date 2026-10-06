@@ -13,12 +13,25 @@ import click
 
 from ai_adapter import config as _config
 from ai_adapter.models import MCPServer
+from ai_adapter.providers.claude import export_mcp_user as _export_claude_mcp_user
+from ai_adapter.providers.claude import merge_into_claude_json as _merge_claude_json
+from ai_adapter.providers.claude import resolve_user_json_path as _claude_user_json_path
+from ai_adapter.providers.claude import validate_claude_scope
+from ai_adapter.providers.codex import export_mcp_toml as _export_codex_mcp
+from ai_adapter.providers.codex import merge_into_config_toml as _merge_codex_config
+from ai_adapter.providers.codex import resolve_config_toml_path as _codex_config_path
 from ai_adapter.providers.cursor import export_mcp as _export_cursor_mcp
 from ai_adapter.providers.cursor import merge_into_cursor_mcp_json as _merge_cursor_mcp
 from ai_adapter.providers.cursor import resolve_mcp_output_path as _cursor_output_path
+from ai_adapter.providers.gemini import export_mcp as _export_gemini_mcp
+from ai_adapter.providers.gemini import merge_into_settings as _merge_gemini_settings
+from ai_adapter.providers.gemini import resolve_settings_path as _gemini_settings_path
 from ai_adapter.providers.openclaw import export_mcp as _export_openclaw_mcp
 from ai_adapter.providers.openclaw import merge_into_openclaw_json as _merge_openclaw
 from ai_adapter.providers.openclaw import resolve_mcp_output_path as _openclaw_output_path
+from ai_adapter.providers.vscode import export_mcp as _export_vscode_mcp
+from ai_adapter.providers.vscode import merge_into_vscode_mcp_json as _merge_vscode_mcp
+from ai_adapter.providers.vscode import resolve_mcp_output_path as _vscode_output_path
 
 
 @click.group(name="mcp")
@@ -213,21 +226,92 @@ def _mcp_get_cursor(servers: list[MCPServer], path: str | None, force: bool = Fa
     _merge_cursor_mcp(cursor_path, data, force=force)
 
 
+def _mcp_get_claude_user(servers: list[MCPServer], force: bool = False) -> None:
+    """Merge MCP servers into ~/.claude.json (Claude Code user scope).
+
+    Claude Code reads user-scope MCP servers from ``~/.claude.json``'s
+    ``mcpServers`` key; project scope stays in ``.mcp.json`` (standard).
+    The merge preserves every non-``mcpServers`` key (project history etc.)
+    and takes a ``.bak`` backup.
+    """
+    claude_json = _claude_user_json_path()
+    data = _export_claude_mcp_user(servers)
+    _merge_claude_json(claude_json, data, force=force)
+
+
+def _mcp_get_codex(servers: list[MCPServer], path: str | None, force: bool = False, scope: str = "project") -> None:
+    """Merge MCP servers into Codex config.toml for the given scope.
+
+    ``--scope project`` (default) targets ``<cwd>/.codex/config.toml``,
+    ``--scope user`` targets ``~/.codex/config.toml``; *path* overrides
+    the project directory for project scope.  Comments and non-MCP
+    sections are preserved (text-splice merge) and a ``.bak`` backup is
+    taken before modifying an existing file.
+    """
+    project_path = Path(path).resolve() if path else None
+    config_toml = _codex_config_path(scope, project_path)
+    data = _export_codex_mcp(servers)
+    _merge_codex_config(config_toml, data, force=force)
+    if scope == "project":
+        _config.add_to_gitignore(config_toml)
+
+
+def _mcp_get_vscode(servers: list[MCPServer], path: str | None, force: bool = False) -> None:
+    """Export MCP servers in VS Code format (.vscode/mcp.json).
+
+    Uses the ``servers`` key with ``type: "stdio"`` entries and
+    ``${env:KEY}`` env values (VS Code setting-variable syntax).
+    Merge preserves unmanaged servers and takes a ``.bak`` backup.
+    """
+    vscode_path = _vscode_output_path(path)
+    data = _export_vscode_mcp(servers)
+    _merge_vscode_mcp(vscode_path, data, force=force)
+    # Not gitignored — consistent with `vscode install` (QA M2b): VS Code
+    # docs recommend committing .vscode/mcp.json to share servers with the
+    # team.  env values use ${env:KEY} references, no secrets in file.
+
+
+def _mcp_get_gemini(servers: list[MCPServer], path: str | None, force: bool = False, scope: str = "project") -> None:
+    """Merge MCP servers into Gemini settings.json for the given scope.
+
+    ``--scope project`` (default) targets ``<cwd>/.gemini/settings.json``,
+    ``--scope user`` targets ``~/.gemini/settings.json``; *path* overrides
+    the project directory for project scope.  Merge preserves unmanaged
+    servers and non-MCP settings keys (model, theme, …) and takes a
+    ``.bak`` backup (design 05 task 05-5).
+    """
+    project_path = Path(path).resolve() if path else None
+    settings_path = _gemini_settings_path(scope, project_path)
+    data = _export_gemini_mcp(servers)
+    _merge_gemini_settings(settings_path, data, force=force)
+    if scope == "project":
+        _config.add_to_gitignore(settings_path)
+    click.echo(f"MCP configuration merged into: {settings_path}")
+
+
 @mcp_group.command(name="get")
 @click.option(
     "--path",
     default=None,
     help="Output directory (default: current directory). "
-    "With --format standard: writes .mcp.json. "
+    "With --format standard/claude: writes .mcp.json. "
     "With --format openclaw: writes openclaw.json. "
-    "With --format cursor: writes .cursor/mcp.json.",
+    "With --format cursor: writes .cursor/mcp.json. "
+    "With --format codex: writes .codex/config.toml. "
+    "With --format vscode: writes .vscode/mcp.json. "
+    "With --format gemini: writes .gemini/settings.json.",
 )
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(["standard", "openclaw", "cursor"]),
+    type=click.Choice(["standard", "openclaw", "cursor", "claude", "codex", "vscode", "gemini"]),
     default="standard",
-    help="Output format (standard=.mcp.json, openclaw=openclaw.json, cursor=.cursor/mcp.json)",
+    help=(
+        "Output format (standard=.mcp.json, openclaw=openclaw.json, "
+        "cursor=.cursor/mcp.json, claude=.mcp.json or ~/.claude.json with --scope user, "
+        "codex=.codex/config.toml or ~/.codex/config.toml with --scope user, "
+        "vscode=.vscode/mcp.json, gemini=.gemini/settings.json or ~/.gemini/settings.json with --scope user)"
+    ),
 )
 @click.option("--env", help="Filter by environment name (only export servers for this env)")
 @click.option(
@@ -235,8 +319,23 @@ def _mcp_get_cursor(servers: list[MCPServer], path: str | None, force: bool = Fa
     is_flag=True,
     help="Overwrite output file without confirmation",
 )
-def mcp_get(path: str | None, format: str, env: str | None, force: bool) -> None:
-    """Export MCP configuration to .mcp.json, openclaw.json, or .cursor/mcp.json."""
+@click.option(
+    "--scope",
+    type=click.Choice(["project", "user"]),
+    default="project",
+    help=(
+        "Deploy scope: project=.mcp.json (claude/standard), .codex/config.toml (codex), "
+        "or .gemini/settings.json (gemini); "
+        "user=~/.claude.json (claude), ~/.codex/config.toml (codex), or ~/.gemini/settings.json (gemini)"
+    ),
+)
+def mcp_get(path: str | None, format: str, env: str | None, force: bool, scope: str) -> None:
+    """Export MCP configuration to a tool-native file.
+
+    Targets: .mcp.json, openclaw.json, .cursor/mcp.json, ~/.claude.json,
+    Codex config.toml, or Gemini settings.json.
+    """
+    validate_claude_scope(format, scope, ignored_option="--path" if path else None)
     config = _config.load_config()
     if config is None:
         click.echo("Configuration file not found. Run ai-adapter init first.")
@@ -249,10 +348,22 @@ def mcp_get(path: str | None, format: str, env: str | None, force: bool) -> None
         click.echo("No enabled MCP servers registered.")
         return
 
-    if format == "openclaw":
+    if format == "claude":
+        if scope == "user":
+            _mcp_get_claude_user(enabled_servers, force)
+        else:
+            # Claude Code reads project MCP from .mcp.json — same as standard.
+            _mcp_get_standard(enabled_servers, path, force)
+    elif format == "codex":
+        _mcp_get_codex(enabled_servers, path, force, scope)
+    elif format == "openclaw":
         _mcp_get_openclaw(enabled_servers, path, force)
     elif format == "cursor":
         _mcp_get_cursor(enabled_servers, path, force)
+    elif format == "vscode":
+        _mcp_get_vscode(enabled_servers, path, force)
+    elif format == "gemini":
+        _mcp_get_gemini(enabled_servers, path, force, scope)
     else:
         _mcp_get_standard(enabled_servers, path, force)
 

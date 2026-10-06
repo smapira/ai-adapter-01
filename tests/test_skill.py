@@ -7,7 +7,7 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from ai_adapter.cli import main
-from ai_adapter.config import init
+from ai_adapter.config import init, load_config, save_config
 
 
 def _safe_github_cleanup(base_dir):
@@ -613,6 +613,115 @@ class TestSkillOpenClawExport(unittest.TestCase):
         self.assertIn("Old", content)
 
 
+class TestSkillClaudeFormat(unittest.TestCase):
+    """skill get-all --format claude (design 02 task 02-1)."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.patch_home = Path(self.temp_dir.name)
+        self.runner = CliRunner()
+
+        import pathlib
+
+        self._original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.patch_home)
+
+        import ai_adapter.config as cfg
+
+        cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
+        init()
+
+        self.project_dir = Path(self.temp_dir.name) / "proj"
+        self.project_dir.mkdir(parents=True)
+
+        skill_dir = Path(self.temp_dir.name) / "test-skill"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: test-skill\ndescription: Test Skill\n---\n# Test Skill\n",
+            encoding="utf-8",
+        )
+        self.runner.invoke(main, ["skill", "add", str(skill_dir)])
+
+    def tearDown(self):
+        import pathlib
+
+        pathlib.Path.home = staticmethod(self._original_home)
+        import ai_adapter.config as cfg
+
+        cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        self.temp_dir.cleanup()
+
+    def test_get_all_claude_project_scope(self):
+        """--format claude deploys to <project>/.claude/skills/."""
+        result = self.runner.invoke(
+            main,
+            ["skill", "get-all", "--format", "claude", "--project-dir", str(self.project_dir)],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertTrue((self.project_dir / ".claude" / "skills" / "test-skill" / "SKILL.md").exists())
+
+    def test_get_all_claude_user_scope(self):
+        """--scope user deploys to ~/.claude/skills/."""
+        result = self.runner.invoke(
+            main,
+            ["skill", "get-all", "--format", "claude", "--scope", "user"],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertTrue((self.patch_home / ".claude" / "skills" / "test-skill" / "SKILL.md").exists())
+
+    def test_get_all_claude_rejects_scope_user_with_standard(self):
+        """--scope user is only valid with --format claude."""
+        result = self.runner.invoke(
+            main,
+            ["skill", "get-all", "--format", "standard", "--scope", "user"],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("--scope user is only supported with --format claude", result.output)
+
+    def test_get_all_claude_env_filter(self):
+        """--env filtering works under --format claude (AC4)."""
+        config = load_config()
+        for s in config.skills:
+            s.env = "prod"
+        save_config(config)
+
+        result = self.runner.invoke(
+            main,
+            [
+                "skill",
+                "get-all",
+                "--format",
+                "claude",
+                "--env",
+                "staging",
+                "--project-dir",
+                str(self.project_dir),
+            ],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertFalse((self.project_dir / ".claude" / "skills" / "test-skill").exists())
+
+    def test_get_all_claude_force_overwrites(self):
+        """--force overwrites an existing skill directory without prompting."""
+        dest = self.project_dir / ".claude" / "skills" / "test-skill"
+        dest.mkdir(parents=True)
+        (dest / "SKILL.md").write_text("old", encoding="utf-8")
+        result = self.runner.invoke(
+            main,
+            [
+                "skill",
+                "get-all",
+                "--format",
+                "claude",
+                "--force",
+                "--project-dir",
+                str(self.project_dir),
+            ],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("name: test-skill", (dest / "SKILL.md").read_text(encoding="utf-8"))
+
+
 class TestSkillInstall(unittest.TestCase):
     """Tests for ``ai-adapter skill install``."""
 
@@ -787,3 +896,202 @@ class TestSkillInstall(unittest.TestCase):
 
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("not found", result.output)
+
+
+class TestSkillCursorPlugin(unittest.TestCase):
+    """skill get/get-all --format cursor-plugin (design 07 tasks 07-2/07-3)."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.patch_home = Path(self.temp_dir.name)
+        self.runner = CliRunner()
+
+        import pathlib
+
+        self._original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.patch_home)
+
+        import ai_adapter.config as cfg
+
+        cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
+        init()
+
+        self.project_dir = Path(self.temp_dir.name) / "my-project"
+        self.project_dir.mkdir(parents=True)
+
+        skill_dir = Path(self.temp_dir.name) / "db-schema"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: db-schema\ndescription: DB skill\n---\n# DB Schema\n",
+            encoding="utf-8",
+        )
+        (skill_dir / "scripts").mkdir()
+        (skill_dir / "scripts" / "query.sql").write_text("SELECT 1;\n", encoding="utf-8")
+        self.runner.invoke(main, ["skill", "add", str(skill_dir)])
+
+    def tearDown(self):
+        import pathlib
+
+        pathlib.Path.home = staticmethod(self._original_home)
+        import ai_adapter.config as cfg
+
+        cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        self.temp_dir.cleanup()
+
+    @property
+    def plugin_root(self):
+        return self.patch_home / ".cursor" / "plugins" / "local" / "my-project"
+
+    def test_skill_get_cursor_plugin_package(self):
+        """AC1: skill get --format cursor-plugin builds a plugin package."""
+        result = self.runner.invoke(
+            main,
+            [
+                "skill",
+                "get",
+                "db-schema",
+                "--format",
+                "cursor-plugin",
+                "--project-dir",
+                str(self.project_dir),
+            ],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertTrue((self.plugin_root / ".cursor-plugin" / "plugin.json").exists())
+        self.assertTrue((self.plugin_root / "skills" / "db-schema" / "SKILL.md").exists())
+
+    def test_skill_get_cursor_plugin_aux_files_copied(self):
+        """Auxiliary files (scripts/) are copied into the package."""
+        self.runner.invoke(
+            main,
+            [
+                "skill",
+                "get",
+                "db-schema",
+                "--format",
+                "cursor-plugin",
+                "--project-dir",
+                str(self.project_dir),
+            ],
+        )
+        self.assertTrue((self.plugin_root / "skills" / "db-schema" / "scripts" / "query.sql").exists())
+
+    def test_skill_get_cursor_plugin_manifest_mandatory(self):
+        """AC2: .cursor-plugin/plugin.json is always generated."""
+        self.runner.invoke(
+            main,
+            [
+                "skill",
+                "get",
+                "db-schema",
+                "--format",
+                "cursor-plugin",
+                "--project-dir",
+                str(self.project_dir),
+            ],
+        )
+        import json
+
+        data = json.loads((self.plugin_root / ".cursor-plugin" / "plugin.json").read_text())
+        self.assertEqual(data["name"], "my-project")
+        self.assertEqual(data["version"], "1.0.0")
+
+    def test_skill_get_cursor_plugin_existing_prompts(self):
+        """Existing plugin package prompts without --force."""
+        invoke_args = [
+            "skill",
+            "get",
+            "db-schema",
+            "--format",
+            "cursor-plugin",
+            "--project-dir",
+            str(self.project_dir),
+        ]
+        self.runner.invoke(main, invoke_args)
+        result = self.runner.invoke(main, invoke_args, input="n\n")
+        self.assertNotEqual(result.exit_code, 0)
+        result2 = self.runner.invoke(main, invoke_args + ["--force"])
+        self.assertEqual(result2.exit_code, 0, result2.output)
+
+    def test_skill_get_all_cursor_plugin(self):
+        """AC: skill get-all --format cursor-plugin installs every skill."""
+        result = self.runner.invoke(
+            main,
+            [
+                "skill",
+                "get-all",
+                "--format",
+                "cursor-plugin",
+                "--project-dir",
+                str(self.project_dir),
+                "--force",
+            ],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertTrue((self.plugin_root / "skills" / "db-schema" / "SKILL.md").exists())
+        self.assertTrue((self.plugin_root / ".cursor-plugin" / "plugin.json").exists())
+
+    def test_skill_get_all_cursor_plugin_env_filter(self):
+        """AC2 (task 07-3): --env filter works with cursor-plugin."""
+        staging_dir = Path(self.temp_dir.name) / "staging-skill"
+        staging_dir.mkdir()
+        (staging_dir / "SKILL.md").write_text("---\nname: staging-skill\n---\n# S\n")
+        self.runner.invoke(main, ["skill", "add", str(staging_dir), "--env", "staging"])
+
+        prod_dir = Path(self.temp_dir.name) / "prod-skill"
+        prod_dir.mkdir()
+        (prod_dir / "SKILL.md").write_text("---\nname: prod-skill\n---\n# P\n")
+        self.runner.invoke(main, ["skill", "add", str(prod_dir), "--env", "production"])
+
+        result = self.runner.invoke(
+            main,
+            [
+                "skill",
+                "get-all",
+                "--format",
+                "cursor-plugin",
+                "--env",
+                "staging",
+                "--project-dir",
+                str(self.project_dir),
+                "--force",
+            ],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        skills_root = self.plugin_root / "skills"
+        self.assertTrue((skills_root / "staging-skill").exists())
+        self.assertFalse((skills_root / "prod-skill").exists())
+
+    def test_skill_get_format_cursor_rules_unchanged(self):
+        """AC4: --format cursor still deploys .cursor/rules/*.mdc."""
+        result = self.runner.invoke(
+            main,
+            [
+                "skill",
+                "get",
+                "db-schema",
+                "--format",
+                "cursor",
+                "--project-dir",
+                str(self.project_dir),
+            ],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertTrue((self.project_dir / ".cursor" / "rules" / "db-schema.mdc").exists())
+        self.assertFalse(self.plugin_root.exists())
+
+    def test_skill_get_standard_default_unchanged(self):
+        """Default format still copies to .github/skills/ (backward compat)."""
+        result = self.runner.invoke(
+            main,
+            ["skill", "get", "db-schema", "--project-dir", str(self.project_dir)],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertTrue((self.project_dir / ".github" / "skills" / "db-schema" / "SKILL.md").exists())
+
+    def test_skill_get_format_choices_shared_with_get_all(self):
+        """AC5: skill get accepts the same --format choices as get-all."""
+        result = self.runner.invoke(main, ["skill", "get", "--help"])
+        self.assertIn("cursor-plugin", result.output)
+        result_all = self.runner.invoke(main, ["skill", "get-all", "--help"])
+        self.assertIn("cursor-plugin", result_all.output)

@@ -628,3 +628,270 @@ class TestOpenClawMCPExport(unittest.TestCase):
         with open(output_path) as f:
             data = json.load(f)
         self.assertIn("github", data["mcp"]["servers"])
+
+
+class TestMcpClaudeFormat(unittest.TestCase):
+    """mcp get --format claude (design 02 task 02-3).
+
+    Provider-level merge semantics (preserve keys, .bak, corrupt JSON) are
+    covered in tests/test_claude.py; these tests focus on CLI wiring.
+    """
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.patch_home = Path(self.temp_dir.name)
+        self.runner = CliRunner()
+
+        import pathlib
+
+        self._original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.patch_home)
+
+        import ai_adapter.config as cfg
+
+        cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
+        init()
+
+    def tearDown(self):
+        import pathlib
+
+        pathlib.Path.home = staticmethod(self._original_home)
+        import ai_adapter.config as cfg
+
+        cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        self.temp_dir.cleanup()
+
+    def _add_server(self, name: str, command: str = "npx", args=(), env_keys=()) -> None:
+        cmd = ["mcp", "add", name, "--command", command]
+        for a in args:
+            cmd += ["--args", a]
+        for e in env_keys:
+            cmd += ["--env-key", e]
+        result = self.runner.invoke(main, cmd)
+        self.assertEqual(result.exit_code, 0, result.output)
+
+    def test_get_claude_scope_user_merges_claude_json(self):
+        """--scope user merges mcpServers into ~/.claude.json."""
+        self._add_server("github", "npx", ["@modelcontextprotocol/server-github"], ["GITHUB_TOKEN"])
+        result = self.runner.invoke(main, ["mcp", "get", "--format", "claude", "--scope", "user"])
+        self.assertEqual(result.exit_code, 0, result.output)
+        data = json.loads((self.patch_home / ".claude.json").read_text(encoding="utf-8"))
+        self.assertIn("github", data["mcpServers"])
+        self.assertEqual(data["mcpServers"]["github"]["env"]["GITHUB_TOKEN"], "${GITHUB_TOKEN}")
+
+    def test_get_claude_scope_user_preserves_projects_key(self):
+        """AC2: Claude Code's own keys (projects) are never modified."""
+        claude_json = self.patch_home / ".claude.json"
+        claude_json.write_text(json.dumps({"projects": {"/x": {}}}), encoding="utf-8")
+        self._add_server("github", "npx")
+        result = self.runner.invoke(
+            main,
+            ["mcp", "get", "--format", "claude", "--scope", "user", "--force"],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        data = json.loads(claude_json.read_text(encoding="utf-8"))
+        self.assertEqual(data["projects"], {"/x": {}})
+        self.assertIn("github", data["mcpServers"])
+
+    def test_get_claude_scope_user_creates_missing_file(self):
+        """Missing ~/.claude.json is created ({"mcpServers": {}} base)."""
+        self.assertFalse((self.patch_home / ".claude.json").exists())
+        self._add_server("github", "npx")
+        result = self.runner.invoke(main, ["mcp", "get", "--format", "claude", "--scope", "user"])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertTrue((self.patch_home / ".claude.json").exists())
+
+    def test_get_claude_scope_project_writes_mcp_json(self):
+        """AC5: --scope project → .mcp.json (same as standard)."""
+        self._add_server("github", "npx")
+        export_dir = Path(self.temp_dir.name) / "proj"
+        export_dir.mkdir(parents=True)
+        result = self.runner.invoke(
+            main,
+            [
+                "mcp",
+                "get",
+                "--format",
+                "claude",
+                "--scope",
+                "project",
+                "--path",
+                str(export_dir),
+            ],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        data = json.loads((export_dir / ".mcp.json").read_text(encoding="utf-8"))
+        self.assertIn("github", data["mcpServers"])
+        self.assertFalse((self.patch_home / ".claude.json").exists())
+
+    def test_get_claude_scope_user_rejects_other_formats(self):
+        """--scope user requires --format claude."""
+        self._add_server("github", "npx")
+        for fmt in ("standard", "openclaw", "cursor"):
+            result = self.runner.invoke(
+                main,
+                ["mcp", "get", "--format", fmt, "--scope", "user"],
+            )
+            self.assertNotEqual(result.exit_code, 0, f"--format {fmt} should reject --scope user")
+            self.assertIn("--scope user is only supported with --format claude", result.output)
+
+    def test_get_claude_scope_user_force_skips_prompt(self):
+        """--force writes without confirmation on an existing ~/.claude.json."""
+        claude_json = self.patch_home / ".claude.json"
+        claude_json.write_text('{"mcpServers": {}}', encoding="utf-8")
+        self._add_server("github", "npx")
+        result = self.runner.invoke(
+            main,
+            ["mcp", "get", "--format", "claude", "--scope", "user", "--force"],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        data = json.loads(claude_json.read_text(encoding="utf-8"))
+        self.assertIn("github", data["mcpServers"])
+
+
+class TestMcpVscodeFormat(unittest.TestCase):
+    """mcp get --format vscode (design 08 task 08-4)."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.patch_home = Path(self.temp_dir.name)
+        self.runner = CliRunner()
+
+        import pathlib
+
+        self._original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.patch_home)
+
+        import ai_adapter.config as cfg
+
+        cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
+
+        init()
+
+        self.project_dir = Path(self.temp_dir.name) / "proj"
+        self.project_dir.mkdir(parents=True)
+
+    def tearDown(self):
+        import pathlib
+
+        pathlib.Path.home = staticmethod(self._original_home)
+        import ai_adapter.config as cfg
+
+        cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        self.temp_dir.cleanup()
+
+    def test_mcp_get_vscode_generates_mcp_json(self):
+        """T12: mcp get --format vscode → .vscode/mcp.json with servers key."""
+        self.runner.invoke(
+            main,
+            [
+                "mcp",
+                "add",
+                "github",
+                "--command",
+                "npx",
+                "--args",
+                "-y",
+                "--args",
+                "@modelcontextprotocol/server-github",
+                "--env-key",
+                "GITHUB_TOKEN",
+            ],
+        )
+        result = self.runner.invoke(main, ["mcp", "get", "--format", "vscode", "--path", str(self.project_dir)])
+        self.assertEqual(result.exit_code, 0, result.output)
+        mcp_path = self.project_dir / ".vscode" / "mcp.json"
+        self.assertTrue(mcp_path.exists())
+        data = json.loads(mcp_path.read_text())
+        self.assertIn("servers", data)
+        entry = data["servers"]["github"]
+        self.assertEqual(entry["type"], "stdio")
+        self.assertEqual(entry["env"], {"GITHUB_TOKEN": "${env:GITHUB_TOKEN}"})
+
+    def test_mcp_get_vscode_scope_user_rejected(self):
+        """--scope user with --format vscode is rejected."""
+        self.runner.invoke(
+            main,
+            ["mcp", "add", "github", "--command", "npx"],
+        )
+        result = self.runner.invoke(
+            main, ["mcp", "get", "--format", "vscode", "--scope", "user", "--path", str(self.project_dir)]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+
+
+class TestMcpGeminiFormat(unittest.TestCase):
+    """mcp get --format gemini (design 05 task 05-5)."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.patch_home = Path(self.temp_dir.name)
+        self.runner = CliRunner()
+
+        import pathlib
+
+        self._original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.patch_home)
+
+        import ai_adapter.config as cfg
+
+        cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
+
+        init()
+
+        self.project_dir = Path(self.temp_dir.name) / "proj"
+        self.project_dir.mkdir(parents=True)
+
+    def tearDown(self):
+        import pathlib
+
+        pathlib.Path.home = staticmethod(self._original_home)
+        import ai_adapter.config as cfg
+
+        cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        self.temp_dir.cleanup()
+
+    def _add_mcp_server(self):
+        self.runner.invoke(
+            main,
+            ["mcp", "add", "github", "--command", "npx", "--args", "-y", "--env-key", "GITHUB_TOKEN"],
+        )
+
+    def test_mcp_get_gemini_generates_settings_json(self):
+        """AC1: .gemini/settings.json with mcpServers + ${ENV_KEY} format."""
+        self._add_mcp_server()
+        result = self.runner.invoke(main, ["mcp", "get", "--format", "gemini", "--path", str(self.project_dir)])
+        self.assertEqual(result.exit_code, 0, result.output)
+        settings = self.project_dir / ".gemini" / "settings.json"
+        self.assertTrue(settings.exists())
+        data = json.loads(settings.read_text())
+        self.assertIn("mcpServers", data)
+        entry = data["mcpServers"]["github"]
+        self.assertEqual(entry["command"], "npx")
+        self.assertEqual(entry["env"], {"GITHUB_TOKEN": "${GITHUB_TOKEN}"})
+
+    def test_mcp_get_gemini_merges_existing_settings(self):
+        """AC1-3: non-managed keys/servers preserved + .bak backup."""
+        settings = self.project_dir / ".gemini" / "settings.json"
+        settings.parent.mkdir(parents=True, exist_ok=True)
+        settings.write_text(
+            json.dumps({"theme": "GitHub", "mcpServers": {"hand-rolled": {"command": "custom"}}}),
+            encoding="utf-8",
+        )
+        self._add_mcp_server()
+        result = self.runner.invoke(
+            main, ["mcp", "get", "--format", "gemini", "--path", str(self.project_dir), "--force"]
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        data = json.loads(settings.read_text())
+        self.assertEqual(data["theme"], "GitHub")
+        self.assertIn("hand-rolled", data["mcpServers"])
+        self.assertIn("github", data["mcpServers"])
+        self.assertTrue(settings.with_suffix(".json.bak").exists())
+
+    def test_mcp_get_gemini_scope_user(self):
+        """--scope user → ~/.gemini/settings.json."""
+        self._add_mcp_server()
+        result = self.runner.invoke(main, ["mcp", "get", "--format", "gemini", "--scope", "user"])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertTrue((self.patch_home / ".gemini" / "settings.json").exists())

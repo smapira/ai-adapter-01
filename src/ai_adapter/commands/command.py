@@ -17,9 +17,12 @@ from ai_adapter.config import (
     get_github_commands_dir,
     load_config,
     resolve_env,
+    resolve_scope_path,
     save_config,
 )
 from ai_adapter.models import Command
+from ai_adapter.providers.claude import validate_claude_scope
+from ai_adapter.providers.gemini import export_command_toml
 
 
 @click.group(name="command")
@@ -100,15 +103,25 @@ def command_add(path: str, env: str | None, agent: str | None) -> None:
 
 
 def _find_command_by_name(commands_dir: Path, name: str) -> Path | None:
-    """Find a command file by name."""
-    # 1. Exact match
+    """Find a command file by name, supporting nested names (``dir/name``).
+
+    Gemini CLI nests custom commands as ``.gemini/commands/<dir>/<name>.toml``
+    (design 05 task 05-4), so the lookup must accept slash-separated names
+    as well as flat ones.
+    """
+    # 1. Exact match (flat or nested relative path)
     exact = commands_dir / name
     if exact.exists() and exact.is_file():
         return exact
 
-    # 2. Search with extension
-    for f in sorted(commands_dir.iterdir()):
-        if f.is_file() and f.stem == name:
+    # 2. Stem match within the name's parent directory — covers both
+    #    flat "deploy" → "deploy.md" and nested "dir/name" → "dir/name.md".
+    relative = Path(name)
+    parent = commands_dir / relative.parent
+    if not parent.is_dir():
+        return None
+    for f in sorted(parent.iterdir()):
+        if f.is_file() and f.stem == relative.name:
             return f
 
     return None
@@ -119,11 +132,37 @@ def _find_command_by_name(commands_dir: Path, name: str) -> Path | None:
 @click.option("--env", "-e", default=None, help="Environment name (auto-resolved when omitted)")
 @click.option("--agent", help="Agent name (for env resolution)")
 @click.option("--project-dir", "-d", type=click.Path(exists=True, file_okay=False, readable=True), default=None)
-def command_get(name: str, env: str | None, agent: str | None, project_dir: str | None) -> None:
-    """Copy command to .github/commands/.
+@click.option(
+    "--format",
+    "-f",
+    "format_name",
+    type=click.Choice(["standard", "opencode", "gemini"]),
+    default="standard",
+    help=(
+        "Output format (standard=.github/commands/, "
+        "opencode=.github/commands/ or ~/.config/opencode/commands/, "
+        "gemini=.gemini/commands/*.toml or ~/.gemini/commands/*.toml)"
+    ),
+)
+@click.option(
+    "--scope",
+    type=click.Choice(["project", "user"]),
+    default="project",
+    help="Deploy scope for --format opencode/gemini",
+)
+def command_get(
+    name: str,
+    env: str | None,
+    agent: str | None,
+    project_dir: str | None,
+    format_name: str,
+    scope: str,
+) -> None:
+    """Copy command to .github/commands/ (or platform-native paths with --format).
 
     When --env is omitted, auto-resolves via environment resolution logic.
     """
+    validate_claude_scope(format_name, scope, ignored_option="--project-dir" if project_dir else None)
     commands_dir = get_commands_dir()
     src = _find_command_by_name(commands_dir, name)
 
@@ -132,13 +171,40 @@ def command_get(name: str, env: str | None, agent: str | None, project_dir: str 
         raise click.ClickException(f"Command '{name}' is not registered.")
 
     project_path = Path(project_dir).resolve() if project_dir else None
-    github_dir = get_github_commands_dir(project_path)
-    github_dir.mkdir(parents=True, exist_ok=True)
 
-    dest = github_dir / src.name
+    if format_name == "gemini":
+        _deploy_command_gemini(name, src, scope, project_path)
+        return
+
+    if format_name == "opencode":
+        target = resolve_scope_path("opencode", "commands", scope, project_path)
+        dest_dir = target.path
+        use_gitignore = target.use_gitignore
+    else:
+        dest_dir = get_github_commands_dir(project_path)
+        use_gitignore = True
+
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / src.name
     shutil.copy2(src, dest)
-    add_to_gitignore(dest)
+    if use_gitignore:
+        add_to_gitignore(dest)
     click.echo(f"Command '{name}' copied to {dest}.")
+
+
+def _deploy_command_gemini(name: str, src: Path, scope: str, project_path: Path | None) -> None:
+    """Convert *src* Markdown to Gemini TOML under .gemini/commands/ (design 05).
+
+    Nested names (``dir/name``) land in ``.gemini/commands/dir/name.toml``
+    — Gemini exposes them as ``/dir:name`` custom commands.
+    """
+    target = resolve_scope_path("gemini", "commands", scope, project_path)
+    dest = target.path / f"{name}.toml"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(export_command_toml(name, src.read_text(encoding="utf-8")), encoding="utf-8")
+    if target.use_gitignore:
+        add_to_gitignore(dest)
+    click.echo(f"Command '{name}' exported to {dest} (gemini TOML).")
 
 
 @command_group.command(name="remove")

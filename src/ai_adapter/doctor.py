@@ -180,6 +180,180 @@ def _compatibility_issues(project_dir: Path, home: Path) -> list[ValidationIssue
                 ValidationIssue("doctor", f"{label} is not valid JSON: {exc}", severity="warning", path=str(path))
             )
 
+    # Claude Code user-scope MCP (design 02): ~/.claude.json is Claude Code's
+    # own user data, so doctor only validates the mcpServers subtree shape —
+    # never writes, never prints values.
+    issues.extend(_claude_user_mcp_issues(home))
+
+    # Codex config.toml [mcp_servers] (design 03): validated read-only for
+    # both user and project scope; auth.json is never opened.
+    issues.extend(_codex_config_toml_issues(home, project_dir))
+
+    # VS Code editor config (design 08): validate .vscode/mcp.json and
+    # .vscode/extensions.json structure when present.
+    issues.extend(_vscode_config_issues(project_dir))
+
+    # Gemini CLI config (design 05): settings.json, command TOMLs, and
+    # extension manifests — validated read-only, reusing the provider's
+    # validate_* helpers so doctor and `gemini validate` never drift apart.
+    issues.extend(_gemini_config_issues(project_dir, home))
+
+    # Zed editor config (design 06): settings.json (project + OS-specific
+    # user dir) — validated read-only, reusing the provider's
+    # validate_settings so doctor and `zed validate` never drift apart.
+    issues.extend(_zed_config_issues(project_dir, home))
+
+    return issues
+
+
+def _zed_config_issues(project_dir: Path, home: Path) -> list[ValidationIssue]:
+    """Validate Zed settings.json files (design 06): project + user scope.
+
+    Missing files are valid — Zed works without them.  Malformed JSON or
+    wrong shapes are reported as warnings.  The user-scope directory is
+    OS-dependent and resolved through ``config.get_zed_user_dir`` so the
+    platform mapping stays single-sourced.
+    """
+    from ai_adapter.config import get_zed_user_dir
+    from ai_adapter.providers.zed import validate_settings
+
+    issues: list[ValidationIssue] = []
+    targets = [
+        ("zed project settings (.zed/settings.json)", project_dir / ".zed" / "settings.json"),
+        ("zed user settings", get_zed_user_dir(home) / "settings.json"),
+    ]
+    for label, path in targets:
+        if not path.is_file():
+            continue
+        for message in validate_settings(path):
+            issues.append(ValidationIssue("doctor", f"{label}: {message}", severity="warning", path=str(path)))
+    return issues
+
+
+def _gemini_config_issues(project_dir: Path, home: Path) -> list[ValidationIssue]:
+    """Validate Gemini CLI configs (design 05): settings, commands, manifests.
+
+    Missing files are valid — Gemini CLI works without them.  Malformed
+    JSON/TOML or wrong schema shapes are reported as warnings.
+    """
+    from ai_adapter.providers.gemini import (
+        validate_command_toml,
+        validate_extension_manifest,
+        validate_settings,
+    )
+
+    issues: list[ValidationIssue] = []
+
+    def _report_file(path: Path, label: str, validator) -> None:
+        if not path.is_file():
+            return
+        for message in validator(path):
+            issues.append(ValidationIssue("doctor", f"{label}: {message}", severity="warning", path=str(path)))
+
+    def _report_tree(root: Path, pattern: str, label: str, validator) -> None:
+        if not root.is_dir():
+            return
+        for path in sorted(root.rglob(pattern)):
+            for message in validator(path):
+                issues.append(ValidationIssue("doctor", f"{label}: {message}", severity="warning", path=str(path)))
+
+    home_gemini = home / ".gemini"
+    project_gemini = project_dir / ".gemini"
+    _report_file(home_gemini / "settings.json", "gemini settings (~/.gemini/settings.json)", validate_settings)
+    # When home == project_dir the user pass above already covered the
+    # project's ".gemini/" — skip it so the same file is not reported twice.
+    if project_gemini.resolve() != home_gemini.resolve():
+        _report_file(project_gemini / "settings.json", "gemini settings (.gemini/settings.json)", validate_settings)
+        _report_tree(project_gemini / "commands", "*.toml", "gemini command", validate_command_toml)
+    _report_tree(home_gemini / "extensions", "gemini-extension.json", "gemini extension", validate_extension_manifest)
+    return issues
+
+
+def _vscode_config_issues(project_dir: Path) -> list[ValidationIssue]:
+    """Validate ``.vscode/mcp.json`` and ``.vscode/extensions.json`` (read-only).
+
+    Missing files are valid — VS Code works without them. Malformed JSON
+    or wrong schema shapes are reported as warnings.
+    """
+    from ai_adapter.providers.vscode import validate_extensions, validate_vscode_mcp
+
+    issues: list[ValidationIssue] = []
+    targets = [
+        ("vscode mcp (.vscode/mcp.json)", project_dir / ".vscode" / "mcp.json", validate_vscode_mcp),
+        (
+            "vscode extensions (.vscode/extensions.json)",
+            project_dir / ".vscode" / "extensions.json",
+            validate_extensions,
+        ),
+    ]
+    for label, path, validator in targets:
+        if not path.is_file():
+            continue
+        for message in validator(path):
+            issues.append(ValidationIssue("doctor", f"{label}: {message}", severity="warning", path=str(path)))
+    return issues
+
+
+def _codex_config_toml_issues(home: Path, project_dir: Path) -> list[ValidationIssue]:
+    """Validate ``[mcp_servers]`` in Codex config.toml files (read-only).
+
+    Covers ``~/.codex/config.toml`` (user) and ``<project>/.codex/config.toml``
+    (project).  Missing files are valid — Codex works without config.toml.
+    When home and project_dir resolve to the same directory, the project
+    pass is skipped so the same file is not validated twice (review N1).
+    """
+    from ai_adapter.providers.codex import validate_config_toml_mcp
+
+    issues: list[ValidationIssue] = []
+    targets = [
+        ("codex user config (~/.codex/config.toml)", home / ".codex" / "config.toml"),
+    ]
+    project_config = project_dir / ".codex" / "config.toml"
+    if project_config.resolve() != (home / ".codex" / "config.toml").resolve():
+        targets.append(("codex project config (.codex/config.toml)", project_config))
+    for label, path in targets:
+        for message in validate_config_toml_mcp(path):
+            issues.append(ValidationIssue("doctor", f"{label}: {message}", severity="warning", path=str(path)))
+    return issues
+
+
+def _claude_user_mcp_issues(home: Path) -> list[ValidationIssue]:
+    """Validate the ``mcpServers`` subtree of ``~/.claude.json`` (read-only).
+
+    Checks: valid JSON, ``mcpServers`` is an object, and every server entry
+    is an object containing ``command``.  Missing file or missing key means
+    "nothing to validate" — Claude Code works without user-scope MCP.
+    """
+    path = home / ".claude.json"
+    if not path.is_file():
+        return []
+
+    label = "claude user config (~/.claude.json)"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return [ValidationIssue("doctor", f"{label} is not valid JSON: {exc}", severity="warning", path=str(path))]
+
+    if not isinstance(data, dict):
+        return [ValidationIssue("doctor", f"{label} must be a JSON object", severity="warning", path=str(path))]
+
+    servers = data.get("mcpServers")
+    if servers is None:
+        return []
+    if not isinstance(servers, dict):
+        return [ValidationIssue("doctor", f"{label}: mcpServers must be an object", severity="warning", path=str(path))]
+
+    issues: list[ValidationIssue] = []
+    for name, entry in servers.items():
+        if not isinstance(entry, dict) or "command" not in entry:
+            issues.append(
+                ValidationIssue(
+                    "doctor",
+                    f"{label}: mcpServers.{name} must be an object with a 'command' key",
+                    severity="warning",
+                    path=str(path),
+                )
+            )
     return issues
 
 

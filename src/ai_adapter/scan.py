@@ -2,8 +2,12 @@
 
 Discovers AI agent tool configurations — Claude Code (``~/.claude``),
 Codex (``~/.codex``), Cursor (``~/.cursor``), OpenCode
-(``~/.config/opencode``), and the current project (``.github/``, root
-instructions, ``.mcp.json``) — without reading sensitive content.
+(``~/.config/opencode``), VS Code (``.vscode/``), Gemini CLI
+(``~/.gemini/``, ``.gemini/``), Zed (OS-specific user dir, ``.zed/``),
+the current project (``.github/``, root instructions, ``.mcp.json``),
+and user-scope instruction files
+(``~/.codex/AGENTS.md``, ``~/.claude/CLAUDE.md``,
+``~/.config/opencode/AGENTS.md``) — without reading sensitive content.
 
 Security rules (must be kept in sync with tests/test_scan.py):
 - Only filenames and YAML frontmatter (name/description/tags) are read.
@@ -38,6 +42,9 @@ SCAN_IGNORE_PATTERNS: tuple[str, ...] = (
     # Cursor credentials / API keys
     ".cursor/*auth*",
     ".cursor/*key*",
+    # Gemini CLI credentials / tokens (design 05)
+    ".gemini/*cred*",
+    ".gemini/*token*",
     # Generic secret-file extensions
     ".env",
     "*.env",
@@ -60,16 +67,33 @@ _GENERIC_SECRET_COMPONENTS: frozenset[str] = frozenset(
 STALE_SKILL_THRESHOLD_DAYS = 180
 
 # Keys that hold MCP server maps, per config file type.
-_MCP_SERVER_KEYS = ("mcpServers", "mcp")
+# "servers" is VS Code's key (design 08) — added alongside the standard
+# "mcpServers" and OpenCode's "mcp".
+_MCP_SERVER_KEYS = ("mcpServers", "mcp", "servers")
 
 # Order in which tools appear in the Agents section of the report.
 TOOL_ORDER = ("claude", "codex", "cursor", "opencode", "project")
+
+# Insert "vscode" before "project" (design 08). Using tuple slicing to
+# preserve the original entries without redefining the whole literal.
+TOOL_ORDER = TOOL_ORDER[:-1] + ("vscode",) + TOOL_ORDER[-1:]
+
+# Insert "gemini" before "project" (design 05). Append-only via tuple
+# slicing — never redefine the whole literal.
+TOOL_ORDER = TOOL_ORDER[:-1] + ("gemini",) + TOOL_ORDER[-1:]
+
+# Insert "zed" before "project" (design 06). Append-only via tuple
+# slicing — never redefine the whole literal.
+TOOL_ORDER = TOOL_ORDER[:-1] + ("zed",) + TOOL_ORDER[-1:]
 
 TOOL_LABELS: dict[str, str] = {
     "claude": "Claude Code",
     "codex": "Codex",
     "cursor": "Cursor",
     "opencode": "OpenCode",
+    "vscode": "VS Code",
+    "gemini": "Gemini CLI",
+    "zed": "Zed",
     "project": "Project",
 }
 
@@ -218,6 +242,18 @@ def _scan_skills(tool: str, skills_dir: Path, scan_rel: str) -> list[ScanItem]:
     return items
 
 
+def _scan_user_instruction(tool: str, path: Path, scan_rel: str) -> list[ScanItem]:
+    """Detect a user-scope root instruction file (AGENTS.md / CLAUDE.md).
+
+    Only the well-known filename per platform is checked and no content is
+    read (security rule: filenames only). :func:`is_ignored` is still applied
+    so credential patterns stay excluded even if they ever cover these paths.
+    """
+    if not path.is_file() or is_ignored(scan_rel):
+        return []
+    return [ScanItem(tool, "instruction", path.name, path=path)]
+
+
 def _scan_mcp_servers(tool: str, config_file: Path, scan_rel: str) -> list[ScanItem]:
     """Read MCP server *names* from a JSON config (never values).
 
@@ -246,35 +282,57 @@ def _scan_mcp_servers(tool: str, config_file: Path, scan_rel: str) -> list[ScanI
 # ── Tool-specific detection ─────────────────────────────────────────────
 
 
-def scan_claude(home: Path) -> list[ScanItem]:
-    """Detect Claude Code agents, skills, settings, and MCP servers."""
+def scan_claude(home: Path, project_dir: Path | None = None) -> list[ScanItem]:
+    """Detect Claude Code agents, skills, settings, MCP servers, and CLAUDE.md.
+
+    Covers both scopes: the user directory ``~/.claude/`` and, when
+    *project_dir* is given, the project's ``.claude/`` directory
+    (design 02 task 02-4).  Project-scope items use tool ``"claude"``
+    per the master design §2.6 taxonomy — they are distinct from
+    ``scan_project``'s ``.github/`` detection (tool ``"project"``), so
+    the same-named files in different directories never collide.
+    """
     items: list[ScanItem] = []
     claude_dir = home / ".claude"
-    if not claude_dir.is_dir():
-        return items
-    items.extend(_scan_agents("claude", claude_dir / "agents", ".claude/agents"))
-    items.extend(_scan_skills("claude", claude_dir / "skills", ".claude/skills"))
-    settings = claude_dir / "settings.json"
-    if settings.is_file():
-        items.append(ScanItem("claude", "settings", "settings.json", path=settings))
-        items.extend(_scan_mcp_servers("claude", settings, ".claude/settings.json"))
+    if claude_dir.is_dir():
+        items.extend(_scan_agents("claude", claude_dir / "agents", ".claude/agents"))
+        items.extend(_scan_skills("claude", claude_dir / "skills", ".claude/skills"))
+        items.extend(_scan_user_instruction("claude", claude_dir / "CLAUDE.md", ".claude/CLAUDE.md"))
+        settings = claude_dir / "settings.json"
+        if settings.is_file():
+            items.append(ScanItem("claude", "settings", "settings.json", path=settings))
+            items.extend(_scan_mcp_servers("claude", settings, ".claude/settings.json"))
+
+    # Project pass. When home and the project resolve to the same directory
+    # (tests, or a project scanned from its own root) the user pass above
+    # already covered ".claude/" — skip it so nothing is reported twice.
+    if project_dir is not None:
+        project_claude = project_dir / ".claude"
+        if project_claude.resolve() != claude_dir.resolve():
+            items.extend(_scan_agents("claude", project_claude / "agents", ".claude/agents"))
+            items.extend(_scan_skills("claude", project_claude / "skills", ".claude/skills"))
     return items
 
 
 def scan_codex(home: Path) -> list[ScanItem]:
-    """Detect Codex config, agents, and skills.
+    """Detect Codex config, agents, skills, and AGENTS.md.
 
     ``~/.codex/auth.json`` is never reported (see :data:`SCAN_IGNORE_PATTERNS`).
+    Skills are detected in both ``~/.codex/skills/`` and the spec path
+    ``~/.agents/skills/`` (design 03); a skill present in both is reported
+    once per path, so the ``.codex/`` copy stays recognisable as an opt-in
+    compat mirror.
     """
     items: list[ScanItem] = []
     codex_dir = home / ".codex"
-    if not codex_dir.is_dir():
-        return items
-    config_toml = codex_dir / "config.toml"
-    if config_toml.is_file():
-        items.append(ScanItem("codex", "settings", "config.toml", path=config_toml))
-    items.extend(_scan_agents("codex", codex_dir / "agents", ".codex/agents"))
-    items.extend(_scan_skills("codex", codex_dir / "skills", ".codex/skills"))
+    if codex_dir.is_dir():
+        config_toml = codex_dir / "config.toml"
+        if config_toml.is_file():
+            items.append(ScanItem("codex", "settings", "config.toml", path=config_toml))
+        items.extend(_scan_agents("codex", codex_dir / "agents", ".codex/agents"))
+        items.extend(_scan_skills("codex", codex_dir / "skills", ".codex/skills"))
+        items.extend(_scan_user_instruction("codex", codex_dir / "AGENTS.md", ".codex/AGENTS.md"))
+    items.extend(_scan_skills("codex", home / ".agents" / "skills", ".agents/skills"))
     return items
 
 
@@ -303,18 +361,27 @@ def scan_cursor(home: Path) -> list[ScanItem]:
 
 
 def scan_opencode(home: Path) -> list[ScanItem]:
-    """Detect the global OpenCode config ``~/.config/opencode/opencode.json``."""
+    """Detect the global OpenCode config and user instruction file."""
     items: list[ScanItem] = []
-    config_file = home / ".config" / "opencode" / "opencode.json"
-    if not config_file.is_file():
+    opencode_dir = home / ".config" / "opencode"
+    if not opencode_dir.is_dir():
         return items
-    items.append(ScanItem("opencode", "settings", "opencode.json", path=config_file))
-    items.extend(_scan_mcp_servers("opencode", config_file, ".config/opencode/opencode.json"))
+    config_file = opencode_dir / "opencode.json"
+    if config_file.is_file():
+        items.append(ScanItem("opencode", "settings", "opencode.json", path=config_file))
+        items.extend(_scan_mcp_servers("opencode", config_file, ".config/opencode/opencode.json"))
+    items.extend(_scan_user_instruction("opencode", opencode_dir / "AGENTS.md", ".config/opencode/AGENTS.md"))
     return items
 
 
-def scan_project(project_dir: Path) -> list[ScanItem]:
-    """Detect project-local agents, skills, instructions, and MCP servers."""
+def scan_project(project_dir: Path, home: Path | None = None) -> list[ScanItem]:
+    """Detect project-local agents, skills, instructions, and MCP servers.
+
+    When *home* is given and *project_dir* resolves to the same directory
+    (tests, or a project scanned from its own root), the Codex native-path
+    pass is skipped so ``scan_codex``'s user-scope detection is not
+    double-reported (design 03).
+    """
     items: list[ScanItem] = []
     if not project_dir.is_dir():
         return items
@@ -333,10 +400,148 @@ def scan_project(project_dir: Path) -> list[ScanItem]:
         candidate = project_dir / fname
         if candidate.is_file():
             items.append(ScanItem("project", "instruction", fname, path=candidate))
+    # GitHub Copilot instruction file (design 08 task 08-3): deployed to
+    # .github/copilot-instructions.md by `agent get --target github-copilot`.
+    copilot_github = github / "copilot-instructions.md"
+    if copilot_github.is_file():
+        items.append(ScanItem("project", "instruction", "copilot-instructions.md", path=copilot_github))
     mcp_json = project_dir / ".mcp.json"
     if mcp_json.is_file():
         items.append(ScanItem("project", "settings", ".mcp.json", path=mcp_json))
         items.extend(_scan_mcp_servers("project", mcp_json, ".mcp.json"))
+    # Codex native paths (design 03): project config.toml + spec-path skills.
+    # Skip when project_dir == home so scan_codex's user pass isn't doubled.
+    if home is None or project_dir.resolve() != home.resolve():
+        codex_config = project_dir / ".codex" / "config.toml"
+        if codex_config.is_file():
+            items.append(ScanItem("codex", "settings", ".codex/config.toml", path=codex_config))
+        items.extend(_scan_skills("codex", project_dir / ".agents" / "skills", ".agents/skills"))
+    return items
+
+
+def scan_vscode(project_dir: Path) -> list[ScanItem]:
+    """Detect VS Code configurations under ``.vscode/`` (design 08 task 08-7).
+
+    Covers ``mcp.json`` (settings + MCP server names via the ``servers``
+    key), ``extensions.json``, and ``launch.json`` / ``tasks.json``
+    (detected but not managed — scan only).
+    """
+    items: list[ScanItem] = []
+    vscode_dir = project_dir / ".vscode"
+    if not vscode_dir.is_dir():
+        return items
+    mcp = vscode_dir / "mcp.json"
+    if mcp.is_file():
+        items.append(ScanItem("vscode", "settings", "mcp.json", path=mcp))
+        items.extend(_scan_mcp_servers("vscode", mcp, ".vscode/mcp.json"))
+    ext = vscode_dir / "extensions.json"
+    if ext.is_file():
+        items.append(ScanItem("vscode", "settings", "extensions.json", path=ext))
+    for fname in ("launch.json", "tasks.json"):
+        f = vscode_dir / fname
+        if f.is_file():
+            items.append(ScanItem("vscode", "settings", fname, path=f))
+    return items
+
+
+def _scan_gemini_commands(commands_dir: Path, scan_rel: str) -> list[ScanItem]:
+    """Detect ``*.toml`` custom-command files under *commands_dir*."""
+    items: list[ScanItem] = []
+    if not commands_dir.is_dir():
+        return items
+    for f in sorted(commands_dir.rglob("*.toml")):
+        rel = f"{scan_rel}/{f.relative_to(commands_dir).as_posix()}"
+        if is_ignored(rel):
+            continue
+        items.append(ScanItem("gemini", "command", f.stem, path=f))
+    return items
+
+
+def _scan_gemini_settings(settings: Path, scan_rel: str) -> list[ScanItem]:
+    """Detect a settings.json plus the MCP server names it defines."""
+    if not settings.is_file():
+        return []
+    items = [ScanItem("gemini", "settings", "settings.json", path=settings)]
+    items.extend(_scan_mcp_servers("gemini", settings, scan_rel))
+    return items
+
+
+def scan_gemini(home: Path, project_dir: Path | None = None) -> list[ScanItem]:
+    """Detect Gemini CLI configurations (design 05 task 05-7).
+
+    Covers user scope (``~/.gemini/``: commands, settings.json, GEMINI.md,
+    installed extension manifests), project scope (``.gemini/``: commands,
+    settings.json), and the project-root ``GEMINI.md``.
+    """
+    items: list[ScanItem] = []
+    gemini_dir = home / ".gemini"
+    if gemini_dir.is_dir():
+        items.extend(_scan_gemini_commands(gemini_dir / "commands", ".gemini/commands"))
+        items.extend(_scan_gemini_settings(gemini_dir / "settings.json", ".gemini/settings.json"))
+        items.extend(_scan_user_instruction("gemini", gemini_dir / "GEMINI.md", ".gemini/GEMINI.md"))
+        extensions_dir = gemini_dir / "extensions"
+        if extensions_dir.is_dir():
+            for manifest in sorted(extensions_dir.rglob("gemini-extension.json")):
+                items.append(ScanItem("gemini", "settings", manifest.parent.name, path=manifest))
+
+    if project_dir is None:
+        return items
+
+    # Skip the project pass when project_dir resolves to home (tests, or a
+    # project scanned from its own root) — the user pass above already
+    # covered ".gemini/" (same guard as scan_claude).
+    project_gemini = project_dir / ".gemini"
+    if project_gemini.resolve() != gemini_dir.resolve():
+        items.extend(_scan_gemini_commands(project_gemini / "commands", ".gemini/commands"))
+        items.extend(_scan_gemini_settings(project_gemini / "settings.json", ".gemini/settings.json"))
+
+    # Project-root GEMINI.md — Gemini reads it as project context. Not part
+    # of scan_project's root-instruction list, so there is no double count.
+    root_context = project_dir / "GEMINI.md"
+    if root_context.is_file():
+        items.append(ScanItem("gemini", "instruction", "GEMINI.md", path=root_context))
+    return items
+
+
+def scan_zed(home: Path, project_dir: Path | None = None) -> list[ScanItem]:
+    """Detect Zed editor configurations (design 06 task 06-5).
+
+    User scope (OS-dependent directory resolved via
+    :func:`ai_adapter.config.get_zed_user_dir`): ``settings.json``,
+    ``AGENTS.md``, ``keymap.json``.  Project scope: ``.zed/settings.json``
+    and ``.zed/tasks.json``.  Project-root ``AGENTS.md`` is already
+    reported by :func:`scan_project` (tool ``project``), and Zed's
+    ``.agents/skills/`` by the Codex pass — neither is re-reported here to
+    avoid double counting.
+
+    SCAN_IGNORE_PATTERNS: no Zed-specific entries needed — Zed keeps auth
+    in a database outside the config directory, and :func:`is_ignored`
+    still applies to every detected path as a safety net.
+    """
+    from ai_adapter.config import get_zed_user_dir
+
+    items: list[ScanItem] = []
+    user_dir = get_zed_user_dir(home)
+    for fname in ("settings.json", "keymap.json"):
+        f = user_dir / fname
+        if f.is_file():
+            items.append(ScanItem("zed", "settings", fname, path=f))
+    user_agents = user_dir / "AGENTS.md"
+    if user_agents.is_file():
+        try:
+            scan_rel = user_agents.resolve().relative_to(home.resolve()).as_posix()
+        except ValueError:
+            scan_rel = user_agents.name
+        if not is_ignored(scan_rel):
+            items.append(ScanItem("zed", "instruction", "AGENTS.md", path=user_agents))
+
+    if project_dir is None:
+        return items
+    zed_dir = project_dir / ".zed"
+    for fname in ("settings.json", "tasks.json"):
+        f = zed_dir / fname
+        if f.is_file():
+            items.append(ScanItem("zed", "settings", fname, path=f))
     return items
 
 
@@ -350,11 +555,14 @@ def scan_all(home: Path | None = None, project_dir: Path | None = None) -> ScanR
     root = home or Path.home()
     project = (project_dir or Path.cwd()).resolve()
     items: list[ScanItem] = []
-    items.extend(scan_claude(root))
+    items.extend(scan_claude(root, project))
     items.extend(scan_codex(root))
     items.extend(scan_cursor(root))
     items.extend(scan_opencode(root))
-    items.extend(scan_project(project))
+    items.extend(scan_project(project, root))
+    items.extend(scan_vscode(project))
+    items.extend(scan_gemini(root, project))
+    items.extend(scan_zed(root, project))
     result = ScanResult(items=items)
     result.problems = diagnose(result)
     return result

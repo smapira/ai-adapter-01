@@ -13,6 +13,8 @@ All tests use the :func:`isolated_home` fixture (real ``~`` is never read).
 from __future__ import annotations
 
 import json
+import tempfile
+import unittest
 from pathlib import Path
 
 import pytest
@@ -388,3 +390,42 @@ def test_doctor_fix_creates_snapshot(isolated_home: Path, runner: CliRunner):
     assert backup_dir.exists()
     snapshots = [d for d in backup_dir.iterdir() if d.is_dir() and d.name.startswith("20")]
     assert len(snapshots) >= 1
+
+
+class TestDoctorCodexConfigToml(unittest.TestCase):
+    """W2 (QA): _codex_config_toml_issues — home==project skip and invalid TOML warning."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.patch_home = Path(self.temp_dir.name)
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_home_equals_project_skips_duplicate(self):
+        """When home == project_dir, the project config is not validated twice."""
+        from ai_adapter.doctor import _codex_config_toml_issues
+
+        codex_dir = self.patch_home / ".codex"
+        codex_dir.mkdir(parents=True)
+        (codex_dir / "config.toml").write_text("model = 'gpt-5'\n", encoding="utf-8")
+
+        issues = _codex_config_toml_issues(self.patch_home, self.patch_home)
+        # Only the user-scope check runs; no duplicate project warning.
+        self.assertEqual(len(issues), 0)
+
+    def test_invalid_toml_produces_warning(self):
+        """Truly invalid TOML (syntax error) → warning; file not modified."""
+        from ai_adapter.doctor import _codex_config_toml_issues
+
+        codex_dir = self.patch_home / ".codex"
+        codex_dir.mkdir(parents=True)
+        bad = 'model = "gpt-5\n'  # unterminated string → TOMLDecodeError
+        (codex_dir / "config.toml").write_text(bad, encoding="utf-8")
+
+        project_dir = self.patch_home / "proj"
+        project_dir.mkdir()
+        issues = _codex_config_toml_issues(self.patch_home, project_dir)
+        self.assertTrue(any("not valid TOML" in i.message for i in issues))
+        # File not modified (read-only doctor).
+        self.assertEqual((codex_dir / "config.toml").read_text(encoding="utf-8"), bad)

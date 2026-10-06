@@ -18,19 +18,27 @@ from typing import Any
 import yaml
 
 
-def parse_frontmatter(path: Path) -> dict:
-    """Parse YAML frontmatter from a file.
+def parse_frontmatter_text(content: str) -> dict:
+    """Parse YAML frontmatter from *content*.
 
-    Reads the file, extracts the YAML block between the leading ``---``
-    delimiters and returns it as a dictionary.  Returns an empty dict when
-    no frontmatter is found or the YAML is not a mapping.
+    Extracts the YAML block between the leading ``---`` delimiters and
+    returns it as a dictionary.  Returns an empty dict when no frontmatter
+    is found or the YAML is not a mapping.
     """
-    content = path.read_text(encoding="utf-8")
     match = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
     if match:
         data = yaml.safe_load(match.group(1))
         return data if isinstance(data, dict) else {}
     return {}
+
+
+def parse_frontmatter(path: Path) -> dict:
+    """Parse YAML frontmatter from a file.
+
+    Thin wrapper around :func:`parse_frontmatter_text` so file- and
+    string-based callers share one frontmatter grammar.
+    """
+    return parse_frontmatter_text(path.read_text(encoding="utf-8"))
 
 
 # ---------------------------------------------------------------------------
@@ -103,6 +111,36 @@ def _convert_tools_in_frontmatter(frontmatter_text: str) -> tuple[str, bool]:
 # ---------------------------------------------------------------------------
 # File-level operations
 # ---------------------------------------------------------------------------
+
+
+def find_agent_file(agents_dir: Path, name: str) -> Path | None:
+    """Find an agent file in *agents_dir* by frontmatter name or filename.
+
+    Search order: frontmatter ``name`` first (agents may be stored under
+    any filename), then the conventional filename candidates
+    (``<name>.agent.md``, ``<name>.md``, ``<name>``).  Returns None when
+    no match exists or *agents_dir* does not exist.
+    """
+    if not agents_dir.is_dir():
+        return None
+    for f in agents_dir.iterdir():
+        if not f.is_file():
+            continue
+        try:
+            fm = parse_frontmatter(f)
+            if fm.get("name", "").strip() == name:
+                return f
+        except Exception:
+            continue
+    candidates = [
+        agents_dir / f"{name}.agent.md",
+        agents_dir / f"{name}.md",
+        agents_dir / name,
+    ]
+    for c in candidates:
+        if c.exists() and c.is_file():
+            return c
+    return None
 
 
 def convert_agent_file(path: Path) -> bool:

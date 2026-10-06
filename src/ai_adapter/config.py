@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 import os
+import platform
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -108,6 +110,222 @@ def get_github_instructions_dir(project_dir: Path | None = None) -> Path:
     """
     base = project_dir or Path.cwd()
     return base
+
+
+# Default instruction filename each platform reads (design 01 §2.2).
+# get-all --scope user maps every registered file to this name; on
+# collision the original filename is kept instead (see instruction.py).
+USER_INSTRUCTION_FILENAMES: dict[str, str] = {
+    "codex": "AGENTS.md",
+    "claude": "CLAUDE.md",
+    "opencode": "AGENTS.md",
+    "gemini": "GEMINI.md",
+    "zed": "AGENTS.md",
+}
+
+
+def get_user_tool_dir(tool: str) -> Path:
+    """Return the platform-specific user configuration directory.
+
+    Directories are never created here — deploy commands mkdir at write time,
+    so merely asking for a path has no side effects.
+
+    Raises:
+        ValueError: When *tool* has no user configuration directory.
+    """
+    if tool == "zed":
+        return get_zed_user_dir()
+    if tool not in USER_INSTRUCTION_FILENAMES:
+        raise ValueError(f"Unknown tool: {tool}")
+    if tool == "opencode":
+        return Path.home() / ".config" / "opencode"
+    # codex / claude / gemini all follow ~/.<tool>/.
+    return Path.home() / f".{tool}"
+
+
+def get_zed_user_dir(home: Path | None = None) -> Path:
+    """Return the OS-specific Zed user config directory.
+
+    Single source of truth for every OS-dependent Zed path (design 06,
+    Plan Architect M6-3) — providers, scan, and doctor all resolve through
+    here instead of re-deriving platform branches.
+
+    Zed resolves settings.json and the user AGENTS.md from its **config
+    directory** (review C1 — verified against Zed source
+    ``crates/paths/src/paths.rs`` and https://zed.dev/docs/ai/instructions):
+
+    - macOS: ``~/.config/zed`` (NOT ``~/Library/Application Support/Zed``,
+      which is Zed's *data* dir)
+    - Linux: ``$XDG_CONFIG_HOME/zed`` if set, else ``~/.config/zed``
+    - Windows: ``%APPDATA%\\Zed\\`` (falls back to ``~/AppData/Roaming/Zed/``)
+
+    Args:
+        home: Base home directory (defaults to ``Path.home()``).  Scan and
+            tests pass an isolated home so path resolution stays testable
+            without touching the real user profile.
+    """
+    base = Path.home() if home is None else Path(home)
+    system = platform.system()
+    if system == "Windows":
+        appdata = os.environ.get("APPDATA")
+        appdata_base = Path(appdata) if appdata else base / "AppData" / "Roaming"
+        return appdata_base / "Zed"
+    # macOS and Linux both use ~/.config/zed (XDG config dir).
+    # When an explicit `home` is passed (tests, scan isolation), ignore
+    # XDG_CONFIG_HOME so paths stay relative to that home.
+    if home is not None:
+        return base / ".config" / "zed"
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    config_base = Path(xdg) if xdg else base / ".config"
+    return config_base / "zed"
+
+
+def get_user_instruction_path(tool: str, filename: str | None = None) -> Path:
+    """Return the platform-specific user-scope instruction file path.
+
+    Args:
+        tool: One of codex | claude | opencode | gemini | zed.
+        filename: Destination filename. Defaults to the name the platform
+            actually reads (see :data:`USER_INSTRUCTION_FILENAMES`).
+
+    Raises:
+        ValueError: When *tool* has no user instruction location (e.g. cursor).
+    """
+    if tool == "cursor":
+        raise ValueError("Cursor has no native user instruction path.")
+    return get_user_tool_dir(tool) / (filename or USER_INSTRUCTION_FILENAMES[tool])
+
+
+# Deploy targets for tool × category (design 01 §2.3; reused by designs 02/03/04).
+# project paths are relative to the project directory, user paths to the home
+# directory. Only listed combinations are valid — anything else raises ValueError.
+_PROJECT_SCOPE_DIRS: dict[tuple[str, str], str] = {
+    ("claude", "agents"): ".claude/agents",
+    ("claude", "skills"): ".claude/skills",
+    ("claude", "commands"): ".claude/commands",
+    ("claude", "prompts"): ".claude/prompts",
+    ("codex", "agents"): ".codex/agents",
+    ("codex", "skills"): ".agents/skills",  # spec path (design 03)
+    ("codex", "skills_compat"): ".codex/skills",  # opt-in compat mirror (--also-codex-dir)
+    ("codex", "rules"): ".codex/rules",
+    ("codex", "mcp"): ".codex",  # parent of config.toml (design 03)
+    # OpenCode reads .github/* through the .opencode symlink (design 04 §2.2:
+    # existing project deploy stays unchanged).
+    ("opencode", "agents"): ".github/agents",
+    ("opencode", "commands"): ".github/commands",
+    ("opencode", "skills"): ".github/skills",
+    # Gemini CLI reads custom commands from .gemini/commands/ and MCP
+    # servers from .gemini/settings.json (design 05).
+    ("gemini", "commands"): ".gemini/commands",
+    ("gemini", "mcp"): ".gemini",  # parent of settings.json (design 05)
+    # Zed discovers skills at .agents/skills/ (design 06, Plan C6-1 —
+    # NOT .zed/skills/, which is not a Zed discovery path). Settings
+    # live under .zed/ (parent of settings.json / tasks.json).
+    ("zed", "skills"): ".agents/skills",
+    ("zed", "settings"): ".zed",
+}
+
+_USER_SCOPE_DIRS: dict[tuple[str, str], str] = {
+    ("claude", "agents"): ".claude/agents",
+    ("claude", "skills"): ".claude/skills",
+    ("claude", "commands"): ".claude/commands",
+    ("claude", "prompts"): ".claude/prompts",
+    ("codex", "agents"): ".codex/agents",
+    ("codex", "skills"): ".agents/skills",  # spec path (design 03)
+    ("codex", "skills_compat"): ".codex/skills",  # opt-in compat mirror (--also-codex-dir)
+    ("codex", "rules"): ".codex/rules",
+    ("codex", "mcp"): ".codex",  # parent of config.toml (design 03)
+    ("opencode", "agents"): ".config/opencode/agents",
+    ("opencode", "commands"): ".config/opencode/commands",
+    ("opencode", "skills"): ".config/opencode/skills",
+    # Gemini CLI user scope: ~/.gemini/commands/ + ~/.gemini/settings.json.
+    ("gemini", "commands"): ".gemini/commands",
+    ("gemini", "mcp"): ".gemini",  # parent of settings.json (design 05)
+    # Cursor plugin packages live under ~/.cursor/plugins/local/ (design 07).
+    # Only user scope exists — Cursor ignores project-local plugin dirs.
+    ("cursor", "skills"): ".cursor/plugins/local",
+    # Zed global skills live at ~/.agents/skills/ regardless of OS
+    # (design 06, Plan C6-1). Settings/instructions stay in the
+    # OS-dependent Zed directory (see _resolve_user_scope_dir).
+    ("zed", "skills"): ".agents/skills",
+}
+# zed settings/instruction are OS-dependent → get_user_tool_dir("zed")
+# (get_zed_user_dir) instead of this map.
+
+
+@dataclass(frozen=True)
+class ScopeTarget:
+    """Resolved deploy destination for one tool × category × scope.
+
+    Attributes:
+        path: Destination directory (callers append the file/folder name).
+        use_gitignore: Whether the caller should run add_to_gitignore() on the
+            deployed file. False for user scope — walking up from $HOME could
+            append to a dotfiles repo's .gitignore.
+    """
+
+    path: Path
+    use_gitignore: bool
+
+
+def resolve_scope_path(
+    tool: str,
+    category: str,
+    scope: str,
+    project_dir: Path | None = None,
+) -> ScopeTarget:
+    """Resolve the deploy destination for a tool × category × scope.
+
+    Args:
+        tool: Platform name (claude, codex, opencode, gemini, zed).
+        category: Content category (agents, skills, commands, prompts,
+            rules, instruction).
+        scope: "project" or "user".
+        project_dir: Project directory for project scope (defaults to cwd).
+
+    Returns:
+        ScopeTarget with the destination path and the gitignore flag.
+
+    Raises:
+        ValueError: Unknown scope, or a tool × category combination that is
+            not defined in the matrices above.
+    """
+    if scope not in ("project", "user"):
+        raise ValueError(f"Unknown scope: {scope}")
+    use_gitignore = scope == "project"
+    if scope == "user":
+        path = _resolve_user_scope_dir(tool, category)
+    else:
+        path = _resolve_project_scope_dir(tool, category, project_dir)
+    return ScopeTarget(path=path, use_gitignore=use_gitignore)
+
+
+def _resolve_user_scope_dir(tool: str, category: str) -> Path:
+    """Return the user-scope directory for a tool × category."""
+    if category == "instruction":
+        # Root-level instruction files (AGENTS.md / CLAUDE.md / GEMINI.md)
+        # live directly in the platform directory (Zed is OS-dependent).
+        return get_user_tool_dir(tool)
+    if tool == "zed" and category == "settings":
+        # Zed settings/keymap live in the OS-dependent user directory
+        # (get_zed_user_dir) — not expressible in the static map.
+        return get_user_tool_dir(tool)
+    relative = _USER_SCOPE_DIRS.get((tool, category))
+    if relative is None:
+        raise ValueError(f"Unsupported tool × category: {tool} × {category}")
+    return Path.home() / relative
+
+
+def _resolve_project_scope_dir(tool: str, category: str, project_dir: Path | None) -> Path:
+    """Return the project-scope directory for a tool × category."""
+    base = project_dir or Path.cwd()
+    if category == "instruction":
+        # Root-level instruction files deploy to the project root.
+        return base
+    relative = _PROJECT_SCOPE_DIRS.get((tool, category))
+    if relative is None:
+        raise ValueError(f"Unsupported tool × category: {tool} × {category}")
+    return base / relative
 
 
 def is_safe_store_name(name: str) -> bool:

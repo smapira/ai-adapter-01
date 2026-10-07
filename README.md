@@ -942,6 +942,8 @@ Observation sources per host (design: Coverage > Precision):
 | VS Code | Process observation fallback (`ps` + host attribution) | `process` / `low` |
 | Zed | Process observation fallback (`ps` + host attribution) | `process` / `low` |
 
+VS Code sessions resolve PROJECT by correlating open-window folders (`windowsState` in VS Code `globalStorage/storage.json`) with per-window directory handles (`lsof`); a session is attributed only when exactly one open folder maps to its window root — ambiguity is never guessed, so shared runtimes (e.g. `copilot-runtime`) may show `-`. AGE comes from `ps etime` for all process-observation sessions.
+
 VS Code / Zed sessions report `status: unknown` until an official session API (e.g. Zed ACP) becomes available — process existence alone is never promoted to working/waiting/done. Missing hosts are skipped gracefully; an empty result is not an error.
 
 ### `ai-adapter setup`

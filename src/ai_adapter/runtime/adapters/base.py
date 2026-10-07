@@ -17,6 +17,7 @@ import shutil
 import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import PurePosixPath
 
 from ai_adapter.runtime.models import (
@@ -109,21 +110,55 @@ class ProcessInfo:
     pid: int
     ppid: int
     command: str
+    elapsed_seconds: int | None = None
+
+
+def parse_elapsed_seconds(raw: str) -> int | None:
+    """Parse ``ps etime`` (``[[dd-]hh:]mm:ss`` or bare seconds) to seconds.
+
+    Returns None for unparseable input — callers treat that as "unknown
+    start time" rather than guessing.
+    """
+    text = raw.strip()
+    if not text:
+        return None
+    days = 0
+    if "-" in text:
+        day_part, text = text.split("-", 1)
+        if not day_part.isdigit():
+            return None
+        days = int(day_part)
+    parts = text.split(":")
+    try:
+        if len(parts) == 1 and parts[0].isdigit():
+            return days * 86400 + int(parts[0])
+        if len(parts) == 2 and all(p.isdigit() for p in parts):
+            return days * 86400 + int(parts[0]) * 60 + int(parts[1])
+        if len(parts) == 3 and all(p.isdigit() for p in parts):
+            return days * 86400 + int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+    except ValueError:
+        return None
+    return None
 
 
 def observe_processes(timeout: float = PS_TIMEOUT_SECONDS) -> list[ProcessInfo]:
     """Snapshot the process table via ``ps``. Returns [] on any failure."""
-    result = run_host_command(["ps", "-axo", "pid=,ppid=,command="], timeout=timeout)
+    result = run_host_command(["ps", "-axo", "pid=,ppid=,etime=,command="], timeout=timeout)
     if not result.ok:
         return []
     return parse_ps_output(result.stdout)
 
 
 def parse_ps_output(output: str) -> list[ProcessInfo]:
-    """Parse ``ps -axo pid=,ppid=,command=`` output into records."""
+    """Parse ``ps -axo pid=,ppid=,etime=,command=`` output into records.
+
+    Also accepts the older 3-column ``pid=,ppid=,command=`` layout (no
+    etime): a third token is treated as elapsed time only when it parses
+    as etime, otherwise it is joined back into the command.
+    """
     processes: list[ProcessInfo] = []
     for line in output.splitlines():
-        parts = line.split(None, 2)
+        parts = line.split(None, 3)
         if len(parts) < 3:
             continue
         try:
@@ -131,7 +166,17 @@ def parse_ps_output(output: str) -> list[ProcessInfo]:
             ppid = int(parts[1])
         except ValueError:
             continue
-        processes.append(ProcessInfo(pid=pid, ppid=ppid, command=parts[2].strip()))
+        elapsed: int | None = None
+        if len(parts) == 3:
+            command = parts[2].strip()
+        else:
+            maybe_elapsed = parse_elapsed_seconds(parts[2])
+            if maybe_elapsed is not None and all(ch.isdigit() or ch in "-:" for ch in parts[2]):
+                elapsed = maybe_elapsed
+                command = parts[3].strip()
+            else:
+                command = f"{parts[2]} {parts[3]}".strip()
+        processes.append(ProcessInfo(pid=pid, ppid=ppid, command=command, elapsed_seconds=elapsed))
     return processes
 
 
@@ -228,6 +273,31 @@ def process_cwd(pid: int, timeout: float = PS_TIMEOUT_SECONDS) -> str:
     return ""
 
 
+def process_open_handles(pids: list[int], timeout: float = PS_TIMEOUT_SECONDS) -> dict[int, set[str]]:
+    """Open file/directory paths per pid via a single ``lsof`` call.
+
+    One bulk invocation keeps macOS ``lsof`` overhead acceptable when many
+    IDE processes must be inspected. Returns {} when ``lsof`` is missing or
+    the command fails; never raises.
+    """
+    if not pids or shutil.which("lsof") is None:
+        return {}
+    argv = ["lsof", "-p", ",".join(str(pid) for pid in pids)]
+    result = run_host_command(argv, timeout=timeout)
+    if not result.ok:
+        return {}
+    handles: dict[int, set[str]] = {}
+    for line in result.stdout.splitlines():
+        fields = line.split()
+        if len(fields) < 9 or not fields[1].isdigit():
+            continue
+        path = fields[-1]
+        if not path.startswith("/"):
+            continue
+        handles.setdefault(int(fields[1]), set()).add(path)
+    return handles
+
+
 def usable_workspace(cwd: str) -> str:
     """Return ``cwd`` unless it is unusable as a project path.
 
@@ -242,13 +312,20 @@ def usable_workspace(cwd: str) -> str:
     return cwd
 
 
-def session_from_process(host: str, process: ProcessInfo) -> RuntimeSession:
+def session_from_process(host: str, process: ProcessInfo, fallback_workspace: str = "") -> RuntimeSession:
     """Build a Canonical session from a process observation (fallback path).
 
     Process existence alone never implies WORKING / WAITING / DONE
     (design §4.4), so the status is always UNKNOWN and confidence LOW.
+
+    ``fallback_workspace`` is used only when the process cwd is unusable —
+    callers pass a host-resolved workspace (e.g. VS Code window folder
+    attribution); it is never guessed here.
     """
-    workspace = usable_workspace(process_cwd(process.pid))
+    workspace = usable_workspace(process_cwd(process.pid)) or usable_workspace(fallback_workspace)
+    started_at: datetime | None = None
+    if process.elapsed_seconds is not None:
+        started_at = datetime.now(timezone.utc) - timedelta(seconds=process.elapsed_seconds)
     return RuntimeSession(
         session_id=session_token(process.command) or str(process.pid),
         host=host,
@@ -260,7 +337,7 @@ def session_from_process(host: str, process: ProcessInfo) -> RuntimeSession:
         confidence=confidence_for_source(RuntimeSource.PROCESS),
         activity="",
         needs_user=None,
-        started_at=None,
+        started_at=started_at,
         last_activity_at=None,
     )
 

@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **`monitor`: VS Code sessions now report PROJECT and AGE**
+  - Workspace attribution via VS Code `windowsState` (open window folders) correlated with per-window directory handles from `lsof` — a session is attributed only when exactly one open folder maps to its window root; ambiguity is never guessed (shared runtimes like `copilot-runtime` may stay `-`)
+  - AGE populated from `ps etime` for all process-observation sessions (VS Code / Zed)
+
 ## [0.25.0] - 2026-10-07
 
 ### Added

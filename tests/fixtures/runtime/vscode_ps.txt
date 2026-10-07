@@ -1,7 +1,7 @@
-  11820     1 /Applications/Visual Studio Code.app/Contents/MacOS/Electron --crash-reporter-id ca85a090-f71b-4b36-8f30-305baa15bc66
-  13311 11820 /Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper.app/Contents/MacOS/Code Helper --type=utility --utility-sub-type=node.mojom.NodeService
-  13509 13311 /Applications/Visual Studio Code.app/Contents/Resources/app/node_modules.asar.unpacked/@github/copilot-sdk-darwin-arm64/prebuilds/darwin-arm64/copilot-runtime --headless --no-auto-update --log-level info --stdio --no-auto-login
-  33658 11820 /Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin) --type=utility --utility-sub-type=node.mojom.NodeService
-  33729 33658 /Users/example/.vscode/extensions/openai.chatgpt-26.930.51102-darwin-arm64/bin/macos-aarch64/codex -c features.code_mode_host=true app-server --analytics-default-enabled
-  40001 33658 /Users/example/.local/bin/opencode --session ses_abc123def456
-  50001     1 /Users/example/.local/bin/claude --continue
+  11820     1      3:12 /Applications/Visual Studio Code.app/Contents/MacOS/Electron --crash-reporter-id ca85a090-f71b-4b36-8f30-305baa15bc66
+  13311 11820      3:10 /Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper.app/Contents/MacOS/Code Helper --type=utility --utility-sub-type=node.mojom.NodeService
+  13509 13311      2:58 /Applications/Visual Studio Code.app/Contents/Resources/app/node_modules.asar.unpacked/@github/copilot-sdk-darwin-arm64/prebuilds/darwin-arm64/copilot-runtime --headless --no-auto-update --log-level info --stdio --no-auto-login
+  33658 11820      1:05 /Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin) --type=utility --utility-sub-type=node.mojom.NodeService
+  33729 33658      0:47 /Users/example/.vscode/extensions/openai.chatgpt-26.930.51102-darwin-arm64/bin/macos-aarch64/codex -c features.code_mode_host=true app-server --analytics-default-enabled
+  40001 33658      0:12 /Users/example/.local/bin/opencode --session ses_abc123def456
+  50001     1      5:30 /Users/example/.local/bin/claude --continue

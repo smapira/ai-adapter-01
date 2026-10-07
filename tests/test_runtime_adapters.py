@@ -18,6 +18,7 @@ from ai_adapter.runtime.adapters.base import (
     RuntimeAdapter,
     detect_agent,
     find_host_agent_processes,
+    parse_elapsed_seconds,
     parse_json_payload,
     parse_ps_output,
     run_host_command,
@@ -27,7 +28,11 @@ from ai_adapter.runtime.adapters.base import (
     usable_workspace,
 )
 from ai_adapter.runtime.adapters.orca import OrcaAdapter, agent_state_status
-from ai_adapter.runtime.adapters.vscode import VSCodeAdapter
+from ai_adapter.runtime.adapters.vscode import (
+    VSCodeAdapter,
+    attribute_workspaces,
+    open_workspace_folders,
+)
 from ai_adapter.runtime.adapters.zed import ZedAdapter
 from ai_adapter.runtime.models import (
     RuntimeConfidence,
@@ -637,3 +642,207 @@ class TestDetectAgentFalsePositive(unittest.TestCase):
         from ai_adapter.runtime.adapters.base import detect_agent
 
         self.assertIsNotNone(detect_agent("claude --resume"))
+
+
+class TestVSCodeWorkspaceAttribution(unittest.TestCase):
+    """VS Code project attribution via windowsState + lsof window handles."""
+
+    def _write_storage(self, base: Path, payload: dict) -> Path:
+        target = base / "User/globalStorage"
+        target.mkdir(parents=True)
+        (target / "storage.json").write_text(json.dumps(payload), encoding="utf-8")
+        return base
+
+    def test_open_workspace_folders_parses_windows_state(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            (base / "proj-a").mkdir()
+            (base / "proj b").mkdir()
+            self._write_storage(
+                base,
+                {
+                    "windowsState": {
+                        "lastActiveWindow": {"folder": f"file://{base}/proj-a"},
+                        "openedWindows": [
+                            {"folder": f"file://{base}/proj%20b"},
+                            {"folder": "vscode-remote://ssh-2Bremote/home/remote"},
+                        ],
+                    }
+                },
+            )
+            folders = open_workspace_folders(user_data_dir=base)
+            self.assertEqual(folders, {f"{base}/proj-a", f"{base}/proj b"})
+
+    def test_open_workspace_folders_missing_file_returns_empty(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(open_workspace_folders(user_data_dir=Path(tmp)), set())
+
+    def test_open_workspace_folders_corrupt_json_returns_empty(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            target = base / "User/globalStorage"
+            target.mkdir(parents=True)
+            (target / "storage.json").write_text("{not json", encoding="utf-8")
+            self.assertEqual(open_workspace_folders(user_data_dir=base), set())
+
+    def test_open_workspace_folders_skips_nonexistent_paths(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base = self._write_storage(
+                Path(tmp),
+                {"windowsState": {"lastActiveWindow": {"folder": f"file://{tmp}/does-not-exist"}}},
+            )
+            self.assertEqual(open_workspace_folders(user_data_dir=base), set())
+
+    def _processes(self):
+        return parse_ps_output(_fixture("vscode_ps.txt"))
+
+    def test_attribute_workspaces_single_folder_per_root(self):
+        processes = self._processes()
+        handles = {
+            13311: {"/Users/x/project-a"},  # copilot-runtime window root
+            33658: {"/Users/x/project-b"},  # codex/opencode window root
+        }
+        with patch(
+            "ai_adapter.runtime.adapters.vscode.process_open_handles",
+            return_value=handles,
+        ):
+            result = attribute_workspaces(processes, {"/Users/x/project-a", "/Users/x/project-b"})
+        self.assertEqual(result, {13311: "/Users/x/project-a", 33658: "/Users/x/project-b"})
+
+    def test_attribute_workspaces_ambiguous_root_not_attributed(self):
+        processes = self._processes()
+        folders = {"/Users/x/project-b", "/Users/x/project-c"}
+        handles = {33658: {"/Users/x/project-b", "/Users/x/project-c"}}
+        with patch(
+            "ai_adapter.runtime.adapters.vscode.process_open_handles",
+            return_value=handles,
+        ):
+            result = attribute_workspaces(processes, folders)
+        self.assertEqual(result, {})
+
+    def test_attribute_workspaces_empty_folders_returns_empty(self):
+        self.assertEqual(attribute_workspaces(self._processes(), set()), {})
+
+    def test_attribute_workspaces_nested_path_matches_folder(self):
+        """A file handle under the folder root maps to that folder."""
+        processes = self._processes()
+        handles = {33658: {"/Users/x/project-b/.vscode/mcp.json"}}
+        with patch(
+            "ai_adapter.runtime.adapters.vscode.process_open_handles",
+            return_value=handles,
+        ):
+            result = attribute_workspaces(processes, {"/Users/x/project-b"})
+        self.assertEqual(result, {33658: "/Users/x/project-b"})
+
+    def _adapter_with_attribution(self, handles: dict, folders: set | None = None) -> VSCodeAdapter:
+        processes = parse_ps_output(_fixture("vscode_ps.txt"))
+        patcher = patch(
+            "ai_adapter.runtime.adapters.vscode.observe_processes",
+            return_value=processes,
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        folders_patcher = patch(
+            "ai_adapter.runtime.adapters.vscode.open_workspace_folders",
+            return_value=folders if folders is not None else {"/Users/x/project-a", "/Users/x/project-b"},
+        )
+        folders_patcher.start()
+        self.addCleanup(folders_patcher.stop)
+        handles_patcher = patch(
+            "ai_adapter.runtime.adapters.vscode.process_open_handles",
+            return_value=handles,
+        )
+        handles_patcher.start()
+        self.addCleanup(handles_patcher.stop)
+        # cwd unusable on macOS: all VS Code processes run with cwd "/"
+        cwd_patcher = patch(
+            "ai_adapter.runtime.adapters.base.process_cwd",
+            side_effect=lambda pid, timeout=5.0: "",
+        )
+        cwd_patcher.start()
+        self.addCleanup(cwd_patcher.stop)
+        return VSCodeAdapter()
+
+    def test_discover_fills_project_from_window_attribution(self):
+        adapter = self._adapter_with_attribution({13311: {"/Users/x/project-a"}, 33658: {"/Users/x/project-b"}})
+        sessions = {s.session_id: s for s in adapter.discover()}
+        self.assertEqual(len(sessions), 3)
+        self.assertEqual(sessions["ses_abc123def456"].project, "project-b")
+        self.assertEqual(sessions["ses_abc123def456"].workspace, "/Users/x/project-b")
+        copilot = next(s for s in sessions.values() if s.agent == "copilot")
+        self.assertEqual(copilot.project, "project-a")
+
+    def test_discover_leaves_project_empty_when_ambiguous(self):
+        adapter = self._adapter_with_attribution(
+            {33658: {"/Users/x/project-b", "/Users/x/project-c"}},
+            folders={"/Users/x/project-b", "/Users/x/project-c"},
+        )
+        for session in adapter.discover():
+            self.assertEqual(session.project, "")
+            self.assertEqual(session.workspace, "")
+
+    def test_discover_leaves_project_empty_when_no_handles(self):
+        adapter = self._adapter_with_attribution({})
+        for session in adapter.discover():
+            self.assertEqual(session.project, "")
+
+
+class TestElapsedTimeParsing(unittest.TestCase):
+    """ps etime parsing feeds the monitor AGE column."""
+
+    def test_parse_elapsed_variants(self):
+        self.assertEqual(parse_elapsed_seconds("45"), 45)
+        self.assertEqual(parse_elapsed_seconds("05:45"), 345)
+        self.assertEqual(parse_elapsed_seconds("01:05:45"), 3945)
+        self.assertEqual(parse_elapsed_seconds("1-02:03:04"), 93784)
+        self.assertIsNone(parse_elapsed_seconds(""))
+        self.assertIsNone(parse_elapsed_seconds("n/a"))
+
+    def test_parse_ps_output_with_etime_column(self):
+        processes = parse_ps_output(_fixture("vscode_ps.txt"))
+        by_pid = {p.pid: p for p in processes}
+        self.assertEqual(by_pid[11820].elapsed_seconds, 192)  # 3:12
+        self.assertEqual(by_pid[33729].elapsed_seconds, 47)  # 0:47
+        self.assertIn("codex", by_pid[33729].command)
+        self.assertIn("Electron", by_pid[11820].command)
+
+    def test_parse_ps_output_without_etime_column(self):
+        """Legacy 3-column layout still parses; elapsed stays None."""
+        output = "  1234     5 /usr/bin/node server.js --port 8080\n"
+        processes = parse_ps_output(output)
+        self.assertEqual(len(processes), 1)
+        self.assertEqual(processes[0].command, "/usr/bin/node server.js --port 8080")
+        self.assertIsNone(processes[0].elapsed_seconds)
+
+    def test_command_starting_with_number_not_mistaken_for_etime(self):
+        """A command whose first word is numeric must not lose that token."""
+        output = "  1234     5 2ndword --flag value\n"
+        processes = parse_ps_output(output)
+        self.assertEqual(processes[0].command, "2ndword --flag value")
+        self.assertIsNone(processes[0].elapsed_seconds)
+
+    def test_session_from_process_sets_started_at(self):
+        processes = parse_ps_output(_fixture("vscode_ps.txt"))
+        opencode = next(p for p in processes if p.pid == 40001)
+        with patch(
+            "ai_adapter.runtime.adapters.base.process_cwd",
+            side_effect=lambda pid, timeout=5.0: "",
+        ):
+            session = session_from_process("vscode", opencode)
+        self.assertIsNotNone(session.started_at)
+        age_seconds = (datetime.now(timezone.utc) - session.started_at).total_seconds()
+        self.assertGreaterEqual(age_seconds, 0)
+        self.assertLess(age_seconds, 120)  # etime was 0:12
+
+    def test_zed_fixture_parses_etime(self):
+        processes = parse_ps_output(_fixture("zed_ps.txt"))
+        by_pid = {p.pid: p for p in processes}
+        self.assertEqual(by_pid[60001].elapsed_seconds, 75)  # 1:15

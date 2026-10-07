@@ -1,0 +1,39 @@
+{
+  "id": "fixture-terminal-list",
+  "ok": true,
+  "result": {
+    "terminals": [
+      {
+        "handle": "term_74adc5b8-8539-4151-9d75-9a3ed2a0ae10",
+        "worktreePath": "/Users/example/OS/home/Codes/github.com/routeflags/social-media-operations",
+        "branch": "refs/heads/main",
+        "connected": true,
+        "writable": true,
+        "lastOutputAt": 1791208780272,
+        "preview": "OpenCode 1.18.34",
+        "orphaned": false,
+        "agentIdentity": "opencode"
+      },
+      {
+        "handle": "term_dbdb9172-e057-44d1-9c65-61f242f24ae1",
+        "worktreePath": "/Users/example/OS/home/Codes/github.com/routeflags/japan-cannabinoid-trends",
+        "branch": "refs/heads/main",
+        "connected": true,
+        "writable": true,
+        "lastOutputAt": 1791330432296,
+        "preview": "claude>",
+        "orphaned": false,
+        "agentIdentity": "claude"
+      },
+      {
+        "handle": "term_plain_shell",
+        "worktreePath": "/Users/example/OS/home/Codes/github.com/routeflags/seo-operations",
+        "connected": true,
+        "lastOutputAt": 1791000000000,
+        "preview": "zsh",
+        "orphaned": false,
+        "agentIdentity": null
+      }
+    ]
+  }
+}

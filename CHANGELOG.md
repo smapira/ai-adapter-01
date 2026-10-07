@@ -4,6 +4,12 @@
 
 ### Added
 
+- **`monitor`**: Runtime Plane command — discovers AI agent sessions running in Orca / VS Code / Zed (read-only)
+  - Canonical Runtime Model (`RuntimeSession` / `RuntimeStatus` / `RuntimeConfidence` / `RuntimeSource`) + normalizer under `src/ai_adapter/runtime/`
+  - Orca: official CLI JSON discovery (`orca terminal list --json`, `orca worktree ps --json`) with agent state → status mapping; source `cli` / confidence `high`
+  - VS Code / Zed: process-observation fallback (`ps` + host attribution); sessions report `status: unknown`, `source: process`, `confidence: low` — process existence is never promoted to working/waiting/done
+  - Plain table (HOST / PROJECT / AGENT / STATE / AGE with ACTIVE/INACTIVE/UNKNOWN) and `--json` envelope (`{"sessions": [...]}`, lowercase enum values, ISO 8601 datetimes)
+  - Discovery runs concurrently via `concurrent.futures`; missing hosts and adapter failures degrade to empty results instead of crashing
 - **Cursor extensions (design 07)**: Legacy `.cursorrules` export and Cursor plugin packages
   - `agent get/get-all --format cursorrules` → writes `./.cursorrules` (frontmatter stripped; `get-all` concatenates with `# --- <name> ---` separators). Legacy/migration only — `.cursor/rules/*.mdc` remains recommended.
   - `skill get/get-all --format cursor-plugin` → installs a true plugin package at `~/.cursor/plugins/local/<project-name>/` (`.cursor-plugin/plugin.json` manifest + `skills/<name>/` with auxiliary files). `skill get` now accepts `--format` with the same choices as `get-all`.

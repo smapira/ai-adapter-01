@@ -65,6 +65,7 @@ A CLI tool for managing AI agent instruction files (`.github/instructions` etc.)
 - **Cursor Integration**: Export MCP servers and skills to Cursor format (`--format cursor` → `.cursor/mcp.json` + `.cursor/rules/*.mdc`); legacy `.cursorrules` (`--format cursorrules`) and plugin packages (`--format cursor-plugin` → `~/.cursor/plugins/local/`) for migration (design 07)
 - **Codex CLI Integration**: Generate `AGENTS.md` for OpenAI Codex CLI (`ai-adapter codex install`)
 - **Root-Level Agent Management**: Manage `AGENTS.md`, `CLAUDE.md`, etc. as first-class artifacts, deployable to project root
+- **Runtime Monitor (Runtime Plane)**: `ai-adapter monitor` discovers AI agent sessions running in Orca / VS Code / Zed and reports what they are doing — read-only observability (never sends input, never changes IDE settings, never stops processes)
 
 ---
 
@@ -917,6 +918,31 @@ ai-adapter doctor --fix --dry-run  # Preview fixes
 ```
 
 Checks: installed tools, available updates, compatibility issues, configuration validation.
+
+### `ai-adapter monitor`
+
+Runtime Plane command: discovers AI agent sessions running in Orca, VS Code, and Zed, and reports what they are doing. Read-only — it never sends input to agents, never changes IDE settings, and never stops processes.
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Machine-readable JSON envelope (`{"sessions": [...]}`) |
+
+```bash
+ai-adapter monitor          # Plain table: HOST / PROJECT / AGENT / STATE / AGE
+ai-adapter monitor --json   # JSON output (lowercase enum values, ISO 8601 datetimes)
+```
+
+STATE is derived from the canonical status: `ACTIVE` (working / waiting / blocked), `INACTIVE` (idle / done), `UNKNOWN` (cannot be determined — never guessed).
+
+Observation sources per host (design: Coverage > Precision):
+
+| Host | Discovery path | Source / Confidence |
+|------|----------------|---------------------|
+| Orca | Official CLI (`orca terminal list --json`, `orca worktree ps --json`) | `cli` / `high` |
+| VS Code | Process observation fallback (`ps` + host attribution) | `process` / `low` |
+| Zed | Process observation fallback (`ps` + host attribution) | `process` / `low` |
+
+VS Code / Zed sessions report `status: unknown` until an official session API (e.g. Zed ACP) becomes available — process existence alone is never promoted to working/waiting/done. Missing hosts are skipped gracefully; an empty result is not an error.
 
 ### `ai-adapter setup`
 

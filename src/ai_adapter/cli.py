@@ -24,6 +24,7 @@ from ai_adapter.commands.env import env_group
 from ai_adapter.commands.get_all_rec import cmd_get_all_rec
 from ai_adapter.commands.instruction import instruction_group
 from ai_adapter.commands.mcp import mcp_group
+from ai_adapter.commands.monitor import cmd_monitor
 from ai_adapter.commands.npx import npx_group
 from ai_adapter.commands.optimize import cmd_optimize
 from ai_adapter.commands.pack import pack_group
@@ -366,6 +367,7 @@ main.add_command(cmd_get_all_rec)
 main.add_command(cmd_scan)
 main.add_command(cmd_search)
 main.add_command(cmd_doctor)
+main.add_command(cmd_monitor)
 main.add_command(cmd_optimize)
 main.add_command(setup_group)
 main.add_command(pack_group)

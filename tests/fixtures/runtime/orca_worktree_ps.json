@@ -1,0 +1,56 @@
+{
+  "id": "fixture-worktree-ps",
+  "ok": true,
+  "result": {
+    "worktrees": [
+      {
+        "worktreeId": "wt-0001::/Users/example/OS/home/Codes/github.com/routeflags/social-media-operations",
+        "repo": "social-media-operations",
+        "path": "/Users/example/OS/home/Codes/github.com/routeflags/social-media-operations",
+        "branch": "refs/heads/main",
+        "workspaceStatus": "in-progress",
+        "status": "active",
+        "lastActivityAt": 1791171059851,
+        "agents": [
+          {
+            "paneKey": "pane-0001",
+            "agentType": "opencode",
+            "state": "done",
+            "interrupted": false,
+            "updatedAt": 1791171059851,
+            "stateStartedAt": 1791170000000,
+            "taskTitle": "Daily logbook update"
+          }
+        ]
+      },
+      {
+        "worktreeId": "wt-0002::/Users/example/orca/workspaces/lamprey",
+        "repo": "agent-bank",
+        "path": "/Users/example/orca/workspaces/lamprey",
+        "workspaceStatus": "in-progress",
+        "status": "inactive",
+        "lastActivityAt": 1791000000000,
+        "agents": [
+          {
+            "paneKey": "pane-0002",
+            "agentType": "codex",
+            "state": "working",
+            "interrupted": false,
+            "updatedAt": 1791000000000,
+            "stateStartedAt": 1790990000000,
+            "taskTitle": "Refactor billing module"
+          }
+        ]
+      },
+      {
+        "worktreeId": "wt-0003::/Users/example/OS/home/Codes/github.com/routeflags/seo-operations",
+        "repo": "seo-operations",
+        "path": "/Users/example/OS/home/Codes/github.com/routeflags/seo-operations",
+        "workspaceStatus": "in-progress",
+        "status": "inactive",
+        "lastActivityAt": 1791000000000,
+        "agents": []
+      }
+    ]
+  }
+}

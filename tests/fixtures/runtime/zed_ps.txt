@@ -1,0 +1,4 @@
+  25194     1 /Applications/Zed.app/Contents/MacOS/zed
+  25196 25194 /Applications/Zed.app/Contents/MacOS/zed --crash-handler /Users/example/Library/Caches/Zed/zed-crash-handler-25194
+  60001 25196 /Users/example/.local/bin/claude --resume
+  60002     1 /Users/example/.local/bin/opencode

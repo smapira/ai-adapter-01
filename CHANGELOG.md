@@ -2,8 +2,11 @@
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-10-07
+
 ### Added
 
+- **Platform parity across 8 AI coding tools**: MECE test-spec-driven alignment of agents / skills / commands / prompts / MCP export across GitHub Copilot, Claude Code, OpenCode, Codex CLI, Cursor, OpenClaw, Gemini CLI, and Zed
 - **`monitor`**: Runtime Plane command — discovers AI agent sessions running in Orca / VS Code / Zed (read-only)
   - Canonical Runtime Model (`RuntimeSession` / `RuntimeStatus` / `RuntimeConfidence` / `RuntimeSource`) + normalizer under `src/ai_adapter/runtime/`
   - Orca: official CLI JSON discovery (`orca terminal list --json`, `orca worktree ps --json`) with agent state → status mapping; source `cli` / confidence `high`

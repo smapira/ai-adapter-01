@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.25.1] - 2026-10-07
+
 ### Fixed
 
 - **`monitor`: VS Code sessions now report PROJECT and AGE**

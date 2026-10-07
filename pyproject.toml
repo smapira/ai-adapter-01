@@ -1,6 +1,6 @@
 [project]
 name = "ai-adapter"
-version = "0.25.0"
+version = "0.25.1"
 description = "Manage and sync your AI agent configuration across Claude Code, Codex, Cursor, VS Code, OpenCode and more."
 authors = [
     { name = "smapira" },

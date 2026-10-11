@@ -168,12 +168,12 @@ class TestClaudeDeployAgentFile(_ClaudeTestBase):
         self.assertTrue(dest.exists())
         self.assertFalse((dest_dir / "reviewer.agent.md").exists())
 
-    def test_tools_array_converted_to_object(self):
-        """Array-format tools become object format in the deployed .md."""
+    def test_tools_array_converted_to_comma_string(self):
+        """Array-format tools become Claude's comma-separated string in the deployed .md."""
         src = self._write_agent_md("reviewer", tools_line="tools: [read, grep]")
         dest = deploy_agent_file(src, self.project_dir / ".claude" / "agents")
         content = dest.read_text(encoding="utf-8")
-        self.assertIn("tools:\n  read: true\n  grep: true", content)
+        self.assertIn("tools: read, grep", content)
 
     def test_store_file_not_modified(self):
         """Conversion happens on the copy — the store keeps the original."""
@@ -209,7 +209,7 @@ class TestClaudeDeployAgentFile(_ClaudeTestBase):
         )
         dest = deploy_agent_file(src, self.project_dir / ".claude" / "agents", fix=True)
         content = dest.read_text(encoding="utf-8")
-        self.assertIn("tools:\n  read: true\n  grep: true", content)
+        self.assertIn("tools: read, grep", content)
         # Store keeps the original.
         self.assertIn("tools: [read, grep]", src.read_text())
         # No staging leftovers.
@@ -737,7 +737,7 @@ class TestSubAgentGetClaudeCLI(_ClaudeTestBase):
         )
         self.assertEqual(result.exit_code, 0, result.output)
         content = (self.project_dir / ".claude" / "agents" / "reviewer.md").read_text(encoding="utf-8")
-        self.assertIn("tools:\n  read: true\n  grep: true", content)
+        self.assertIn("tools: read, grep", content)
 
     def test_get_claude_user_scope(self):
         """AC3: --scope user → ~/.claude/agents/."""

@@ -180,22 +180,24 @@ def _import_root_instructions(config: _config.Config) -> int:
 @click.command(name="add-all-rec")
 def cmd_add_all_rec() -> None:
     """Import all files under .github/ into ~/.ai-adapter/."""
-    github_dir = Path.cwd() / ".github"
-    if not github_dir.exists():
-        github_dir.mkdir(parents=True, exist_ok=True)
-        click.echo(f"'{github_dir}/' created.")
-
     config = _config.load_config()
     if config is None:
-        click.echo("Configuration file not found. Run ai-adapter init first.")
-        return
+        click.echo("Configuration file not found. Run ai-adapter init first.", err=True)
+        raise click.ClickException("ai-adapter is not initialized.")
 
+    github_dir = Path.cwd() / ".github"
     total = 0
-    total += _import_agents(config, github_dir)
-    total += _import_bins(config, github_dir)
-    total += _import_skills(config, github_dir)
+    if github_dir.exists():
+        total += _import_agents(config, github_dir)
+        total += _import_bins(config, github_dir)
+        total += _import_skills(config, github_dir)
+    else:
+        click.echo("  .github/: skip (directory not found)")
+
     total += _import_mcp_servers(config)
     total += _import_root_instructions(config)
 
     _config.save_config(config)
     click.echo(f"All imports completed: Total: {total}")
+    if total == 0:
+        click.echo("No items imported. Run 'ai-adapter get-all-rec' to deploy registered items into this project.")

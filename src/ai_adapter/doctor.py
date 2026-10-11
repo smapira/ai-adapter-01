@@ -203,6 +203,111 @@ def _compatibility_issues(project_dir: Path, home: Path) -> list[ValidationIssue
     # validate_settings so doctor and `zed validate` never drift apart.
     issues.extend(_zed_config_issues(project_dir, home))
 
+    # Agent tools format (VS Code loading failures): each platform expects
+    # a different `tools` shape; a mismatch means the agent silently never
+    # loads (VS Code) or ignores tools (Claude/OpenCode/Gemini).
+    issues.extend(_agent_format_issues(project_dir, home))
+
+    return issues
+
+
+# Platform expectations for the agent `tools` frontmatter field.
+# (documents/dev/ai-coding-frontmatter-comparison.json → tools_type_matrix)
+_AGENT_TOOLS_TARGETS: tuple[tuple[str, Path, str, str], ...] = (
+    (
+        "vscode",
+        Path(".github") / "agents",
+        "array",
+        "ai-adapter sub-agent convert <file> --format vscode",
+    ),
+    (
+        "claude",
+        Path(".claude") / "agents",
+        "string",
+        "ai-adapter sub-agent convert <file> --format claude",
+    ),
+    (
+        "opencode",
+        Path(".opencode") / "agents",
+        "object",
+        "ai-adapter sub-agent convert <file> --format opencode",
+    ),
+    (
+        "gemini",
+        Path(".gemini") / "agents",
+        "array",
+        "ai-adapter sub-agent convert <file> --format gemini",
+    ),
+)
+
+
+def _agent_format_issues(project_dir: Path, home: Path) -> list[ValidationIssue]:
+    """Detect `tools` frontmatter shape mismatches in deployed agent files.
+
+    Each platform reads its agents directory with a different expectation:
+    VS Code requires array format (object format makes VS Code fail to load
+    the agent *entirely*), Claude Code requires a comma-separated string,
+    OpenCode expects an object, and Gemini expects an array.  A mismatch is
+    silent at the platform level — the agent simply never appears — so this
+    check surfaces it with a one-line fix command.
+
+    Project-scope directories are checked under *project_dir*; user-scope
+    directories (``~/.claude/agents`` etc.) under *home*.  ``.opencode``
+    may be a symlink to ``.github`` (the `opencode alias` convention) —
+    resolved paths are deduplicated so the same file is not reported
+    twice with conflicting expectations.
+    """
+    from ai_adapter.agent_format import parse_frontmatter
+
+    issues: list[ValidationIssue] = []
+    seen: set[Path] = set()
+
+    # The shape each platform expects for a *present* `tools` value.
+    # (None = the key is absent, which is always fine.)
+    _want = {
+        "array": list,
+        "object": dict,
+        "string": str,
+    }
+
+    for tool, rel_dir, target_format, fix_hint in _AGENT_TOOLS_TARGETS:
+        want = _want[target_format]
+        for base, scope_label in ((project_dir, "project"), (home, "user")):
+            agents_dir = base / rel_dir
+            if not agents_dir.is_dir():
+                continue
+            for f in sorted(agents_dir.iterdir()):
+                if not f.is_file() or not f.name.endswith(".md"):
+                    continue
+                resolved = f.resolve()
+                if resolved in seen:
+                    continue
+                seen.add(resolved)
+                try:
+                    fm = parse_frontmatter(f)
+                except Exception as exc:  # noqa: BLE001 — surface any parse error
+                    issues.append(
+                        ValidationIssue(
+                            "agents",
+                            f"{tool} agent ({scope_label}): cannot parse frontmatter: {exc}",
+                            severity="error",
+                            path=str(f),
+                        )
+                    )
+                    continue
+                tools_val = fm.get("tools")
+                if tools_val is None or isinstance(tools_val, want):
+                    continue
+                found = type(tools_val).__name__
+                issues.append(
+                    ValidationIssue(
+                        "agents",
+                        f"{tool} agent ({scope_label}): tools is {found} format "
+                        f"(expected {target_format}) in {f}. Fix: {fix_hint}",
+                        severity="error",
+                        path=str(f),
+                    )
+                )
     return issues
 
 

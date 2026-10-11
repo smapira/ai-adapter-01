@@ -19,7 +19,7 @@ from pathlib import Path
 
 import click
 
-from ai_adapter.agent_format import convert_agent_file, find_agent_file
+from ai_adapter.agent_format import convert_agent_file_to_string, find_agent_file
 from ai_adapter.config import add_to_gitignore, resolve_scope_path
 from ai_adapter.models import Agent, MCPServer, Skill
 
@@ -93,20 +93,22 @@ def deploy_agent_file(src: Path, dest_dir: Path, force: bool = False, fix: bool 
     """Copy one agent file into *dest_dir* with Claude Code conventions.
 
     ``.agent.md`` sources are renamed to ``.md`` and their frontmatter
-    ``tools`` field is normalised to object format via
-    :func:`ai_adapter.agent_format.convert_agent_file` (Claude Code reads
-    ``.md`` files; the conversion is applied to a temp copy, never to the
-    store, and never clobbers an unrelated file in *dest_dir*).
+    ``tools`` field is normalised to Claude Code's comma-separated string
+    format (``tools: Read, Grep``) via
+    :func:`ai_adapter.agent_format.convert_agent_file_to_string` (Claude
+    Code reads ``.md`` files; the conversion is applied to a temp copy,
+    never to the store, and never clobbers an unrelated file in
+    *dest_dir*).
 
-    When *fix* is True, plain ``.md`` sources also get their array-format
-    ``tools`` field converted (staged under a temp ``.agent.md`` name so
-    ``convert_agent_file`` can process them, then renamed).
+    When *fix* is True, plain ``.md`` sources also get their ``tools``
+    field converted (staged under a temp ``.agent.md`` name so
+    ``convert_agent_file_to_string`` can process them, then renamed).
 
     Args:
         src: Source agent file (usually in ``~/.ai-adapter/agents/``).
         dest_dir: Destination directory (``.claude/agents/``).
         force: Overwrite an existing destination without prompting.
-        fix: Also convert array-format tools in plain ``.md`` sources.
+        fix: Also convert array/object-format tools in plain ``.md`` sources.
 
     Returns:
         The destination path.
@@ -121,13 +123,14 @@ def deploy_agent_file(src: Path, dest_dir: Path, force: bool = False, fix: bool 
         shutil.copy2(src, dest)
         return dest
 
-    # convert_agent_file only touches files ending in ".agent.md", so stage
-    # the copy under a unique ".agent.md" temp name (same directory → atomic
-    # rename), convert in place, then move to the ".md" name Claude reads.
+    # convert_agent_file_to_string only touches files ending in ".agent.md",
+    # so stage the copy under a unique ".agent.md" temp name (same
+    # directory → atomic rename), convert in place, then move to the ".md"
+    # name Claude reads.
     staging = dest_dir / f"{src.stem}.aiadapter-staging.agent.md"
     try:
         shutil.copy2(src, staging)
-        if convert_agent_file(staging):
+        if convert_agent_file_to_string(staging):
             click.echo(f"  Warning: converted tools format in {dest.name}", err=True)
         staging.replace(dest)
     finally:

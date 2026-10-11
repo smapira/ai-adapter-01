@@ -1,0 +1,967 @@
+{
+  "title": "AI coding platform YAML frontmatter specification comparison",
+  "as_of": "2026-10-11",
+  "format_version": "1.1",
+  "purpose": "Comparative specification inventory, not JSON Schema",
+  "verification_note": "Official pages were searched; statuses partially_verified and unverified are intentionally not represented as complete. No installed-product runtime tests performed.",
+  "status_definitions": {
+    "documented": "official documentation reviewed for listed core fields",
+    "partially_verified": "official document identified, full field-by-field verification incomplete",
+    "unverified": "not established",
+    "not_frontmatter": "file is instruction text rather than defined YAML frontmatter",
+    "shared_with_copilot": "same VS Code feature, harness-dependent",
+    "not_native": "external implementation dependent"
+  },
+  "platforms": [
+    {
+      "platform": "OpenAI Codex",
+      "artifacts": [
+        {
+          "kind": "skill",
+          "path": "**/SKILL.md",
+          "frontmatter": "documented",
+          "fields": [
+            {
+              "name": "name",
+              "required": true
+            },
+            {
+              "name": "description",
+              "required": true
+            }
+          ],
+          "source": "https://developers.openai.com/api/docs/guides/tools-skills",
+          "notes": ""
+        },
+        {
+          "kind": "project_instructions",
+          "path": "AGENTS.md",
+          "frontmatter": "not_frontmatter",
+          "fields": [],
+          "source": "https://developers.openai.com/ja-JP/docs/config-file/config-reference",
+          "notes": "Agent roles are configured in TOML, not YAML agent frontmatter."
+        }
+      ]
+    },
+    {
+      "platform": "OpenCode",
+      "artifacts": [
+        {
+          "kind": "agent",
+          "path": ".opencode/agents/*.md",
+          "frontmatter": "documented",
+          "fields": [
+            {
+              "name": "description",
+              "required": false
+            },
+            {
+              "name": "mode",
+              "required": false
+            },
+            {
+              "name": "model",
+              "required": false
+            },
+            {
+              "name": "temperature",
+              "required": false
+            },
+            {
+              "name": "top_p",
+              "required": false
+            },
+            {
+              "name": "tools",
+              "required": false,
+              "yaml_type": "object",
+              "validation": {
+                "type": "boolean",
+                "additionalProperties": "boolean",
+                "keyType": "string",
+                "deprecated": true
+              },
+              "type_verification": "documented",
+              "type_source": "https://opencode.ai/docs/agents/",
+              "notes": "Deprecated in favor of permission; legacy mapping tool-name/pattern -> boolean."
+            },
+            {
+              "name": "permission",
+              "required": false,
+              "yaml_type": "object",
+              "validation": {
+                "type": "object"
+              },
+              "type_verification": "documented",
+              "type_source": "https://opencode.ai/docs/agents/"
+            },
+            {
+              "name": "steps",
+              "required": false
+            },
+            {
+              "name": "hidden",
+              "required": false
+            },
+            {
+              "name": "color",
+              "required": false
+            }
+          ],
+          "source": "https://opencode.ai/docs/agents/",
+          "notes": ""
+        },
+        {
+          "kind": "skill",
+          "path": ".opencode/skills/*/SKILL.md",
+          "frontmatter": "documented",
+          "fields": [
+            {
+              "name": "name",
+              "required": true
+            },
+            {
+              "name": "description",
+              "required": true
+            },
+            {
+              "name": "license",
+              "required": false
+            },
+            {
+              "name": "compatibility",
+              "required": false
+            },
+            {
+              "name": "metadata",
+              "required": false,
+              "yaml_type": "object",
+              "validation": {
+                "type": "object"
+              },
+              "type_verification": "documented",
+              "type_source": "https://docs.opencode.ai/docs/skills/"
+            }
+          ],
+          "source": "https://docs.opencode.ai/docs/skills/",
+          "notes": ""
+        },
+        {
+          "kind": "command",
+          "path": ".opencode/commands/*.md",
+          "frontmatter": "documented",
+          "fields": [
+            {
+              "name": "description",
+              "required": false
+            },
+            {
+              "name": "agent",
+              "required": false
+            },
+            {
+              "name": "model",
+              "required": false
+            },
+            {
+              "name": "subagent",
+              "required": false
+            },
+            {
+              "name": "subtask",
+              "required": false
+            }
+          ],
+          "source": "https://opencode.ai/v2/docs/commands",
+          "notes": "subtask deprecated; template is markdown body."
+        },
+        {
+          "kind": "project_instructions",
+          "path": "AGENTS.md",
+          "frontmatter": "not_frontmatter",
+          "fields": [],
+          "source": "https://opencode.ai/docs/agents/",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "platform": "Claude Code",
+      "artifacts": [
+        {
+          "kind": "agent",
+          "path": ".claude/agents/*.md",
+          "frontmatter": "partially_verified",
+          "fields": [
+            {
+              "name": "name",
+              "required": false
+            },
+            {
+              "name": "description",
+              "required": false
+            },
+            {
+              "name": "tools",
+              "required": false,
+              "yaml_type": "string",
+              "validation": {
+                "format": "comma-separated tool names",
+                "example": "Read, Grep, Glob, Bash"
+              },
+              "type_verification": "documented_via_vscode_claude_format",
+              "type_source": "https://code.visualstudio.com/docs/agent-customization/custom-agents",
+              "notes": "Comma-separated string; array/object formats are invalid. Tool names follow Claude Code naming."
+            },
+            {
+              "name": "disallowedTools",
+              "required": false
+            },
+            {
+              "name": "model",
+              "required": false
+            },
+            {
+              "name": "permissionMode",
+              "required": false
+            },
+            {
+              "name": "maxTurns",
+              "required": false
+            },
+            {
+              "name": "skills",
+              "required": false
+            },
+            {
+              "name": "hooks",
+              "required": false
+            },
+            {
+              "name": "memory",
+              "required": false
+            },
+            {
+              "name": "background",
+              "required": false
+            },
+            {
+              "name": "isolation",
+              "required": false
+            }
+          ],
+          "source": "https://code.claude.com/docs/en/sub-agents",
+          "notes": "Field list requires per-field confirmation against live docs."
+        },
+        {
+          "kind": "skill",
+          "path": ".claude/skills/*/SKILL.md",
+          "frontmatter": "partially_verified",
+          "fields": [
+            {
+              "name": "name",
+              "required": true
+            },
+            {
+              "name": "description",
+              "required": true
+            },
+            {
+              "name": "argument-hint",
+              "required": false
+            },
+            {
+              "name": "disable-model-invocation",
+              "required": false
+            },
+            {
+              "name": "user-invocable",
+              "required": false
+            },
+            {
+              "name": "allowed-tools",
+              "required": false
+            },
+            {
+              "name": "model",
+              "required": false
+            },
+            {
+              "name": "context",
+              "required": false
+            },
+            {
+              "name": "agent",
+              "required": false
+            },
+            {
+              "name": "hooks",
+              "required": false
+            }
+          ],
+          "source": "https://code.claude.com/docs/en/skills",
+          "notes": "Field list requires per-field confirmation against live docs."
+        },
+        {
+          "kind": "rule",
+          "path": ".claude/rules/*.md",
+          "frontmatter": "documented",
+          "fields": [
+            {
+              "name": "paths",
+              "required": false
+            }
+          ],
+          "source": "https://code.claude.com/docs/en/memory",
+          "notes": ""
+        },
+        {
+          "kind": "project_instructions",
+          "path": "CLAUDE.md",
+          "frontmatter": "not_frontmatter",
+          "fields": [],
+          "source": "https://code.claude.com/docs/en/memory",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "platform": "Gemini CLI",
+      "artifacts": [
+        {
+          "kind": "agent",
+          "path": ".gemini/agents/*.md",
+          "frontmatter": "documented",
+          "fields": [
+            {
+              "name": "name",
+              "required": false
+            },
+            {
+              "name": "description",
+              "required": false
+            },
+            {
+              "name": "kind",
+              "required": false
+            },
+            {
+              "name": "tools",
+              "required": false,
+              "yaml_type": "array",
+              "validation": {
+                "items": {
+                  "type": "string"
+                },
+                "wildcards": [
+                  "*",
+                  "mcp_*",
+                  "mcp_<server>_*"
+                ]
+              },
+              "type_verification": "documented",
+              "type_source": "https://geminicli.com/docs/core/subagents/",
+              "notes": "Omission inherits all parent tools; wildcards supported. name must be a lowercase slug."
+            },
+            {
+              "name": "mcpServers",
+              "required": false,
+              "yaml_type": "object",
+              "validation": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object"
+                }
+              },
+              "type_verification": "documented",
+              "type_source": "https://geminicli.com/docs/core/subagents/"
+            },
+            {
+              "name": "model",
+              "required": false
+            },
+            {
+              "name": "temperature",
+              "required": false
+            },
+            {
+              "name": "max_turns",
+              "required": false
+            },
+            {
+              "name": "timeout_mins",
+              "required": false
+            }
+          ],
+          "source": "https://geminicli.com/docs/core/subagents/",
+          "notes": ""
+        },
+        {
+          "kind": "skill",
+          "path": ".gemini/skills/*/SKILL.md",
+          "frontmatter": "documented",
+          "fields": [
+            {
+              "name": "name",
+              "required": true
+            },
+            {
+              "name": "description",
+              "required": true
+            }
+          ],
+          "source": "https://geminicli.com/docs/cli/creating-skills/",
+          "notes": ""
+        },
+        {
+          "kind": "project_instructions",
+          "path": "GEMINI.md",
+          "frontmatter": "not_frontmatter",
+          "fields": [],
+          "source": "https://geminicli.com/docs/core/subagents/",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "platform": "Cursor",
+      "artifacts": [
+        {
+          "kind": "rule",
+          "path": ".cursor/rules/*.mdc",
+          "frontmatter": "documented",
+          "fields": [
+            {
+              "name": "description",
+              "required": false
+            },
+            {
+              "name": "globs",
+              "required": false
+            },
+            {
+              "name": "alwaysApply",
+              "required": false
+            }
+          ],
+          "source": "https://docs.cursor.com/context/rules",
+          "notes": ""
+        },
+        {
+          "kind": "skill",
+          "path": ".cursor/skills/*/SKILL.md",
+          "frontmatter": "documented",
+          "fields": [
+            {
+              "name": "name",
+              "required": true
+            },
+            {
+              "name": "description",
+              "required": true
+            },
+            {
+              "name": "paths",
+              "required": false
+            }
+          ],
+          "source": "https://cursor.com/docs/skills",
+          "notes": ""
+        },
+        {
+          "kind": "agent",
+          "path": "not established",
+          "frontmatter": "unverified",
+          "fields": [],
+          "source": "https://cursor.com/docs/skills",
+          "notes": "No native YAML agent schema confirmed."
+        }
+      ]
+    },
+    {
+      "platform": "VS Code / Copilot",
+      "artifacts": [
+        {
+          "kind": "agent",
+          "path": ".github/agents/*.agent.md",
+          "frontmatter": "partially_verified",
+          "fields": [
+            {
+              "name": "name",
+              "required": false
+            },
+            {
+              "name": "description",
+              "required": false
+            },
+            {
+              "name": "argument-hint",
+              "required": false
+            },
+            {
+              "name": "tools",
+              "required": false,
+              "yaml_type": "array",
+              "validation": {
+                "items": {
+                  "type": "string"
+                }
+              },
+              "type_verification": "documented",
+              "type_source": "https://code.visualstudio.com/docs/agent-customization/custom-agents",
+              "notes": "Object format breaks the entire agent load (agent never appears in the dropdown). Array is mandatory."
+            },
+            {
+              "name": "model",
+              "required": false
+            },
+            {
+              "name": "handoffs",
+              "required": false
+            },
+            {
+              "name": "hooks",
+              "required": false
+            },
+            {
+              "name": "agents",
+              "required": false,
+              "yaml_type": "array",
+              "validation": {
+                "items": {
+                  "type": "string"
+                }
+              },
+              "type_verification": "documented",
+              "type_source": "https://code.visualstudio.com/docs/agent-customization/custom-agents"
+            }
+          ],
+          "source": "https://code.visualstudio.com/docs/agent-customization/custom-agents",
+          "notes": "Check individual keys in current custom agents reference."
+        },
+        {
+          "kind": "instruction",
+          "path": ".github/instructions/*.instructions.md",
+          "frontmatter": "documented",
+          "fields": [
+            {
+              "name": "name",
+              "required": false
+            },
+            {
+              "name": "description",
+              "required": false
+            },
+            {
+              "name": "applyTo",
+              "required": false
+            }
+          ],
+          "source": "https://code.visualstudio.com/docs/agent-customization/custom-instructions",
+          "notes": ""
+        },
+        {
+          "kind": "prompt",
+          "path": ".github/prompts/*.prompt.md",
+          "frontmatter": "documented",
+          "fields": [
+            {
+              "name": "name",
+              "required": false
+            },
+            {
+              "name": "description",
+              "required": false
+            },
+            {
+              "name": "argument-hint",
+              "required": false
+            },
+            {
+              "name": "agent",
+              "required": false
+            },
+            {
+              "name": "model",
+              "required": false
+            },
+            {
+              "name": "tools",
+              "required": false,
+              "yaml_type": "array",
+              "validation": {
+                "items": {
+                  "type": "string"
+                }
+              },
+              "type_verification": "documented",
+              "type_source": "https://code.visualstudio.com/docs/agent-customization/prompt-files",
+              "notes": "Same array requirement as agent files."
+            }
+          ],
+          "source": "https://code.visualstudio.com/docs/agent-customization/prompt-files",
+          "notes": ""
+        },
+        {
+          "kind": "skill",
+          "path": ".github/skills/*/SKILL.md",
+          "frontmatter": "partially_verified",
+          "fields": [
+            {
+              "name": "name",
+              "required": true
+            },
+            {
+              "name": "description",
+              "required": true
+            },
+            {
+              "name": "disable-model-invocation",
+              "required": false
+            }
+          ],
+          "source": "https://code.visualstudio.com/docs/agent-customization/migrate-customizations",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "platform": "VS Code",
+      "artifacts": [
+        {
+          "kind": "agent",
+          "path": ".github/agents/*.agent.md",
+          "frontmatter": "shared_with_copilot",
+          "fields": [
+            {
+              "name": "name",
+              "required": false
+            },
+            {
+              "name": "description",
+              "required": false
+            },
+            {
+              "name": "argument-hint",
+              "required": false
+            },
+            {
+              "name": "tools",
+              "required": false,
+              "yaml_type": "array",
+              "validation": {
+                "items": {
+                  "type": "string"
+                }
+              },
+              "type_verification": "documented",
+              "type_source": "https://code.visualstudio.com/docs/agent-customization/custom-agents",
+              "notes": "Same feature as VS Code / Copilot; object format breaks agent loading."
+            },
+            {
+              "name": "model",
+              "required": false
+            },
+            {
+              "name": "handoffs",
+              "required": false
+            },
+            {
+              "name": "hooks",
+              "required": false
+            },
+            {
+              "name": "agents",
+              "required": false,
+              "yaml_type": "array",
+              "validation": {
+                "items": {
+                  "type": "string"
+                }
+              },
+              "type_verification": "documented",
+              "type_source": "https://code.visualstudio.com/docs/agent-customization/custom-agents"
+            }
+          ],
+          "source": "https://code.visualstudio.com/docs/agent-customization/custom-agents",
+          "notes": "Not an independent frontmatter dialect; depends on selected harness."
+        },
+        {
+          "kind": "instruction",
+          "path": ".github/instructions/*.instructions.md",
+          "frontmatter": "shared_with_copilot",
+          "fields": [
+            {
+              "name": "name",
+              "required": false
+            },
+            {
+              "name": "description",
+              "required": false
+            },
+            {
+              "name": "applyTo",
+              "required": false
+            }
+          ],
+          "source": "https://code.visualstudio.com/docs/agent-customization/custom-instructions",
+          "notes": ""
+        },
+        {
+          "kind": "prompt",
+          "path": ".github/prompts/*.prompt.md",
+          "frontmatter": "shared_with_copilot",
+          "fields": [
+            {
+              "name": "name",
+              "required": false
+            },
+            {
+              "name": "description",
+              "required": false
+            },
+            {
+              "name": "argument-hint",
+              "required": false
+            },
+            {
+              "name": "agent",
+              "required": false
+            },
+            {
+              "name": "model",
+              "required": false
+            },
+            {
+              "name": "tools",
+              "required": false,
+              "yaml_type": "array",
+              "validation": {
+                "items": {
+                  "type": "string"
+                }
+              },
+              "type_verification": "documented",
+              "type_source": "https://code.visualstudio.com/docs/agent-customization/prompt-files",
+              "notes": "Same array requirement as agent files."
+            }
+          ],
+          "source": "https://code.visualstudio.com/docs/agent-customization/prompt-files",
+          "notes": ""
+        },
+        {
+          "kind": "skill",
+          "path": ".agents/skills/*/SKILL.md",
+          "frontmatter": "shared_with_copilot",
+          "fields": [
+            {
+              "name": "name",
+              "required": true
+            },
+            {
+              "name": "description",
+              "required": true
+            }
+          ],
+          "source": "https://code.visualstudio.com/docs/agent-customization/migrate-customizations",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "platform": "Zed",
+      "artifacts": [
+        {
+          "kind": "skill",
+          "path": ".agents/skills/*/SKILL.md",
+          "frontmatter": "documented",
+          "fields": [
+            {
+              "name": "name",
+              "required": true
+            },
+            {
+              "name": "description",
+              "required": true
+            },
+            {
+              "name": "disable-model-invocation",
+              "required": false
+            }
+          ],
+          "source": "https://zed.dev/docs/ai/skills",
+          "notes": ""
+        },
+        {
+          "kind": "project_instructions",
+          "path": "AGENTS.md",
+          "frontmatter": "not_frontmatter",
+          "fields": [],
+          "source": "https://zed.dev/docs/ai/instructions",
+          "notes": "Also loads other compatibility instruction file names."
+        },
+        {
+          "kind": "agent",
+          "path": "external agent specific",
+          "frontmatter": "not_native",
+          "fields": [],
+          "source": "https://zed.dev/docs/ai/instructions",
+          "notes": "External agents retain their own schemas."
+        }
+      ]
+    }
+  ],
+  "tools_validation_notes": "Field-level YAML types, not a standalone JSON Schema. Check tools by platform AND artifact kind; YAML mapping and sequence are not interchangeable.",
+  "tools_type_matrix": [
+    {
+      "platform": "OpenCode",
+      "artifact_kind": "agent",
+      "yaml_type": "object",
+      "verification": "documented"
+    },
+    {
+      "platform": "Claude Code",
+      "artifact_kind": "agent",
+      "yaml_type": "string",
+      "verification": "documented_via_vscode_claude_format"
+    },
+    {
+      "platform": "Gemini CLI",
+      "artifact_kind": "agent",
+      "yaml_type": "array",
+      "verification": "documented"
+    },
+    {
+      "platform": "VS Code / Copilot",
+      "artifact_kind": "agent",
+      "yaml_type": "array",
+      "verification": "documented"
+    },
+    {
+      "platform": "VS Code",
+      "artifact_kind": "agent",
+      "yaml_type": "array",
+      "verification": "documented"
+    },
+    {
+      "platform": "VS Code / Copilot",
+      "artifact_kind": "prompt",
+      "yaml_type": "array",
+      "verification": "documented"
+    },
+    {
+      "platform": "VS Code",
+      "artifact_kind": "prompt",
+      "yaml_type": "array",
+      "verification": "documented"
+    },
+    {
+      "platform": "OpenAI Codex",
+      "artifact_kind": "skill",
+      "yaml_type": null,
+      "verification": "tools field not established in compared skill frontmatter"
+    },
+    {
+      "platform": "Zed",
+      "artifact_kind": "skill",
+      "yaml_type": null,
+      "verification": "tools field not established in compared skill frontmatter"
+    }
+  ],
+  "tools_practical_notes": {
+    "purpose": "Operational knowledge gained during ai-adapter implementation (2026-10-11), supplementing tools_type_matrix with failure modes and conversion semantics.",
+    "entries": [
+      {
+        "platform": "VS Code / Copilot",
+        "artifact_kind": "agent",
+        "yaml_type": "array",
+        "operational_notes": [
+          "Object-format tools does not merely drop the tools field: VS Code fails to load the entire custom agent, and it never appears in the agents dropdown.",
+          "Agents with no tools key load fine; only object-format tools breaks loading.",
+          "Tool names are VS Code built-ins (read, edit, search, execute, browser, web, todo, agent, vscode*, vscodeGeneral/*, vscodeNotebooks/*) or MCP '<server>/*'.",
+          "Unknown tool names are ignored per official docs, so cross-platform names degrade silently rather than failing."
+        ],
+        "observed_case": "routeflags/japan-cannabinoid-trends .github/agents: 6 agents with object-format tools were invisible in VS Code; converting tools to array restored loading. The only working agent had no tools key at all."
+      },
+      {
+        "platform": "OpenCode",
+        "artifact_kind": "agent",
+        "yaml_type": "object",
+        "operational_notes": [
+          "tools is deprecated in favor of permission (allow / ask / deny).",
+          "Legacy semantics: true == {\"*\": \"allow\"}, false == {\"*\": \"deny\"}.",
+          "Falsy entries (false) are meaningful in OpenCode (deny) but are dropped when converting to VS Code/Gemini array format, where presence-only is the semantics.",
+          "Wildcard keys are supported in legacy tools (e.g. disable all tools of an MCP server)."
+        ]
+      },
+      {
+        "platform": "Gemini CLI",
+        "artifact_kind": "agent",
+        "yaml_type": "array",
+        "operational_notes": [
+          "Omitted tools inherits all tools from the parent session; an empty array is therefore a meaningful restriction, not an equivalent of omission.",
+          "Wildcards: '*' (all tools), 'mcp_*' (all MCP tools), 'mcp_<server>_*' (one server).",
+          "The name key must be a lowercase slug ([a-z0-9_-]); display names must be slugified at conversion time."
+        ]
+      },
+      {
+        "platform": "Claude Code",
+        "artifact_kind": "agent",
+        "yaml_type": "string",
+        "operational_notes": [
+          "Comma-separated tool names, e.g. 'Read, Grep, Glob, Bash'.",
+          "Both array and object formats are invalid for Claude Code agents.",
+          "Tool names follow Claude Code's own naming (Read, Grep, Glob, Bash, ...), not VS Code names."
+        ]
+      }
+    ],
+    "ai_adapter_mapping": {
+      "canonical_store_format": "array — .github/agents/ is VS Code's native directory, so the store normalises to the VS Code shape",
+      "validation": "agent_format.validate_agent_file(path, target_format='array'|'object'|'string') — one function, three platform expectations",
+      "conversions": {
+        "object_to_array": "agent_format.convert_agent_file_to_array (VS Code; falsy entries dropped)",
+        "array_to_object": "agent_format.convert_agent_file (OpenCode; false entries preserved as deny)",
+        "to_comma_string": "agent_format.convert_agent_file_to_string (Claude Code; accepts array or object input)"
+      },
+      "cli": [
+        "sub-agent add/get/get-all --fix: object -> array for the standard (.github/agents/) path",
+        "sub-agent get --format opencode --fix: array -> object",
+        "sub-agent get --format claude: comma-separated string conversion at deploy time (never touches the store)",
+        "sub-agent get --format codex: tools dropped entirely (Codex custom-agent TOML has no tools key; capability is governed by sandbox_mode)",
+        "sub-agent get --format gemini: tools converted to array at deploy time"
+      ],
+      "shared_directory_caveat": ".github/agents/ is read by VS Code (array) and, via the .opencode symlink, by OpenCode (object). The two expectations are irreconcilable in one file; ai-adapter treats VS Code as canonical for that directory and deploys the OpenCode shape only via --format opencode."
+    }
+  },
+  "validation_examples": {
+    "opencode_agent_valid": {
+      "tools": {
+        "bash": false,
+        "write": true
+      }
+    },
+    "gemini_agent_valid": {
+      "tools": [
+        "read_file",
+        "grep_search"
+      ]
+    },
+    "vscode_agent_valid": {
+      "tools": [
+        "search/codebase",
+        "web/fetch"
+      ]
+    },
+    "claude_agent_valid": {
+      "tools": "Read, Grep, Glob, Bash"
+    },
+    "invalid_cross_platform_example": {
+      "platform": "Gemini CLI",
+      "artifact_kind": "agent",
+      "tools": {
+        "read_file": true
+      },
+      "reason": "Gemini agent tools expects YAML sequence, not mapping"
+    }
+  }
+}

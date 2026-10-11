@@ -215,7 +215,9 @@ _PROJECT_SCOPE_DIRS: dict[tuple[str, str], str] = {
     ("opencode", "commands"): ".github/commands",
     ("opencode", "skills"): ".github/skills",
     # Gemini CLI reads custom commands from .gemini/commands/ and MCP
-    # servers from .gemini/settings.json (design 05).
+    # servers from .gemini/settings.json (design 05).  Subagents live in
+    # .gemini/agents/*.md (geminicli.com/docs/core/subagents/).
+    ("gemini", "agents"): ".gemini/agents",
     ("gemini", "commands"): ".gemini/commands",
     ("gemini", "mcp"): ".gemini",  # parent of settings.json (design 05)
     # Zed discovers skills at .agents/skills/ (design 06, Plan C6-1 —
@@ -238,7 +240,9 @@ _USER_SCOPE_DIRS: dict[tuple[str, str], str] = {
     ("opencode", "agents"): ".config/opencode/agents",
     ("opencode", "commands"): ".config/opencode/commands",
     ("opencode", "skills"): ".config/opencode/skills",
-    # Gemini CLI user scope: ~/.gemini/commands/ + ~/.gemini/settings.json.
+    # Gemini CLI user scope: ~/.gemini/agents/, ~/.gemini/commands/,
+    # and ~/.gemini/settings.json.
+    ("gemini", "agents"): ".gemini/agents",
     ("gemini", "commands"): ".gemini/commands",
     ("gemini", "mcp"): ".gemini",  # parent of settings.json (design 05)
     # Cursor plugin packages live under ~/.cursor/plugins/local/ (design 07).

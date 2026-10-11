@@ -368,13 +368,13 @@ class TestAgentToolsConversion(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_agent_get_converts_tools_with_fix(self):
-        """``agent get --fix`` converts array-format tools to object format."""
+        """``sub-agent get --fix`` converts object-format tools to array format."""
         src = Path(self.temp_dir.name) / "my.agent.md"
-        src.write_text("---\nname: myagent\ntools: [execute, read]\n---\n# My Agent\n")
+        src.write_text("---\nname: myagent\ntools:\n  execute: true\n  read: true\n---\n# My Agent\n")
         # Default add = no conversion
         self.runner.invoke(main, ["sub-agent", "add", str(src)])
 
-        # Run agent get with --fix to convert
+        # Run sub-agent get with --fix to convert
         github_agents = Path.cwd() / ".github" / "agents"
         github_agents.mkdir(parents=True, exist_ok=True)
 
@@ -385,17 +385,16 @@ class TestAgentToolsConversion(unittest.TestCase):
         self.assertTrue(dest.exists())
 
         content = dest.read_text()
-        self.assertIn("  execute: true", content)
-        self.assertIn("  read: true", content)
-        self.assertNotIn("[execute, read]", content)
+        self.assertIn("tools: [execute, read]", content)
+        self.assertNotIn("  execute: true", content)
 
         # Warning should be on stderr
         self.assertIn("Warning: converted tools format", result.output)
 
-    def test_agent_get_warns_on_array_format(self):
-        """``agent get`` warns on array-format tools but does NOT convert."""
+    def test_agent_get_warns_on_object_format(self):
+        """``sub-agent get`` warns on object-format tools but does NOT convert."""
         src = Path(self.temp_dir.name) / "my.agent.md"
-        src.write_text("---\nname: myagent\ntools: [execute, read]\n---\n# My Agent\n")
+        src.write_text("---\nname: myagent\ntools:\n  execute: true\n  read: true\n---\n# My Agent\n")
         self.runner.invoke(main, ["sub-agent", "add", str(src)])
 
         github_agents = Path.cwd() / ".github" / "agents"
@@ -409,16 +408,30 @@ class TestAgentToolsConversion(unittest.TestCase):
         self.assertTrue(dest.exists())
 
         content = dest.read_text()
-        self.assertIn("[execute, read]", content)  # kept as-is
+        self.assertIn("  execute: true", content)  # kept as-is
         self.assertIn("Warning:", result.output)
         self.assertIn("--fix", result.output)
 
+    def test_agent_get_array_format_no_warning(self):
+        """``sub-agent get`` passes array-format tools through silently (VS Code canonical)."""
+        src = Path(self.temp_dir.name) / "my.agent.md"
+        src.write_text("---\nname: myagent\ntools: [execute, read]\n---\n# My Agent\n")
+        self.runner.invoke(main, ["sub-agent", "add", str(src)])
+
+        github_agents = Path.cwd() / ".github" / "agents"
+        github_agents.mkdir(parents=True, exist_ok=True)
+
+        result = self.runner.invoke(main, ["sub-agent", "get", "myagent"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertNotIn("Warning", result.output)
+        self.assertIn("[execute, read]", (github_agents / "my.agent.md").read_text())
+
     def test_agent_get_all_converts_tools_with_fix(self):
-        """``agent get-all --fix`` converts array-format tools for all agents."""
+        """``sub-agent get-all --fix`` converts object-format tools for all agents."""
         src1 = Path(self.temp_dir.name) / "alpha.agent.md"
-        src1.write_text("---\nname: alpha\ntools: [execute]\n---\n")
+        src1.write_text("---\nname: alpha\ntools:\n  execute: true\n---\n")
         src2 = Path(self.temp_dir.name) / "beta.agent.md"
-        src2.write_text("---\nname: beta\ntools: [read, agent]\n---\n")
+        src2.write_text("---\nname: beta\ntools:\n  read: true\n  agent: true\n  skipme: false\n---\n")
         # Default add = no conversion
         self.runner.invoke(main, ["sub-agent", "add", str(src1)])
         self.runner.invoke(main, ["sub-agent", "add", str(src2)])
@@ -430,13 +443,13 @@ class TestAgentToolsConversion(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("2", result.output)
 
-        # Check both files were converted
+        # Check both files were converted (falsy entries dropped)
         content_alpha = (github_agents / "alpha.agent.md").read_text()
-        self.assertIn("  execute: true", content_alpha)
+        self.assertIn("tools: [execute]", content_alpha)
 
         content_beta = (github_agents / "beta.agent.md").read_text()
-        self.assertIn("  read: true", content_beta)
-        self.assertIn("  agent: true", content_beta)
+        self.assertIn("tools: [read, agent]", content_beta)
+        self.assertNotIn("skipme", content_beta)
 
     def test_agent_get_non_agent_md_unchanged(self):
         """Non-``.agent.md`` files are not converted (plain copy2)."""
@@ -454,10 +467,10 @@ class TestAgentToolsConversion(unittest.TestCase):
         self.assertTrue(dest.exists())
         self.assertEqual(dest.read_text(), "# Plain markdown\n")
 
-    def test_agent_add_warns_on_array_format(self):
-        """``agent add`` warns on array-format tools but does NOT convert."""
+    def test_agent_add_warns_on_object_format(self):
+        """``sub-agent add`` warns on object-format tools but does NOT convert."""
         src = Path(self.temp_dir.name) / "new.agent.md"
-        src.write_text("---\nname: newagent\ntools: [execute, read]\n---\n# New Agent\n")
+        src.write_text("---\nname: newagent\ntools:\n  execute: true\n  read: true\n---\n# New Agent\n")
 
         result = self.runner.invoke(main, ["sub-agent", "add", str(src)])
         self.assertEqual(result.exit_code, 0)
@@ -467,15 +480,15 @@ class TestAgentToolsConversion(unittest.TestCase):
         self.assertTrue(dest.exists())
 
         content = dest.read_text()
-        # Array format should be preserved (no conversion by default)
-        self.assertIn("[execute, read]", content)
+        # Object format should be preserved (no conversion by default)
+        self.assertIn("  execute: true", content)
         self.assertIn("Warning:", result.output)
         self.assertIn("--fix", result.output)
 
     def test_agent_add_fix_flag(self):
-        """``agent add --fix`` converts array-format tools."""
+        """``sub-agent add --fix`` converts object-format tools to array."""
         src = Path(self.temp_dir.name) / "raw.agent.md"
-        src.write_text("---\nname: rawagent\ntools: [execute]\n---\n")
+        src.write_text("---\nname: rawagent\ntools:\n  execute: true\n---\n")
 
         result = self.runner.invoke(
             main,
@@ -488,8 +501,8 @@ class TestAgentToolsConversion(unittest.TestCase):
         self.assertTrue(dest.exists())
 
         content = dest.read_text()
-        self.assertIn("  execute: true", content)  # converted
-        self.assertNotIn("[execute]", content)
+        self.assertIn("tools: [execute]", content)  # converted
+        self.assertNotIn("  execute: true", content)
 
 
 class TestAgentClaudeFormat(unittest.TestCase):
@@ -548,8 +561,8 @@ class TestAgentClaudeFormat(unittest.TestCase):
         self.assertTrue((agents_dir / "reviewer.md").exists())
         self.assertFalse((agents_dir / "reviewer.agent.md").exists())
 
-    def test_get_claude_converts_tools_array_to_object(self):
-        """AC2: tools conversion via agent_format.convert_agent_file."""
+    def test_get_claude_converts_tools_array_to_comma_string(self):
+        """AC2: tools conversion via agent_format.convert_agent_file_to_string."""
         result = self.runner.invoke(
             main,
             [
@@ -564,7 +577,7 @@ class TestAgentClaudeFormat(unittest.TestCase):
         )
         self.assertEqual(result.exit_code, 0, result.output)
         content = (self.project_dir / ".claude" / "agents" / "reviewer.md").read_text()
-        self.assertIn("tools:\n  read: true\n  grep: true", content)
+        self.assertIn("tools: read, grep", content)
 
     def test_get_claude_scope_user(self):
         """AC3: --scope user → ~/.claude/agents/."""
@@ -614,7 +627,7 @@ class TestAgentClaudeFormat(unittest.TestCase):
         )
         self.assertEqual(result.exit_code, 0, result.output)
         content = (self.project_dir / ".claude" / "agents" / "helper.md").read_text()
-        self.assertIn("tools:\n  read: true\n  grep: true", content)
+        self.assertIn("tools: read, grep", content)
         self.assertIn("Warning: converted tools format", result.output)
         # Store keeps the original array format.
         self.assertIn("tools: [read, grep]", plain.read_text())
@@ -669,7 +682,7 @@ class TestAgentClaudeFormat(unittest.TestCase):
         )
         self.assertEqual(result.exit_code, 0, result.output)
         content = (self.project_dir / ".claude" / "agents" / "helper.md").read_text()
-        self.assertIn("tools:\n  read: true", content)
+        self.assertIn("tools: read", content)
 
     def test_get_standard_unchanged(self):
         """Backward compat: default format still writes .github/agents/ with .agent.md."""
@@ -789,6 +802,367 @@ class TestAgentOpencodeFormat(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.output)
         content = (self.patch_home / ".config" / "opencode" / "agents" / "reviewer.md").read_text()
         self.assertIn("tools:\n  read: true\n  grep: true", content)
+
+
+class TestAgentConvertCommand(unittest.TestCase):
+    """sub-agent convert: single file → one platform, prefixed filename."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.runner = CliRunner()
+        self.src_dir = Path(self.temp_dir.name)
+        # Object-format tools + a model list: exercises both conversions.
+        self.src = self.src_dir / "content-marketing.agent.md"
+        self.src.write_text(
+            "---\n"
+            "name: Content Marketing\n"
+            "description: Plans content.\n"
+            "temperature: 0.4\n"
+            "model: [gpt-6-luna, gpt-6.1-sol]\n"
+            "tools:\n"
+            "  read: true\n"
+            "  write: true\n"
+            "  edit: false\n"
+            "---\n"
+            "# Content Marketing\n\nYou plan content.\n"
+        )
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def _convert(self, fmt, *extra):
+        return self.runner.invoke(
+            main,
+            ["sub-agent", "convert", str(self.src), "--format", fmt, *extra],
+        )
+
+    def test_vscode_array_prefix(self):
+        """vscode → .agent.md with array tools and vscode-- prefix."""
+        out = self.src_dir / "out"
+        result = self._convert("vscode", "--output-dir", str(out))
+        self.assertEqual(result.exit_code, 0, result.output)
+        dest = out / "vscode--content-marketing.agent.md"
+        self.assertTrue(dest.exists())
+        content = dest.read_text()
+        self.assertIn("tools: [read, write]", content)  # edit: false dropped
+        self.assertNotIn("  read: true", content)
+
+    def test_claude_comma_string_prefix(self):
+        """claude → .md with comma-separated tools and claude-- prefix."""
+        out = self.src_dir / "out"
+        result = self._convert("claude", "--output-dir", str(out))
+        self.assertEqual(result.exit_code, 0, result.output)
+        dest = out / "claude--content-marketing.md"
+        self.assertTrue(dest.exists())
+        self.assertIn("tools: read, write", dest.read_text())
+
+    def test_opencode_object_prefix(self):
+        """opencode → .md with object tools (edit:false preserved) and opencode-- prefix."""
+        out = self.src_dir / "out"
+        result = self._convert("opencode", "--output-dir", str(out))
+        self.assertEqual(result.exit_code, 0, result.output)
+        dest = out / "opencode--content-marketing.md"
+        self.assertTrue(dest.exists())
+        content = dest.read_text()
+        self.assertIn("  read: true", content)
+        self.assertIn("  edit: false", content)  # deny preserved
+
+    def test_gemini_array_slug_prefix(self):
+        """gemini → .md with slug name, array tools, gemini-- prefix."""
+        out = self.src_dir / "out"
+        result = self._convert("gemini", "--output-dir", str(out))
+        self.assertEqual(result.exit_code, 0, result.output)
+        dest = out / "gemini--content-marketing.md"
+        self.assertTrue(dest.exists())
+        content = dest.read_text()
+        self.assertIn("name: content-marketing", content)
+        self.assertIn('tools: ["read", "write"]', content)
+        self.assertIn("You plan content.", content)  # body = system prompt
+
+    def test_codex_toml_prefix(self):
+        """codex → .toml with name/description/developer_instructions, codex-- prefix."""
+        out = self.src_dir / "out"
+        result = self._convert("codex", "--output-dir", str(out))
+        self.assertEqual(result.exit_code, 0, result.output)
+        dest = out / "codex--content-marketing.toml"
+        self.assertTrue(dest.exists())
+        content = dest.read_text()
+        self.assertIn('name = "content-marketing"', content)
+        self.assertIn("developer_instructions =", content)
+        self.assertIn('model = "gpt-6-luna"', content)  # list → first
+
+    def test_no_prefix(self):
+        """--no-prefix keeps the original stem."""
+        out = self.src_dir / "out"
+        result = self._convert("claude", "--output-dir", str(out), "--no-prefix")
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertTrue((out / "content-marketing.md").exists())
+        self.assertFalse((out / "claude--content-marketing.md").exists())
+
+    def test_stdout(self):
+        """--stdout prints converted content and writes no file."""
+        result = self._convert("codex", "--stdout")
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("developer_instructions =", result.output)
+        # No codex-- file written next to the source.
+        self.assertFalse((self.src_dir / "codex--content-marketing.toml").exists())
+
+    def test_default_output_alongside_source(self):
+        """Default output dir is the source's parent."""
+        result = self._convert("codex")
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertTrue((self.src_dir / "codex--content-marketing.toml").exists())
+
+    def test_overwrite_prompts(self):
+        """Existing output aborts without --force-style confirmation."""
+        out = self.src_dir / "out"
+        self._convert("codex", "--output-dir", str(out))
+        result = self._convert("codex", "--output-dir", str(out))
+        # confirm() aborts (exit 1) when stdin is empty.
+        self.assertNotEqual(result.exit_code, 0)
+
+
+class TestAgentCodexFormat(unittest.TestCase):
+    """sub-agent get/get-all --format codex → .codex/agents/*.toml."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.patch_home = Path(self.temp_dir.name)
+        self.runner = CliRunner()
+
+        import pathlib
+
+        self._original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.patch_home)
+
+        import ai_adapter.config as cfg
+
+        cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
+        init()
+
+        self.project_dir = Path(self.temp_dir.name) / "proj"
+        self.project_dir.mkdir(parents=True)
+
+        src = Path(self.temp_dir.name) / "reviewer.agent.md"
+        src.write_text(
+            "---\n"
+            "name: Code Reviewer\n"
+            "description: Reviews code for defects\n"
+            "model: [gpt-6-luna, gpt-6.1-sol]\n"
+            "---\n"
+            "# Reviewer\n\nReview code like an owner.\n"
+        )
+        result = self.runner.invoke(main, ["sub-agent", "add", str(src)])
+        self.assertEqual(result.exit_code, 0, result.output)
+
+    def tearDown(self):
+        import pathlib
+
+        pathlib.Path.home = staticmethod(self._original_home)
+        import ai_adapter.config as cfg
+
+        cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        self.temp_dir.cleanup()
+
+    def test_get_codex_converts_to_toml(self):
+        """get --format codex → .codex/agents/<slug>.toml with required keys."""
+        result = self.runner.invoke(
+            main,
+            [
+                "sub-agent",
+                "get",
+                "Code Reviewer",
+                "--format",
+                "codex",
+                "--project-dir",
+                str(self.project_dir),
+            ],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        dest = self.project_dir / ".codex" / "agents" / "code-reviewer.toml"
+        self.assertTrue(dest.exists())
+        content = dest.read_text()
+        self.assertIn('name = "code-reviewer"', content)
+        self.assertIn('description = "Reviews code for defects"', content)
+        self.assertIn("developer_instructions =", content)
+        self.assertIn("Review code like an owner.", content)
+        # model list → first entry (Codex takes a single string).
+        self.assertIn('model = "gpt-6-luna"', content)
+        # Frontmatter must be stripped from the body.
+        self.assertNotIn("name: Code Reviewer", content)
+
+    def test_get_codex_scope_user(self):
+        """get --format codex --scope user → ~/.codex/agents/."""
+        result = self.runner.invoke(
+            main,
+            ["sub-agent", "get", "Code Reviewer", "--format", "codex", "--scope", "user"],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        dest = self.patch_home / ".codex" / "agents" / "code-reviewer.toml"
+        self.assertTrue(dest.exists())
+
+    def test_get_all_codex(self):
+        """get-all --format codex converts every registered agent."""
+        result = self.runner.invoke(
+            main,
+            [
+                "sub-agent",
+                "get-all",
+                "--format",
+                "codex",
+                "--project-dir",
+                str(self.project_dir),
+            ],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertTrue((self.project_dir / ".codex" / "agents" / "code-reviewer.toml").exists())
+
+    def test_get_codex_output_is_valid_toml(self):
+        """The generated agent TOML must round-trip through tomllib."""
+        try:
+            import tomllib
+        except ModuleNotFoundError:  # Python 3.10
+            import tomli as tomllib
+
+        result = self.runner.invoke(
+            main,
+            [
+                "sub-agent",
+                "get",
+                "Code Reviewer",
+                "--format",
+                "codex",
+                "--project-dir",
+                str(self.project_dir),
+            ],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        dest = self.project_dir / ".codex" / "agents" / "code-reviewer.toml"
+        data = tomllib.loads(dest.read_text())
+        self.assertEqual(data["name"], "code-reviewer")
+        self.assertIn("developer_instructions", data)
+
+
+class TestAgentGeminiFormat(unittest.TestCase):
+    """sub-agent get/get-all --format gemini → .gemini/agents/*.md."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.patch_home = Path(self.temp_dir.name)
+        self.runner = CliRunner()
+
+        import pathlib
+
+        self._original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.patch_home)
+
+        import ai_adapter.config as cfg
+
+        cfg.AI_ADAPTER_DIR = self.patch_home / ".ai-adapter"
+        init()
+
+        self.project_dir = Path(self.temp_dir.name) / "proj"
+        self.project_dir.mkdir(parents=True)
+
+        src = Path(self.temp_dir.name) / "reviewer.agent.md"
+        src.write_text(
+            "---\n"
+            "name: Code Reviewer\n"
+            "description: Reviews code for defects\n"
+            "model: gpt-6.1-sol\n"
+            "tools:\n"
+            "  read: true\n"
+            "  edit: false\n"
+            "---\n"
+            "# Reviewer\n\nReview code like an owner.\n"
+        )
+        result = self.runner.invoke(main, ["sub-agent", "add", str(src)])
+        self.assertEqual(result.exit_code, 0, result.output)
+
+    def tearDown(self):
+        import pathlib
+
+        pathlib.Path.home = staticmethod(self._original_home)
+        import ai_adapter.config as cfg
+
+        cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        self.temp_dir.cleanup()
+
+    def test_get_gemini_converts_to_subagent_md(self):
+        """get --format gemini → .gemini/agents/<slug>.md with slug name."""
+        result = self.runner.invoke(
+            main,
+            [
+                "sub-agent",
+                "get",
+                "Code Reviewer",
+                "--format",
+                "gemini",
+                "--project-dir",
+                str(self.project_dir),
+            ],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        dest = self.project_dir / ".gemini" / "agents" / "code-reviewer.md"
+        self.assertTrue(dest.exists())
+        content = dest.read_text()
+        # Gemini requires a slug-style name.
+        self.assertIn("name: code-reviewer", content)
+        self.assertIn('model: "gpt-6.1-sol"', content)
+        # Object tools → array (truthy entries only).
+        self.assertIn('tools: ["read"]', content)
+        # Body becomes the system prompt; frontmatter stripped.
+        self.assertIn("Review code like an owner.", content)
+        self.assertNotIn("name: Code Reviewer", content)
+
+    def test_get_gemini_scope_user(self):
+        """get --format gemini --scope user → ~/.gemini/agents/."""
+        result = self.runner.invoke(
+            main,
+            ["sub-agent", "get", "Code Reviewer", "--format", "gemini", "--scope", "user"],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        dest = self.patch_home / ".gemini" / "agents" / "code-reviewer.md"
+        self.assertTrue(dest.exists())
+
+    def test_get_all_gemini(self):
+        """get-all --format gemini converts every registered agent."""
+        result = self.runner.invoke(
+            main,
+            [
+                "sub-agent",
+                "get-all",
+                "--format",
+                "gemini",
+                "--project-dir",
+                str(self.project_dir),
+            ],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertTrue((self.project_dir / ".gemini" / "agents" / "code-reviewer.md").exists())
+
+    def test_get_gemini_missing_tools_key_omitted(self):
+        """No tools key in the source → no tools line (inherit parent tools)."""
+        src = Path(self.temp_dir.name) / "writer.agent.md"
+        src.write_text("---\nname: writer\ndescription: Writes docs\n---\nWrite docs.\n")
+        result = self.runner.invoke(main, ["sub-agent", "add", str(src)])
+        self.assertEqual(result.exit_code, 0, result.output)
+
+        result = self.runner.invoke(
+            main,
+            [
+                "sub-agent",
+                "get",
+                "writer",
+                "--format",
+                "gemini",
+                "--project-dir",
+                str(self.project_dir),
+            ],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        content = (self.project_dir / ".gemini" / "agents" / "writer.md").read_text()
+        self.assertNotIn("tools:", content)
 
 
 class TestInstructionTargetOption(unittest.TestCase):

@@ -557,7 +557,61 @@ class TestAddAllRecCommand(unittest.TestCase):
         """Verify message is shown when .github is missing."""
         result = self.runner.invoke(main, ["add-all-rec"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("not found", result.output)
+        self.assertIn("  .github/: skip (directory not found)", result.output)
+        # No creation side effect, no per-category noise under a missing .github/
+        self.assertFalse((Path.cwd() / ".github").exists())
+        self.assertNotIn("created.", result.output)
+        self.assertNotIn("agents/: skip", result.output)
+        # Empty import: summary + get-all-rec hint
+        self.assertIn("All imports completed: Total: 0", result.output)
+        self.assertIn("get-all-rec", result.output)
+
+    def test_add_all_rec_no_github_with_mcp(self):
+        """S2: .github missing but .mcp.json present — import mcp, never create .github."""
+        mcp_json = Path.cwd() / ".mcp.json"
+        mcp_json.write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        "test-server": {
+                            "command": "npx",
+                            "args": ["@test/server"],
+                        }
+                    }
+                }
+            )
+        )
+
+        result = self.runner.invoke(main, ["add-all-rec"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertFalse((Path.cwd() / ".github").exists())
+        self.assertNotIn("agents/: skip", result.output)
+        self.assertIn("  .mcp.json: 1 registered", result.output)
+        self.assertIn("All imports completed: Total: 1", result.output)
+
+        mcp_json.unlink()
+
+    def test_add_all_rec_empty_github_dir(self):
+        """S3: existing but empty .github — per-category skips + hint on total 0."""
+        (Path.cwd() / ".github").mkdir()
+
+        result = self.runner.invoke(main, ["add-all-rec"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("  agents/: skip (directory not found)", result.output)
+        self.assertIn("All imports completed: Total: 0", result.output)
+        self.assertIn("No items imported", result.output)
+        self.assertIn("get-all-rec", result.output)
+
+    def test_add_all_rec_uninitialized(self):
+        """S5: uninitialized store — exit 1 and .github is not created."""
+        import shutil
+
+        shutil.rmtree(self.patch_home / ".ai-adapter")
+
+        result = self.runner.invoke(main, ["add-all-rec"])
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("Configuration file not found", result.output)
+        self.assertFalse((Path.cwd() / ".github").exists())
 
 
 class TestGetAllRecCommand(unittest.TestCase):

@@ -6,9 +6,15 @@ from pathlib import Path
 
 from ai_adapter.agent_format import (
     _convert_tools_in_frontmatter,
+    _convert_tools_in_frontmatter_to_array,
+    _convert_tools_in_frontmatter_to_string,
     batch_validate_and_fix,
     convert_agent_file,
+    convert_agent_file_to_array,
+    convert_agent_file_to_string,
+    convert_tools_to_array,
     convert_tools_to_object,
+    convert_tools_to_string,
     parse_frontmatter,
     validate_agent_file,
 )
@@ -69,6 +75,191 @@ class TestConvertToolsToObject(unittest.TestCase):
         result, modified = convert_tools_to_object(["execute", 42, "read"])
         self.assertEqual(result, {"execute": True, "read": True})
         self.assertTrue(modified)
+
+
+class TestConvertToolsToArray(unittest.TestCase):
+    """Tests for convert_tools_to_array() — object → array (VS Code)."""
+
+    def test_convert_tools_object_to_array(self):
+        result, modified = convert_tools_to_array({"execute": True, "read": True})
+        self.assertEqual(result, ["execute", "read"])
+        self.assertTrue(modified)
+
+    def test_convert_tools_object_drops_falsy(self):
+        result, modified = convert_tools_to_array({"execute": True, "read": False})
+        self.assertEqual(result, ["execute"])
+        self.assertTrue(modified)
+
+    def test_convert_tools_array_preserved(self):
+        result, modified = convert_tools_to_array(["execute", "read"])
+        self.assertEqual(result, ["execute", "read"])
+        self.assertFalse(modified)
+
+    def test_convert_tools_none(self):
+        result, modified = convert_tools_to_array(None)
+        self.assertEqual(result, [])
+        self.assertFalse(modified)
+
+    def test_convert_tools_invalid_type(self):
+        result, modified = convert_tools_to_array("invalid")
+        self.assertEqual(result, [])
+        self.assertFalse(modified)
+
+
+class TestConvertToolsInFrontmatterToArray(unittest.TestCase):
+    """Tests for _convert_tools_in_frontmatter_to_array()."""
+
+    def test_convert_object_block(self):
+        fm = "name: x\ntools:\n  execute: true\n  read: true\n"
+        result, modified = _convert_tools_in_frontmatter_to_array(fm)
+        self.assertTrue(modified)
+        self.assertIn("tools: [execute, read]", result)
+        self.assertNotIn("  execute: true", result)
+
+    def test_convert_object_block_drops_falsy(self):
+        fm = "tools:\n  execute: true\n  read: false\n"
+        result, modified = _convert_tools_in_frontmatter_to_array(fm)
+        self.assertTrue(modified)
+        self.assertIn("tools: [execute]", result)
+
+    def test_array_format_untouched(self):
+        fm = "tools: [execute, read]\n"
+        result, modified = _convert_tools_in_frontmatter_to_array(fm)
+        self.assertFalse(modified)
+
+    def test_quoted_keys_preserved(self):
+        fm = "tools:\n  'codebase-memory-mcp/*': true\n  vscode: true\n"
+        result, modified = _convert_tools_in_frontmatter_to_array(fm)
+        self.assertTrue(modified)
+        # Quotes are stripped; "name/*" mid-token is valid YAML in flow sequences.
+        self.assertIn("tools: [codebase-memory-mcp/*, vscode]", result)
+
+
+class TestConvertAgentFileToArray(unittest.TestCase):
+    """Tests for convert_agent_file_to_array()."""
+
+    def test_converts_object_to_array(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "a.agent.md"
+            f.write_text("---\nname: a\ntools:\n  read: true\n  edit: false\n---\nBody\n")
+            self.assertTrue(convert_agent_file_to_array(f))
+            content = f.read_text()
+            self.assertIn("tools: [read]", content)
+            self.assertNotIn("  read: true", content)
+
+    def test_no_change_for_array(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "a.agent.md"
+            f.write_text("---\nname: a\ntools: [read]\n---\nBody\n")
+            self.assertFalse(convert_agent_file_to_array(f))
+
+    def test_skips_non_agent_md(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "a.md"
+            f.write_text("---\nname: a\ntools:\n  read: true\n---\n")
+            self.assertFalse(convert_agent_file_to_array(f))
+
+
+class TestConvertToolsToString(unittest.TestCase):
+    """Tests for convert_tools_to_string() — Claude comma-separated format."""
+
+    def test_array_to_string(self):
+        result, modified = convert_tools_to_string(["Read", "Grep"])
+        self.assertEqual(result, "Read, Grep")
+        self.assertTrue(modified)
+
+    def test_object_to_string(self):
+        result, modified = convert_tools_to_string({"Read": True, "Grep": True})
+        self.assertEqual(result, "Read, Grep")
+        self.assertTrue(modified)
+
+    def test_object_drops_falsy(self):
+        result, modified = convert_tools_to_string({"Read": True, "Grep": False})
+        self.assertEqual(result, "Read")
+        self.assertTrue(modified)
+
+    def test_string_passthrough(self):
+        result, modified = convert_tools_to_string("Read, Grep")
+        self.assertEqual(result, "Read, Grep")
+        self.assertFalse(modified)
+
+    def test_none(self):
+        result, modified = convert_tools_to_string(None)
+        self.assertEqual(result, "")
+        self.assertFalse(modified)
+
+
+class TestConvertToolsInFrontmatterToString(unittest.TestCase):
+    """Tests for _convert_tools_in_frontmatter_to_string()."""
+
+    def test_array_line(self):
+        fm = "name: x\ntools: [read, grep]\n"
+        result, modified = _convert_tools_in_frontmatter_to_string(fm)
+        self.assertTrue(modified)
+        self.assertIn("tools: read, grep", result)
+
+    def test_object_block(self):
+        fm = "tools:\n  read: true\n  grep: true\n  skip: false\n"
+        result, modified = _convert_tools_in_frontmatter_to_string(fm)
+        self.assertTrue(modified)
+        self.assertIn("tools: read, grep", result)
+        self.assertNotIn("skip", result)
+
+    def test_string_line_untouched(self):
+        fm = "tools: read, grep\n"
+        result, modified = _convert_tools_in_frontmatter_to_string(fm)
+        self.assertFalse(modified)
+
+
+class TestConvertAgentFileToString(unittest.TestCase):
+    """Tests for convert_agent_file_to_string()."""
+
+    def test_converts_array(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "a.agent.md"
+            f.write_text("---\nname: a\ntools: [read, grep]\n---\nBody\n")
+            self.assertTrue(convert_agent_file_to_string(f))
+            self.assertIn("tools: read, grep", f.read_text())
+
+    def test_converts_object(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "a.agent.md"
+            f.write_text("---\nname: a\ntools:\n  read: true\n  edit: false\n---\nBody\n")
+            self.assertTrue(convert_agent_file_to_string(f))
+            content = f.read_text()
+            self.assertIn("tools: read", content)
+            self.assertNotIn("edit", content)
+
+    def test_string_no_change(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "a.agent.md"
+            f.write_text("---\nname: a\ntools: read, grep\n---\nBody\n")
+            self.assertFalse(convert_agent_file_to_string(f))
+
+
+class TestValidateAgentFileStringTarget(unittest.TestCase):
+    """validate_agent_file with target_format='string' (Claude Code)."""
+
+    def test_array_is_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "a.agent.md"
+            f.write_text("---\nname: a\ntools: [read]\n---\n")
+            errs = validate_agent_file(f, target_format="string")
+            self.assertEqual(len(errs), 1)
+            self.assertIn("expected comma-separated string", errs[0])
+
+    def test_object_is_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "a.agent.md"
+            f.write_text("---\nname: a\ntools:\n  read: true\n---\n")
+            errs = validate_agent_file(f, target_format="string")
+            self.assertEqual(len(errs), 1)
+
+    def test_string_is_valid(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "a.agent.md"
+            f.write_text("---\nname: a\ntools: read, grep\n---\n")
+            self.assertEqual(validate_agent_file(f, target_format="string"), [])
 
 
 class TestConvertToolsInFrontmatter(unittest.TestCase):
@@ -311,6 +502,34 @@ class TestBatchValidateAndFix(unittest.TestCase):
         # Valid file should be unchanged
         content_valid = self.valid.read_text()
         self.assertIn("  execute: true", content_valid)
+
+
+class TestValidateAgentFileArrayTarget(unittest.TestCase):
+    """validate_agent_file / batch_validate_and_fix with target_format='array'."""
+
+    def test_object_format_is_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "a.agent.md"
+            f.write_text("---\nname: a\ntools:\n  read: true\n---\n")
+            errs = validate_agent_file(f, target_format="array")
+            self.assertEqual(len(errs), 1)
+            self.assertIn("object format (expected array)", errs[0])
+
+    def test_array_format_is_valid(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "a.agent.md"
+            f.write_text("---\nname: a\ntools: [read]\n---\n")
+            self.assertEqual(validate_agent_file(f, target_format="array"), [])
+
+    def test_batch_fix_array(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            (d / "a.agent.md").write_text("---\nname: a\ntools:\n  read: true\n---\n")
+            problems = batch_validate_and_fix(d, fix=False, target_format="array")
+            self.assertEqual(len(problems), 1)
+            problems = batch_validate_and_fix(d, fix=True, target_format="array")
+            self.assertEqual(problems, [])
+            self.assertIn("tools: [read]", (d / "a.agent.md").read_text())
 
 
 class TestParseFrontmatter(unittest.TestCase):

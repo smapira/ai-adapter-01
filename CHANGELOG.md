@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Per-platform `tools` format conversion** — each AI coding tool reads the agent `tools` frontmatter field in a different shape; a mismatch silently prevents the agent from loading
+  - Type matrix (from `documents/dev/ai-coding-frontmatter-comparison.json`): VS Code / Gemini = **array**, OpenCode = **object** (deprecated in favor of `permission`), Claude Code = **comma-separated string**
+  - `agent_format`: bidirectional converters (`convert_tools_to_array` / `_to_object` / `_to_string`), content-level `convert_agent_content_to()`, and `validate_agent_file(target_format=...)`
+  - `sub-agent add/get/get-all --fix` now normalise object → **array** for the standard (`.github/agents/`) path — VS Code is the native owner of that directory; `--format opencode` still converts array → object
+  - `sub-agent get --format claude` deploys Claude's comma-separated string (`tools: Read, Grep`) instead of object format (spec correction)
+  - `sub-agent get --format codex` → Codex custom-agent TOML (`.codex/agents/*.toml`); `--format gemini` → Gemini subagent Markdown (`.gemini/agents/*.md`)
+- **`sub-agent convert <path> --format <platform>`**: convert one agent file for a single platform
+  - Output filename is prefixed `<format>--` (e.g. `codex--content-marketing.toml`) so the target platform is unmistakable and a converted file isn't picked up by another tool scanning the same directory
+  - `--output-dir`, `--no-prefix`, `--stdout` (preview), and a confirmation prompt on overwrite
+- **`doctor`: agent `tools` format diagnostics** — `_agent_format_issues()` checks deployed agents against each platform's expectation (`.github/agents/` array, `.claude/agents/` string, `.opencode/agents/` object, `.gemini/agents/` array) in project and user scope
+  - Surfaces the "agent never loads in VS Code" failure as an actionable error with a one-line `sub-agent convert` fix command
+  - Symlinked `.opencode` → `.github` paths are deduplicated so one file is never reported twice with conflicting expectations
+
+### Changed
+
+- **`add-all-rec` UX improvements**: clearer output when there is nothing to import
+  - `.github/` is no longer created as a side effect (it is the import source, never a target); a single `  .github/: skip (directory not found)` line is shown instead of per-category skip noise
+  - When `Total: 0`, a hint suggests `ai-adapter get-all-rec` (the reverse direction: deploy registered items into the current project)
+  - Uninitialized store now exits with code 1 (stderr message + `ClickException`), consistent with `get-all-rec` and `status`
+
 ## [0.25.1] - 2026-10-07
 
 ### Fixed

@@ -16,9 +16,14 @@ from pathlib import Path
 import click
 
 from ai_adapter import config as _config
-from ai_adapter.agent_format import parse_frontmatter
+from ai_adapter.agent_format import (
+    find_agent_file,
+    parse_frontmatter,
+    slugify_agent_name,
+    strip_frontmatter_text,
+)
 from ai_adapter.config import add_to_gitignore, resolve_scope_path
-from ai_adapter.models import MCPServer, Skill
+from ai_adapter.models import Agent, MCPServer, Skill
 
 # tomllib is stdlib from Python 3.11; 3.10 falls back to the API-compatible
 # tomli package (a regular dependency with a python_full_version < '3.11'
@@ -478,6 +483,133 @@ def deploy_skills(
         click.echo(f"Copied {copied} skills to {dest_dir} and {compat_dir} (compat).")
     else:
         click.echo(f"Copied {copied} skills to {dest_dir}.")
+
+
+# ── Custom agents (.agent.md → .codex/agents/*.toml) ───────────────────
+# Codex CLI custom agents are standalone TOML files with required
+# name / description / developer_instructions keys (developers.openai.com/
+# codex/subagents).  The agent's frontmatter body becomes
+# developer_instructions; the slugified frontmatter name becomes both the
+# TOML name field and the filename (the docs recommend matching them).
+
+
+def _toml_multiline(value: str) -> str:
+    """Escape *value* for a TOML multi-line basic string (``\"\"\"``).
+
+    Backslashes are doubled first so later escapes stay literal; ``\"\"\"``
+    becomes ``\"\"\\\"`` so the content can never terminate the multi-line
+    literal early (same strategy as the Gemini command exporter).
+    """
+    escaped = value.replace("\\", "\\\\")
+    return escaped.replace('"""', '""\\"')
+
+
+def _first_string(value: object) -> str | None:
+    """Return the first string in *value* (a string passes through).
+
+    VS Code allows ``model`` to be a prioritized list; Codex/Gemini take a
+    single model string, so the first entry wins.
+    """
+    if isinstance(value, str) and value:
+        return value
+    if isinstance(value, list):
+        for item in value:
+            if isinstance(item, str) and item:
+                return item
+    return None
+
+
+def export_agent_toml(name: str, description: str, body: str, model: str | None = None) -> str:
+    """Convert one ``.agent.md`` agent to a Codex custom-agent TOML.
+
+    Args:
+        name: Slug-style agent name (``name`` field + filename convention).
+        description: Human-facing guidance for when to use the agent.
+        body: Markdown instructions (frontmatter already stripped).
+        model: Optional model override.
+
+    Returns:
+        TOML text with ``name``, ``description``, optional ``model``, and
+        a triple-quoted ``developer_instructions``.
+    """
+    lines = [
+        f"name = {_toml_string(name)}",
+        f"description = {_toml_string(description)}",
+    ]
+    if model:
+        lines.append(f"model = {_toml_string(model)}")
+    instructions = _toml_multiline(body)
+    if not instructions.endswith("\n"):
+        instructions += "\n"
+    lines.append(f'developer_instructions = """\n{instructions}"""')
+    return "\n".join(lines) + "\n"
+
+
+def deploy_agent_file(src: Path, dest_dir: Path, force: bool = False) -> Path:
+    """Convert one ``.agent.md`` to a Codex custom-agent TOML in *dest_dir*.
+
+    Args:
+        src: Source agent file (usually in ``~/.ai-adapter/agents/``).
+        dest_dir: Destination directory (``.codex/agents/``).
+        force: Overwrite an existing destination without prompting.
+
+    Returns:
+        The destination path.
+    """
+    content = src.read_text(encoding="utf-8")
+    fm = parse_frontmatter(src)
+    name = slugify_agent_name(str(fm.get("name") or "")) or slugify_agent_name(src.stem) or "agent"
+    description = str(fm.get("description") or "").strip() or name
+    body = strip_frontmatter_text(content).strip()
+
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    # Filename matches the name field (the docs' simplest convention).
+    dest = dest_dir / f"{name}.toml"
+    if dest.exists() and not force:
+        click.confirm(f"'{dest.name}' already exists. Overwrite?", abort=True)
+    dest.write_text(
+        export_agent_toml(name, description, body, model=_first_string(fm.get("model"))),
+        encoding="utf-8",
+    )
+    return dest
+
+
+def deploy_agents(
+    agents: list[Agent],
+    src_dir: Path,
+    scope: str,
+    project_dir: Path | None = None,
+    force: bool = False,
+) -> None:
+    """Convert registered agents to Codex TOML files for the given scope.
+
+    Registered agents are located in *src_dir* by frontmatter name or
+    filename; missing files are skipped with a notice.  Project-scope
+    destinations are added to ``.gitignore`` (user scope never is).
+
+    Args:
+        agents: Registered agent entries from the config.
+        src_dir: The ai-adapter agents store (``~/.ai-adapter/agents/``).
+        scope: "project" or "user".
+        project_dir: Project directory for project scope.
+        force: Overwrite existing files without prompting.
+    """
+    target = resolve_scope_path("codex", "agents", scope, project_dir)
+    dest_dir = target.path
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    converted = 0
+    for agent_entry in agents:
+        src = find_agent_file(src_dir, agent_entry.name)
+        if src is None:
+            click.echo(f"  Skip: '{agent_entry.name}' file not found.")
+            continue
+        dest = deploy_agent_file(src, dest_dir, force)
+        if target.use_gitignore:
+            add_to_gitignore(dest)
+        converted += 1
+
+    click.echo(f"All agents ({converted}) converted to {dest_dir}.")
 
 
 @click.group(name="codex")

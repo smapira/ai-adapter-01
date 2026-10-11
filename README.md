@@ -76,11 +76,11 @@ A CLI tool for managing AI agent instruction files (`.github/instructions` etc.)
 | **GitHub Copilot** | ✅ Partial | `.github/` (agents, skills, commands, prompts, bins) + `.mcp.json` |
 | **Claude Code** | ✅ Partial | `.github/` fallback + `--format claude` → `.claude/` native paths (agents, skills, user MCP) |
 | **OpenCode** | ✅ Full | `ai-adapter opencode install` → `opencode.json`/`opencode.jsonc` (+ `.opencode` symlink); `sub-agent get --format opencode --scope user` → `~/.config/opencode/agents/` |
-| **Codex CLI** | ✅ Full | `ai-adapter codex install` → `AGENTS.md` |
+| **Codex CLI** | ✅ Full | `ai-adapter codex install` → `AGENTS.md`; `sub-agent get --format codex` → `.codex/agents/*.toml` (custom agents) |
 | **Cursor** | ✅ Skills + MCP | `--format cursor` → `.cursor/rules/*.mdc` + `.cursor/mcp.json`; `--format cursorrules` (legacy) → `.cursorrules`; `--format cursor-plugin` → `~/.cursor/plugins/local/<project>/` |
 | **OpenClaw** | ✅ Partial | `--format openclaw` → `~/.openclaw/` (MCP + skills) |
 | **Orca** | ✅ Partial | Shared `~/.claude/skills/` + `.mcp.json` via OpenClaw-style export |
-| **Gemini CLI** | ✅ Full | `ai-adapter gemini install` → `.gemini/` (settings.json, commands/*.toml, GEMINI.md); `--with-extension` → `~/.gemini/extensions/<name>/`; `command/prompt get --format gemini` → TOML |
+| **Gemini CLI** | ✅ Full | `ai-adapter gemini install` → `.gemini/` (settings.json, commands/*.toml, GEMINI.md); `--with-extension` → `~/.gemini/extensions/<name>/`; `command/prompt get --format gemini` → TOML; `sub-agent get --format gemini` → `.gemini/agents/*.md` |
 | **Zed** | ✅ Full | `ai-adapter zed install` → `AGENTS.md` + `.agents/skills/` (Zed discovery path); `zed validate` checks settings.json/SKILL.md; `skill get-all --format zed` |
 | **Agent Plugins 1.0.0** | ✅ Full | `ai-adapter plugin build/validate` (portable packages) |
 
@@ -229,6 +229,10 @@ Also discovers root-level files (AGENTS.md, AGENT.md, CLAUDE.md, copilot-instruc
 and registers them into `~/.ai-adapter/instructions/`.
 Run this after cloning a synced repository to automatically restore configuration from files.
 
+`.github/` is treated as the import source and is never created by this command.
+If nothing is found to import, the command reports `Total: 0` and suggests
+`ai-adapter get-all-rec` (the reverse direction: deploy registered items into this project).
+
 ```bash
 # Run from the project root
 ai-adapter add-all-rec
@@ -337,6 +341,10 @@ Deploys to `.github/agents/` (or `.claude/agents/` with `--format claude`).
 | `sub-agent get-all --format claude` | Copy all registered agents to `.claude/agents/` (add `--scope user` for `~/.claude/agents/`) |
 | `sub-agent get <name> --format opencode` | Copy to `.github/agents/` (add `--scope user` for `~/.config/opencode/agents/`; original filename kept — OpenCode is extension-agnostic) |
 | `sub-agent get-all --format opencode` | Copy all registered agents to `.github/agents/` (add `--scope user` for `~/.config/opencode/agents/`) |
+| `sub-agent get <name> --format codex` | Convert to Codex custom-agent TOML in `.codex/agents/<slug>.toml` (add `--scope user` for `~/.codex/agents/`; frontmatter body → `developer_instructions`, model list → first entry) |
+| `sub-agent get-all --format codex` | Convert all registered agents to Codex TOML (add `--scope user` for `~/.codex/agents/`) |
+| `sub-agent get <name> --format gemini` | Convert to Gemini CLI subagent Markdown in `.gemini/agents/<slug>.md` (add `--scope user` for `~/.gemini/agents/`; object-format tools → array of truthy entries, body → system prompt) |
+| `sub-agent get-all --format gemini` | Convert all registered agents to Gemini CLI subagents (add `--scope user` for `~/.gemini/agents/`) |
 | `sub-agent list` | List registered agents |
 | `sub-agent remove <name>` | Remove an agent (use `--keep-file` to keep the file) |
 | `sub-agent remove-all` | Remove all agents (supports `--keep-file`, `--force`) |

@@ -26,9 +26,14 @@ from pathlib import Path
 import click
 
 from ai_adapter import config as _config
-from ai_adapter.agent_format import parse_frontmatter_text
+from ai_adapter.agent_format import (
+    find_agent_file,
+    parse_frontmatter_text,
+    slugify_agent_name,
+    strip_frontmatter_text,
+)
 from ai_adapter.config import add_to_gitignore, resolve_scope_path
-from ai_adapter.models import Config, MCPServer
+from ai_adapter.models import Agent, Config, MCPServer
 
 # tomllib is stdlib from Python 3.11; 3.10 falls back to the API-compatible
 # tomli package (a regular dependency with a python_full_version < '3.11'
@@ -131,6 +136,136 @@ def export_command_toml(command_name: str, content: str, description: str = "") 
         prompt += "\n"
     description_line = f'description = "{_escape_toml_basic(description)}"'
     return f'{description_line}\n\nprompt = """\n{prompt}"""\n'
+
+
+# ── Subagents (.agent.md → .gemini/agents/*.md) ────────────────────────
+# Gemini CLI custom subagents are Markdown files whose YAML frontmatter
+# requires a slug-style ``name`` (lowercase letters, numbers, hyphens,
+# underscores) and a ``description``; optional keys include ``tools``
+# (array) and ``model``.  The body becomes the agent's system prompt
+# (geminicli.com/docs/core/subagents/).
+
+
+def _tools_to_array(tools_value: object) -> list[str] | None:
+    """Normalise a frontmatter ``tools`` value to Gemini's array format.
+
+    Object format (``{read: true, edit: false}``) keeps only truthy
+    entries; array format passes through (strings only).  Returns ``None``
+    when the key was absent (Gemini then inherits the parent toolset) and
+    ``[]`` when it was present but empty (restrictive intent preserved).
+    """
+    if isinstance(tools_value, list):
+        return [t for t in tools_value if isinstance(t, str)]
+    if isinstance(tools_value, dict):
+        return [k for k, v in tools_value.items() if v]
+    return None
+
+
+def export_agent_markdown(
+    name: str,
+    description: str,
+    body: str,
+    tools: list[str] | None = None,
+    model: str | None = None,
+) -> str:
+    """Convert one ``.agent.md`` agent to a Gemini CLI subagent Markdown.
+
+    Args:
+        name: Slug-style agent name (Gemini requires lowercase letters,
+            numbers, hyphens, underscores).
+        description: Short description visible to the main agent.
+        body: Markdown system prompt (frontmatter already stripped).
+        tools: Optional tool allow-list (Gemini tool names pass through
+            unchanged from the source file).
+        model: Optional model override.
+
+    Returns:
+        Markdown text with YAML frontmatter and the body as system prompt.
+    """
+    fm_lines = [f"name: {name}", f"description: {json.dumps(description, ensure_ascii=False)}"]
+    if tools is not None:
+        fm_lines.append("tools: [" + ", ".join(json.dumps(t, ensure_ascii=False) for t in tools) + "]")
+    if model:
+        fm_lines.append(f"model: {json.dumps(model, ensure_ascii=False)}")
+    prompt = body if body.endswith("\n") else body + "\n"
+    return f"---\n{chr(10).join(fm_lines)}\n---\n\n{prompt}"
+
+
+def deploy_agent_file(src: Path, dest_dir: Path, force: bool = False) -> Path:
+    """Convert one ``.agent.md`` to a Gemini CLI subagent in *dest_dir*.
+
+    Args:
+        src: Source agent file (usually in ``~/.ai-adapter/agents/``).
+        dest_dir: Destination directory (``.gemini/agents/``).
+        force: Overwrite an existing destination without prompting.
+
+    Returns:
+        The destination path.
+    """
+    content = src.read_text(encoding="utf-8")
+    fm = parse_frontmatter_text(content)
+    name = slugify_agent_name(str(fm.get("name") or "")) or slugify_agent_name(src.stem) or "agent"
+    description = str(fm.get("description") or "").strip() or name
+    body = strip_frontmatter_text(content).strip()
+    model = fm.get("model")
+    if isinstance(model, list):
+        model = next((m for m in model if isinstance(m, str) and m), None)
+    elif not isinstance(model, str) or not model:
+        model = None
+
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / f"{name}.md"
+    if dest.exists() and not force:
+        click.confirm(f"'{dest.name}' already exists. Overwrite?", abort=True)
+    dest.write_text(
+        export_agent_markdown(
+            name,
+            description,
+            body,
+            tools=_tools_to_array(fm.get("tools")),
+            model=model,
+        ),
+        encoding="utf-8",
+    )
+    return dest
+
+
+def deploy_agents(
+    agents: list[Agent],
+    src_dir: Path,
+    scope: str,
+    project_dir: Path | None = None,
+    force: bool = False,
+) -> None:
+    """Convert registered agents to Gemini CLI subagents for the given scope.
+
+    Registered agents are located in *src_dir* by frontmatter name or
+    filename; missing files are skipped with a notice.  Project-scope
+    destinations are added to ``.gitignore`` (user scope never is).
+
+    Args:
+        agents: Registered agent entries from the config.
+        src_dir: The ai-adapter agents store (``~/.ai-adapter/agents/``).
+        scope: "project" or "user".
+        project_dir: Project directory for project scope.
+        force: Overwrite existing files without prompting.
+    """
+    target = resolve_scope_path("gemini", "agents", scope, project_dir)
+    dest_dir = target.path
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    converted = 0
+    for agent_entry in agents:
+        src = find_agent_file(src_dir, agent_entry.name)
+        if src is None:
+            click.echo(f"  Skip: '{agent_entry.name}' file not found.")
+            continue
+        dest = deploy_agent_file(src, dest_dir, force)
+        if target.use_gitignore:
+            add_to_gitignore(dest)
+        converted += 1
+
+    click.echo(f"All agents ({converted}) converted to {dest_dir}.")
 
 
 # ── MCP export / merge ──────────────────────────────────────────────────

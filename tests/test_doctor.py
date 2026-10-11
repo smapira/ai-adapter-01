@@ -429,3 +429,120 @@ class TestDoctorCodexConfigToml(unittest.TestCase):
         self.assertTrue(any("not valid TOML" in i.message for i in issues))
         # File not modified (read-only doctor).
         self.assertEqual((codex_dir / "config.toml").read_text(encoding="utf-8"), bad)
+
+
+class TestDoctorAgentFormatIssues(unittest.TestCase):
+    """_agent_format_issues — detect tools-shape mismatches per platform."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        base = Path(self.temp_dir.name)
+        self.project = base / "proj"
+        self.home = base / "home"
+        self.project.mkdir()
+        self.home.mkdir()
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def _write_agent(self, agents_dir, name, tools_block):
+        agents_dir.mkdir(parents=True, exist_ok=True)
+        f = agents_dir / f"{name}.agent.md"
+        f.write_text(f"---\nname: {name}\n{tools_block}---\n# {name}\n", encoding="utf-8")
+        return f
+
+    def test_vscode_object_tools_is_error(self):
+        """Object-format tools in .github/agents/ → error with fix hint."""
+        from ai_adapter.doctor import _agent_format_issues
+
+        self._write_agent(self.project / ".github" / "agents", "a", "tools:\n  read: true\n")
+        issues = _agent_format_issues(self.project, self.home)
+        self.assertEqual(len(issues), 1)
+        self.assertIn("vscode agent", issues[0].message)
+        self.assertIn("expected array", issues[0].message)
+        self.assertIn("--format vscode", issues[0].message)
+        self.assertEqual(issues[0].severity, "error")
+
+    def test_vscode_array_tools_ok(self):
+        """Array-format tools in .github/agents/ → no issue."""
+        from ai_adapter.doctor import _agent_format_issues
+
+        self._write_agent(self.project / ".github" / "agents", "a", "tools: [read, edit]\n")
+        self.assertEqual(_agent_format_issues(self.project, self.home), [])
+
+    def test_claude_string_tools_ok(self):
+        """Comma-separated string in .claude/agents/ → no issue."""
+        from ai_adapter.doctor import _agent_format_issues
+
+        agents_dir = self.project / ".claude" / "agents"
+        agents_dir.mkdir(parents=True)
+        (agents_dir / "r.md").write_text("---\nname: r\ntools: Read, Grep\n---\n# R\n", encoding="utf-8")
+        self.assertEqual(_agent_format_issues(self.project, self.home), [])
+
+    def test_claude_array_tools_is_error(self):
+        """Array tools in .claude/agents/ → error (Claude expects string)."""
+        from ai_adapter.doctor import _agent_format_issues
+
+        agents_dir = self.project / ".claude" / "agents"
+        agents_dir.mkdir(parents=True)
+        (agents_dir / "r.md").write_text("---\nname: r\ntools: [Read, Grep]\n---\n# R\n", encoding="utf-8")
+        issues = _agent_format_issues(self.project, self.home)
+        self.assertEqual(len(issues), 1)
+        self.assertIn("claude agent", issues[0].message)
+        self.assertIn("--format claude", issues[0].message)
+
+    def test_opencode_user_scope(self):
+        """User-scope ~/.opencode/agents object tools → checked under home."""
+        from ai_adapter.doctor import _agent_format_issues
+
+        self._write_agent(self.home / ".opencode" / "agents", "o", "tools: [read]\n")
+        issues = _agent_format_issues(self.project, self.home)
+        self.assertEqual(len(issues), 1)
+        self.assertIn("opencode agent (user)", issues[0].message)
+        self.assertIn("--format opencode", issues[0].message)
+
+    def test_symlinked_opencode_not_double_reported(self):
+        """.opencode symlink → .github dedupes the same physical file."""
+        from ai_adapter.doctor import _agent_format_issues
+
+        github_agents = self.project / ".github" / "agents"
+        self._write_agent(github_agents, "a", "tools:\n  read: true\n")
+        # .opencode → .github (the `opencode alias` convention)
+        (self.project / ".opencode").symlink_to(self.project / ".github")
+        issues = _agent_format_issues(self.project, self.home)
+        # Reported once (as vscode); not repeated with opencode expectation.
+        self.assertEqual(len(issues), 1)
+        self.assertIn("vscode agent", issues[0].message)
+
+    def test_no_agent_dirs_no_issues(self):
+        """Missing agent directories are not issues."""
+        from ai_adapter.doctor import _agent_format_issues
+
+        self.assertEqual(_agent_format_issues(self.project, self.home), [])
+
+    def test_report_surfaces_agent_issues(self):
+        """build_doctor_report includes agent-format issues end-to-end."""
+        import os
+
+        import ai_adapter.config as cfg
+        from ai_adapter.doctor import build_doctor_report
+
+        self._write_agent(self.project / ".github" / "agents", "a", "tools:\n  read: true\n")
+
+        import pathlib
+
+        original_home = pathlib.Path.home
+        pathlib.Path.home = staticmethod(lambda: self.home)
+        cfg.AI_ADAPTER_DIR = self.home / ".ai-adapter"
+        cfg.init()
+        cwd = Path.cwd()
+        os.chdir(self.project)
+        try:
+            report = build_doctor_report(project_dir=self.project, home=self.home)
+        finally:
+            os.chdir(cwd)
+            pathlib.Path.home = staticmethod(original_home)
+            cfg.AI_ADAPTER_DIR = Path.home() / ".ai-adapter"
+        agent_issues = [i for i in report.issues if i.component == "agents"]
+        self.assertEqual(len(agent_issues), 1)
+        self.assertIn("vscode agent", agent_issues[0].message)

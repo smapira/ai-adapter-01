@@ -13,7 +13,10 @@ import click
 
 from ai_adapter.agent_format import (
     _convert_tools_in_frontmatter,
-    convert_agent_file,
+    convert_agent_content_to,
+    convert_agent_file_to_array,
+    slugify_agent_name,
+    strip_frontmatter_text,
     validate_agent_file,
 )
 from ai_adapter.agent_format import (
@@ -32,6 +35,12 @@ from ai_adapter.models import Agent, AgentBinding
 from ai_adapter.providers.claude import deploy_agent_file as _claude_deploy_agent_file
 from ai_adapter.providers.claude import deploy_agents as _claude_deploy_agents
 from ai_adapter.providers.claude import validate_claude_scope
+from ai_adapter.providers.codex import deploy_agent_file as _codex_deploy_agent_file
+from ai_adapter.providers.codex import deploy_agents as _codex_deploy_agents
+from ai_adapter.providers.codex import export_agent_toml
+from ai_adapter.providers.gemini import deploy_agent_file as _gemini_deploy_agent_file
+from ai_adapter.providers.gemini import deploy_agents as _gemini_deploy_agents
+from ai_adapter.providers.gemini import export_agent_markdown
 
 
 def _get_agent_name_from_path(path: Path) -> str:
@@ -78,12 +87,17 @@ def _get_agents_for_env(config, env: str | None) -> list:
     return [a for a in config.agents if _is_agent_bound_to_env(a.name, env, config.agent_bindings)]
 
 
-def _copy_with_tools_conversion(src: Path, dest: Path, fix: bool = False) -> None:
-    """Copy *src* to *dest*, optionally converting ``tools`` format.
+def _copy_with_tools_conversion(src: Path, dest: Path, fix: bool = False, target_format: str = "object") -> None:
+    """Copy *src* to *dest*, normalising ``tools`` for *target_format*.
 
-    For ``.agent.md`` files the frontmatter ``tools`` field is checked.
-    When *fix* is ``True`` and the field uses array format it is converted
-    to object format and written to *dest* (destructive write).
+    For ``.agent.md`` files the frontmatter ``tools`` field is checked
+    against *target_format*:
+
+    - ``"object"`` (OpenCode): array-format tools are an error;
+      *fix* converts array → object.
+    - ``"array"`` (VS Code): object-format tools are an error;
+      *fix* converts object → array (falsy entries dropped).
+
     When *fix* is ``False`` (default) a warning is emitted but the file
     is copied as-is.
 
@@ -98,9 +112,16 @@ def _copy_with_tools_conversion(src: Path, dest: Path, fix: bool = False) -> Non
             inner = re.match(r"^---\s*\n(.*?)\n---", frontmatter_block, re.DOTALL)
             if inner:
                 yaml_text = inner.group(1)
-                converted_yaml, was_modified = _convert_tools_in_frontmatter(
-                    yaml_text,
-                )
+                if target_format == "array":
+                    from ai_adapter.agent_format import _convert_tools_in_frontmatter_to_array
+
+                    converted_yaml, was_modified = _convert_tools_in_frontmatter_to_array(yaml_text)
+                    expected = "array"
+                    wrong = "object"
+                else:
+                    converted_yaml, was_modified = _convert_tools_in_frontmatter(yaml_text)
+                    expected = "object"
+                    wrong = "array"
                 if was_modified:
                     if fix:
                         # Destructive write: convert and save
@@ -116,7 +137,8 @@ def _copy_with_tools_conversion(src: Path, dest: Path, fix: bool = False) -> Non
                     else:
                         # Validate-only: warn but copy as-is
                         click.echo(
-                            f"  Warning: {dest.name} has array-format tools (expected object). Use --fix to convert.",
+                            f"  Warning: {dest.name} has {wrong}-format tools "
+                            f"(expected {expected}). Use --fix to convert.",
                             err=True,
                         )
     # Default: plain copy (also covers non-.agent.md files)
@@ -140,7 +162,7 @@ def _opencode_deploy_agent(src: Path, dest_dir: Path, force: bool, fix: bool) ->
     dest = dest_dir / dest_name
     if dest.exists() and not force:
         click.confirm(f"'{dest.name}' already exists. Overwrite?", abort=True)
-    _copy_with_tools_conversion(src, dest, fix=fix)
+    _copy_with_tools_conversion(src, dest, fix=fix, target_format="object")
     return dest
 
 
@@ -214,7 +236,7 @@ def agent_list(env: str | None) -> None:
     "--fix",
     is_flag=True,
     default=False,
-    help="Convert array-format tools to object format (destructive).",
+    help="Convert object-format tools to array format (destructive; VS Code expects array).",
 )
 def agent_add(path: str, env: str | None, fix: bool) -> None:
     """Add an agent file to ~/.ai-adapter/agents/.
@@ -244,10 +266,10 @@ def agent_add(path: str, env: str | None, fix: bool) -> None:
 
     shutil.copy2(src, dest)
     if str(dest).endswith(".agent.md"):
-        errors = validate_agent_file(dest)
+        errors = validate_agent_file(dest, target_format="array")
         if errors:
             if fix:
-                convert_agent_file(dest)
+                convert_agent_file_to_array(dest)
                 click.echo(
                     f"  Warning: converted tools format in {dest.name}",
                     err=True,
@@ -293,7 +315,7 @@ def agent_add(path: str, env: str | None, fix: bool) -> None:
     "--fix",
     is_flag=True,
     default=False,
-    help="Convert array-format tools to object format (destructive).",
+    help="Convert object-format tools to array format (destructive; VS Code expects array).",
 )
 def agent_add_rec(dir_path: str, env: str | None, fix: bool) -> None:
     """Recursively register all agent files in a directory.
@@ -325,10 +347,10 @@ def agent_add_rec(dir_path: str, env: str | None, fix: bool) -> None:
         config.agents = [a for a in config.agents if a.name != name]
         shutil.copy2(f, dest)
         if str(dest).endswith(".agent.md"):
-            errors = validate_agent_file(dest)
+            errors = validate_agent_file(dest, target_format="array")
             if errors:
                 if fix:
-                    convert_agent_file(dest)
+                    convert_agent_file_to_array(dest)
                     converted += 1
                 else:
                     warned += 1
@@ -361,7 +383,7 @@ def agent_add_rec(dir_path: str, env: str | None, fix: bool) -> None:
     "--fix",
     is_flag=True,
     default=False,
-    help="Convert array-format tools to object format (destructive).",
+    help="Normalise tools format for the target platform (destructive).",
 )
 @click.option(
     "--project-dir",
@@ -374,11 +396,12 @@ def agent_add_rec(dir_path: str, env: str | None, fix: bool) -> None:
     "--format",
     "-f",
     "format_name",
-    type=click.Choice(["standard", "claude", "opencode"]),
+    type=click.Choice(["standard", "claude", "opencode", "codex", "gemini"]),
     default="standard",
     help=(
         "Output format (standard=.github/agents/, claude=.claude/agents/, "
-        "opencode=.github/agents/ or ~/.config/opencode/agents/)"
+        "opencode=.github/agents/ or ~/.config/opencode/agents/, "
+        "codex=.codex/agents/*.toml, gemini=.gemini/agents/*.md)"
     ),
 )
 @click.option(
@@ -386,9 +409,9 @@ def agent_add_rec(dir_path: str, env: str | None, fix: bool) -> None:
     type=click.Choice(["project", "user"]),
     default="project",
     help=(
-        "Deploy scope for --format claude/opencode: "
-        "project=.claude/agents/ or .github/agents/, "
-        "user=~/.claude/agents/ or ~/.config/opencode/agents/"
+        "Deploy scope for --format claude/opencode/codex/gemini: "
+        "project=.claude/agents/, .github/agents/, .codex/agents/ or .gemini/agents/, "
+        "user=~/.claude/agents/, ~/.config/opencode/agents/, ~/.codex/agents/ or ~/.gemini/agents/"
     ),
 )
 def agent_get(
@@ -405,11 +428,15 @@ def agent_get(
     NAME: Agent name to retrieve (no extension needed).
 
     With --format claude, ``.agent.md`` files are renamed to ``.md``
-    (Claude Code reads ``.md``) and array-format tools are converted to
-    object format.  With --format opencode, files keep their original
+    (Claude Code reads ``.md``) and tools are normalised to Claude's
+    comma-separated string format (``tools: Read, Grep``).  With --format
+    opencode, files keep their original
     names and deploy to ``~/.config/opencode/agents/`` with ``--scope
-    user``.  Use --env to only get agents bound to a specific
-    environment.
+    user``.  With --format codex, agents are converted to Codex
+    custom-agent TOML (``.codex/agents/*.toml``).  With --format gemini,
+    agents are converted to Gemini CLI subagent Markdown
+    (``.gemini/agents/*.md``).  Use --env to only get agents bound to a
+    specific environment.
     """
     validate_claude_scope(format_name, scope, ignored_option="--project-dir" if project_dir else None)
     config = load_config()
@@ -445,6 +472,22 @@ def agent_get(
         click.echo(f"Agent '{name}' copied to {dest}.")
         return
 
+    if format_name == "codex":
+        target = resolve_scope_path("codex", "agents", scope, project_path)
+        dest = _codex_deploy_agent_file(src, target.path, force)
+        if target.use_gitignore:
+            add_to_gitignore(dest)
+        click.echo(f"Agent '{name}' converted to {dest}.")
+        return
+
+    if format_name == "gemini":
+        target = resolve_scope_path("gemini", "agents", scope, project_path)
+        dest = _gemini_deploy_agent_file(src, target.path, force)
+        if target.use_gitignore:
+            add_to_gitignore(dest)
+        click.echo(f"Agent '{name}' converted to {dest}.")
+        return
+
     github_dir = get_github_agents_dir(project_path)
     github_dir.mkdir(parents=True, exist_ok=True)
 
@@ -453,7 +496,7 @@ def agent_get(
     if dest.exists() and not force:
         click.confirm(f"'{dest.name}' already exists. Overwrite?", abort=True)
 
-    _copy_with_tools_conversion(src, dest, fix=fix)
+    _copy_with_tools_conversion(src, dest, fix=fix, target_format="array")
     add_to_gitignore(dest)
     click.echo(f"Agent '{name}' copied to {dest}.")
 
@@ -471,17 +514,18 @@ def agent_get(
     "--fix",
     is_flag=True,
     default=False,
-    help="Convert array-format tools to object format (destructive).",
+    help="Normalise tools format for the target platform (destructive).",
 )
 @click.option(
     "--format",
     "-f",
     "format_name",
-    type=click.Choice(["standard", "claude", "opencode"]),
+    type=click.Choice(["standard", "claude", "opencode", "codex", "gemini"]),
     default="standard",
     help=(
         "Output format (standard=.github/agents/, claude=.claude/agents/, "
-        "opencode=.github/agents/ or ~/.config/opencode/agents/)"
+        "opencode=.github/agents/ or ~/.config/opencode/agents/, "
+        "codex=.codex/agents/*.toml, gemini=.gemini/agents/*.md)"
     ),
 )
 @click.option(
@@ -489,9 +533,9 @@ def agent_get(
     type=click.Choice(["project", "user"]),
     default="project",
     help=(
-        "Deploy scope for --format claude/opencode: "
-        "project=.claude/agents/ or .github/agents/, "
-        "user=~/.claude/agents/ or ~/.config/opencode/agents/"
+        "Deploy scope for --format claude/opencode/codex/gemini: "
+        "project=.claude/agents/, .github/agents/, .codex/agents/ or .gemini/agents/, "
+        "user=~/.claude/agents/, ~/.config/opencode/agents/, ~/.codex/agents/ or ~/.gemini/agents/"
     ),
 )
 def agent_get_all(
@@ -504,10 +548,13 @@ def agent_get_all(
     """Copy all registered agents to .github/agents/ (or .claude/agents/ with --format claude).
 
     With --format claude, ``.agent.md`` files are renamed to ``.md`` and
-    array-format tools are converted to object format.  With --format
+    tools are normalised to Claude's comma-separated string format.  With --format
     opencode, files keep their original names and deploy to
-    ``~/.config/opencode/agents/`` with ``--scope user``.  Use --env to only
-    deploy agents bound to a specific environment.
+    ``~/.config/opencode/agents/`` with ``--scope user``.  With --format
+    codex, agents are converted to Codex custom-agent TOML.  With
+    --format gemini, agents are converted to Gemini CLI subagent
+    Markdown.  Use --env to only deploy agents bound to a specific
+    environment.
     """
     validate_claude_scope(format_name, scope, ignored_option="--project-dir" if project_dir else None)
     config = load_config()
@@ -528,6 +575,14 @@ def agent_get_all(
         _opencode_deploy_agents(targets, agents_dir, scope=scope, project_dir=project_path, fix=fix)
         return
 
+    if format_name == "codex":
+        _codex_deploy_agents(targets, agents_dir, scope=scope, project_dir=project_path)
+        return
+
+    if format_name == "gemini":
+        _gemini_deploy_agents(targets, agents_dir, scope=scope, project_dir=project_path)
+        return
+
     github_dir = get_github_agents_dir(project_path)
     github_dir.mkdir(parents=True, exist_ok=True)
 
@@ -540,11 +595,131 @@ def agent_get_all(
             continue
 
         dest = github_dir / src.name
-        _copy_with_tools_conversion(src, dest, fix=fix)
+        _copy_with_tools_conversion(src, dest, fix=fix, target_format="array")
         add_to_gitignore(dest)
         copied += 1
 
     click.echo(f"All agents ({copied}) copied to {github_dir}.")
+
+
+# ── convert: one file → one platform ────────────────────────────────────
+# Tools format differs per platform (see
+# documents/dev/ai-coding-frontmatter-comparison.json).  A converted file
+# is only loaded by the platform it targets, and each platform scans a
+# different directory / extension.  To make the target unmistakable — and
+# to keep a converted file from being picked up by the wrong scanner that
+# happens to share the directory — every output file is prefixed with
+# ``<format>--`` (e.g. ``codex--content-marketing.toml``).
+
+_CONVERT_FORMATS = ("vscode", "claude", "opencode", "gemini", "codex")
+
+
+def _convert_agent_content(src: Path, format_name: str) -> tuple[str, str]:
+    """Convert one agent file for *format_name*.
+
+    Returns ``(content, extension)`` where *extension* includes the dot
+    (the filename stem is computed by the caller).  Frontmatter is parsed
+    once; each branch re-emits only the fields that platform understands.
+    """
+    from ai_adapter.agent_format import convert_tools_to_array
+
+    content = src.read_text(encoding="utf-8")
+    fm = _parse_frontmatter(src)
+    name = slugify_agent_name(str(fm.get("name") or "")) or slugify_agent_name(src.stem) or "agent"
+    description = str(fm.get("description") or "").strip()
+    model = fm.get("model")
+    if isinstance(model, list):
+        model = next((m for m in model if isinstance(m, str) and m), None)
+    elif not isinstance(model, str) or not model:
+        model = None
+    body = strip_frontmatter_text(content).strip()
+
+    if format_name == "codex":
+        return export_agent_toml(name, description, body, model=model), ".toml"
+
+    if format_name == "gemini":
+        tools, _ = convert_tools_to_array(fm.get("tools"))
+        return (
+            export_agent_markdown(name, description, body, tools=tools or None, model=model),
+            ".md",
+        )
+
+    shape = {"vscode": "array", "opencode": "object", "claude": "string"}[format_name]
+    ext = ".agent.md" if format_name == "vscode" else ".md"
+    return convert_agent_content_to(content, shape), ext
+
+
+@agent_group.command(name="convert")
+@click.argument("path", type=click.Path(exists=True, dir_okay=False, readable=True))
+@click.option(
+    "--format",
+    "-f",
+    "format_name",
+    type=click.Choice(list(_CONVERT_FORMATS)),
+    required=True,
+    help="Target platform.",
+)
+@click.option(
+    "--output-dir",
+    "-o",
+    "output_dir",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Output directory (default: alongside the source file).",
+)
+@click.option(
+    "--prefix/--no-prefix",
+    "use_prefix",
+    default=True,
+    help="Prefix the output filename with '<format>--' (default: on).",
+)
+@click.option("--stdout", "to_stdout", is_flag=True, help="Print to stdout instead of writing a file.")
+def agent_convert(
+    path: str,
+    format_name: str,
+    output_dir: str | None,
+    use_prefix: bool,
+    to_stdout: bool,
+) -> None:
+    """Convert an agent file's tools format for one platform.
+
+    PATH is a `.agent.md` (or `.md`) file.  The `tools` field is normalised
+    to the target platform's shape:
+
+    \b
+      vscode   array format, kept as .agent.md
+      claude   comma-separated string, .md
+      opencode object format, .md
+      gemini   array format + slugified name, .md (body = system prompt)
+      codex    TOML (name/description/developer_instructions), .toml
+
+    The output filename is prefixed with `<format>--` by default so the
+    intended platform is unmistakable and a converted file is not picked up
+    by another tool that happens to scan the same directory.  Use
+    --no-prefix to keep the original stem, or --stdout to preview.
+    """
+    src = Path(path)
+    converted, ext = _convert_agent_content(src, format_name)
+
+    stem = src.name
+    for suffix in (".agent.md", ".md"):
+        if stem.endswith(suffix):
+            stem = stem[: -len(suffix)]
+            break
+    stem = slugify_agent_name(stem) or "agent"
+    out_name = f"{format_name}--{stem}{ext}" if use_prefix else f"{stem}{ext}"
+
+    if to_stdout:
+        click.echo(converted, nl=False)
+        return
+
+    out_dir = Path(output_dir) if output_dir else src.parent
+    out_dir.mkdir(parents=True, exist_ok=True)
+    dest = out_dir / out_name
+    if dest.exists():
+        click.confirm(f"'{dest.name}' already exists. Overwrite?", abort=True)
+    dest.write_text(converted, encoding="utf-8")
+    click.echo(f"Agent '{src.name}' converted for {format_name}: {dest}")
 
 
 @agent_group.command(name="remove")

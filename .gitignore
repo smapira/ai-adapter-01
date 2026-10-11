@@ -202,3 +202,6 @@ opencode.json
 /.github/skills/skill-a/
 /.github/agents/reviewer.md
 /artifacts
+/.ruff_cache
+/.pytest_cache
+/.code-review-graph

@@ -101,6 +101,39 @@ globs: server/**/*.ts
 
 ---
 
+## Agent `tools` Frontmatter Format
+
+The `tools` field controls which tools an agent may use, but **each platform expects a different YAML shape**. A mismatch is *silent*: the platform does not error — it either fails to load the agent entirely (VS Code) or ignores the `tools` field. This is the single most common cause of "my agent doesn't appear."
+
+| Platform | Expected shape | Example | On mismatch |
+|----------|---------------|---------|-------------|
+| **VS Code / Copilot** | **array** | `tools: [read, edit, search]` | Agent **fails to load entirely** — never appears in the agents dropdown |
+| **Gemini CLI** | **array** | `tools: [read_file, grep_search]` | Tools ignored; supports wildcards `*`, `mcp_*`, `mcp_<server>_*` |
+| **OpenCode** | **object** (deprecated → `permission`) | `tools:`⏎`  read: true`⏎`  edit: false` | Tools ignored. `true` = allow, `false` = deny (deny is meaningful and preserved on round-trip) |
+| **Claude Code** | **comma-separated string** | `tools: Read, Grep, Glob, Bash` | Tools ignored; expects Claude's own tool names (`Read`, `Grep`, …) |
+
+> **Note:** Omitting `tools` entirely is always valid — the agent loads with the platform's default toolset. For Gemini, omission means *inherit all parent tools*, which is distinct from an empty array (`tools: []` = restrict to none).
+
+The `.github/agents/` directory is the **native home of VS Code custom agents**, so array format is the canonical shape for that directory. OpenCode also reads it via the `.opencode → .github` symlink, but expects object format — the two expectations are irreconcilable in one file. ai-adapter treats VS Code as canonical there and deploys the OpenCode shape only via `--format opencode`.
+
+**ai-adapter handling:**
+
+```bash
+# --fix normalises the standard (.github/agents/) path to array format
+ai-adapter sub-agent get reviewer --fix
+
+# produce any platform's shape from one source file
+ai-adapter sub-agent convert ~/agents/reviewer.agent.md --format claude   # → claude--reviewer.md (string)
+ai-adapter sub-agent convert ~/agents/reviewer.agent.md --format codex    # → codex--reviewer.toml
+
+# detect deployed mismatches (each error carries its own fix command)
+ai-adapter doctor
+```
+
+Reference: `documents/dev/ai-coding-frontmatter-comparison.json` (`tools_type_matrix`) is the machine-readable source of truth for this table.
+
+---
+
 ## Command
 
 | Aspect | GitHub Copilot | Claude Code | OpenCode | OpenAI Codex CLI | Cursor | Continue | Orca |
@@ -197,7 +230,9 @@ The `opencode` subcommand bridges `ai-adapter` with OpenCode:
 | `CLAUDE.md` | ❌ (uses `.github/copilot-instructions.md`) | ✅ Primary | ✅ Fallback | ✅ Import compatible | ❌ | ❌ | ❌ | ❌ |
 | `.github/copilot-instructions.md` | ✅ Primary | ✅ Fallback | ✅ Fallback | ❌ | ❌ | ❌ | ❌ | ❌ |
 | `.github/instructions/*.md` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `.github/agents/*.agent.md` | ✅ Custom agents | ❌ | ✅ Via `opencode.json` | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `.github/agents/*.agent.md` | ✅ Custom agents (array `tools`) | ❌ | ✅ Via `opencode.json` | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `.claude/agents/*.md` | ❌ | ✅ Subagents (string `tools`) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `.codex/agents/*.toml` | ❌ | ❌ | ❌ | ✅ Custom agents (TOML) | ❌ | ❌ | ❌ | ❌ |
 | `.github/skills/SKILL.md` | ✅ | ❌ | ❌ | ❌ (uses own SKILL.md) | ❌ | ❌ | ✅ Via shared `~/.claude/skills/` | ❌ (uses `skills/`) |
 | `.github/bin/*` | ✅ Executable scripts | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | `.mcp.json` | ✅ MCP servers | ✅ MCP servers | ✅ MCP servers | ✅ MCP servers | ✅ `.cursor/mcp.json` | ✅ Via `config.json` | ✅ MCP servers | ❌ (uses `mcp.json`) |
@@ -214,14 +249,15 @@ The `opencode` subcommand bridges `ai-adapter` with OpenCode:
 
 ## Summary
 
-- **GitHub Copilot** has the richest configuration ecosystem with agents, skills, commands, prompts, bins, and MCP — all managed under `.github/`.
-- **Claude Code** relies primarily on `CLAUDE.md` and native `.mcp.json` support. It falls back to `.github/copilot-instructions.md`.
-- **OpenCode** uses `opencode.json` for configuration with a `rules/` directory, and can symlink to `.github/` for compatibility.
-- **OpenAI Codex CLI** uses a hierarchical `AGENTS.md` system (directory-scoped), supports `SKILL.md` with `agents/openai.yaml` metadata, and standard `.mcp.json`.
+- **GitHub Copilot** has the richest configuration ecosystem with agents, skills, commands, prompts, bins, and MCP — all managed under `.github/`. Custom agents are `.agent.md` files whose `tools` field must be an **array**.
+- **Claude Code** relies primarily on `CLAUDE.md` and native `.mcp.json` support. It falls back to `.github/copilot-instructions.md`. Agent `tools` is a **comma-separated string** of Claude tool names.
+- **OpenCode** uses `opencode.json` for configuration with a `rules/` directory, and can symlink to `.github/` for compatibility. Agent `tools` is an **object** (deprecated in favor of `permission`).
+- **OpenAI Codex CLI** uses a hierarchical `AGENTS.md` system (directory-scoped), supports `SKILL.md` with `agents/openai.yaml` metadata, and standard `.mcp.json`. Custom agents are standalone **TOML** files under `.codex/agents/` (required: `name`, `description`, `developer_instructions`).
+- **Gemini CLI** uses `GEMINI.md` for context, `.gemini/commands/*.toml` for commands, and `.gemini/agents/*.md` for subagents (`tools` as an **array** with wildcard support).
 - **Cursor** uses `.cursor/rules/*.mdc` with YAML frontmatter and `globs` for file-scoped rules, plus `.cursor/mcp.json` for MCP. Legacy `.cursorrules` format is also supported.
 - **Continue** uses `.continuerc.json` with a `rules` array for project instructions and model configuration.
 - **Orca** is a desktop app (multi-agent orchestrator) from Anomaly that manages AI agent sessions with worktree-scoped hooks, shared `~/.claude/skills/` support, and standard `.mcp.json` MCP configuration. It delegates instruction/agent management to the underlying spawned agent (OpenCode, Claude Code, etc.).
-- **ai-adapter** unifies these tools by managing `.github/` as the single source of truth and providing bridging commands (e.g., `opencode install`) for tool-specific formats. All entity types (skill, command, prompt, sub-agent, bin, mcp) support `--env` for environment-scoped registration and filtering.
+- **ai-adapter** unifies these tools by managing `.github/` as the single source of truth and providing bridging commands (e.g., `opencode install`) for tool-specific formats. All entity types (skill, command, prompt, sub-agent, bin, mcp) support `--env` for environment-scoped registration and filtering. The `sub-agent convert` command produces any platform's `tools` shape, and `doctor` detects deployed format mismatches.
 
 ---
 
@@ -345,13 +381,19 @@ All URLs below were verified as reachable (HTTP 200).
 | | Custom instructions (`.github/instructions/*.md`) | <https://docs.github.com/en/copilot/customizing-copilot/adding-custom-instructions-for-github-copilot> |
 | | Agents overview | <https://docs.github.com/en/copilot/how-tos/copilot-on-github/use-copilot-agents/overview> |
 | | Custom agents (SDK) | <https://docs.github.com/en/copilot/how-tos/copilot-sdk/features/custom-agents> |
+| | Custom agents (VS Code `.agent.md`) | <https://code.visualstudio.com/docs/agent-customization/custom-agents> |
+| | Agent harnesses (Copilot / Claude / Codex) | <https://code.visualstudio.com/docs/agents/run/agent-harnesses> |
 | | Skills (SDK) | <https://docs.github.com/en/copilot/how-tos/copilot-sdk/features/skills> |
 | | MCP (SDK) | <https://docs.github.com/en/copilot/how-tos/copilot-sdk/features/mcp> |
 | **Claude Code** | Official docs | <https://docs.anthropic.com/en/docs/claude-code/overview> |
+| | Subagents (`.claude/agents/`) | <https://code.claude.com/docs/en/sub-agents> |
 | **OpenCode** | GitHub repository | <https://github.com/opencode-ai/opencode> |
 | | Configuration | <https://github.com/opencode-ai/opencode?tab=readme-ov-file#configuration> |
+| | Agents (markdown, `tools` object / `permission`) | <https://opencode.ai/docs/agents/> |
 | **OpenAI Codex CLI** | GitHub repository | <https://github.com/openai/codex> |
 | | AGENTS.md spec | <https://github.com/openai/codex/blob/main/docs/agents_md.md> |
+| | Subagents (custom agents, TOML) | <https://developers.openai.com/codex/subagents> |
+| **Gemini CLI** | Subagents (`.gemini/agents/*.md`) | <https://geminicli.com/docs/core/subagents/> |
 | **Cursor** | Official docs | <https://docs.cursor.com/get-started/welcome> |
 | | Rules (`.cursor/rules/*.mdc`) | <https://docs.cursor.com/context/rules-for-ai> |
 | | MCP | <https://docs.cursor.com/advanced/mcp> |

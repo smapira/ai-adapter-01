@@ -1,5 +1,5 @@
 # ai-adapter
-<img src="docs/readme-thumbnail.png" alt="ai-adapter" width="800">
+<img src="documents/readme-thumbnail.png" alt="ai-adapter" width="800">
 
 **One configuration for all your AI coding agents.**
 
@@ -345,17 +345,22 @@ Deploys to `.github/agents/` (or `.claude/agents/` with `--format claude`).
 | `sub-agent get-all --format codex` | Convert all registered agents to Codex TOML (add `--scope user` for `~/.codex/agents/`) |
 | `sub-agent get <name> --format gemini` | Convert to Gemini CLI subagent Markdown in `.gemini/agents/<slug>.md` (add `--scope user` for `~/.gemini/agents/`; object-format tools → array of truthy entries, body → system prompt) |
 | `sub-agent get-all --format gemini` | Convert all registered agents to Gemini CLI subagents (add `--scope user` for `~/.gemini/agents/`) |
+| `sub-agent convert <path> --format <platform>` | Convert one agent file for a platform (`vscode`\|`claude`\|`opencode`\|`gemini`\|`codex`); output filename prefixed `<format>--` so the target is unmistakable (`--no-prefix` to keep the original stem, `--stdout` to preview) |
 | `sub-agent list` | List registered agents |
 | `sub-agent remove <name>` | Remove an agent (use `--keep-file` to keep the file) |
 | `sub-agent remove-all` | Remove all agents (supports `--keep-file`, `--force`) |
 
 All commands above accept `--env <env>` to filter or scope by environment (e.g. `sub-agent add --env production reviewer.md`, `sub-agent list --env production`). When adding with `--env`, an agent-env binding is created. When removing with `--env`, only the binding is removed (not the agent itself).
 
+> **`tools` format differs per platform.** VS Code and Gemini expect an **array** (`tools: [read, edit]`), OpenCode an **object** (`tools:\n  read: true`), and Claude Code a **comma-separated string** (`tools: Read, Edit`). A mismatch is silent — the agent simply never loads (VS Code) or ignores the tools. `--fix` normalises the standard (`.github/agents/`) path to array format, and `sub-agent convert` produces any platform's shape. Run `ai-adapter doctor` to detect deployed mismatches.
+
 ```bash
 ai-adapter sub-agent add ~/dotfiles/agents/reviewer.md
 ai-adapter sub-agent add --env production ~/dotfiles/agents/reviewer.md
 ai-adapter sub-agent list --env production
 ai-adapter sub-agent get reviewer
+ai-adapter sub-agent convert ~/agents/content-marketing.agent.md --format codex
+# → codex--content-marketing.toml
 ai-adapter sub-agent remove reviewer --env production
 ```
 
@@ -925,7 +930,7 @@ ai-adapter doctor --fix        # Auto-fix with backup
 ai-adapter doctor --fix --dry-run  # Preview fixes
 ```
 
-Checks: installed tools, available updates, compatibility issues, configuration validation.
+Checks: installed tools, available updates, compatibility issues, configuration validation, and agent `tools` format mismatches (each platform expects a different shape — VS Code / Gemini array, OpenCode object, Claude Code comma-separated string — and a mismatch silently prevents the agent from loading; the error includes a one-line `sub-agent convert` fix).
 
 ### `ai-adapter monitor`
 
